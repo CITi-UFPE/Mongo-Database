@@ -20,7 +20,7 @@ const initialState = {
   appLoaded: false,
 };
 
-export default function (state = initialState, { type, payload }) {
+export default function authReducer(state = initialState, { type, payload }) {
   switch (type) {
     case ME_LOADING:
       return {
