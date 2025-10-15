@@ -22,7 +22,7 @@ const initialState = {
 
 // You could have an array [{ id: 1, isLoading: false, error: null, text: "Hey" }, { id: 2, isLoading: true, error: null, text: null }]
 
-export default function (state = initialState, { type, payload }) {
+export default function messageReducer(state = initialState, { type, payload }) {
   switch (type) {
     case GET_MESSAGES_LOADING:
       return {

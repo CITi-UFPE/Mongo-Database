@@ -1,0 +1,1 @@
+{"version":3,"file":"constants.js","names":["IMAGES_FOLDER_PATH","exports"],"sources":["../../src/utils/constants.js"],"sourcesContent":["export const IMAGES_FOLDER_PATH = '/public/images/';\r\n"],"mappings":";;;;;;AAAO,MAAMA,kBAAkB,GAAAC,OAAA,CAAAD,kBAAA,GAAG,iBAAiB","ignoreList":[]}
