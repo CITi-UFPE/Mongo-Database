@@ -9,7 +9,7 @@ const initialState = {
   error: null,
 };
 
-export default function (state = initialState, { type, payload }) {
+export default function registerReducer(state = initialState, { type, payload }) {
   switch (type) {
     case REGISTER_WITH_EMAIL_LOADING:
       return {

@@ -3,7 +3,7 @@ import { compose } from 'redux';
 import { connect } from 'react-redux';
 import { useFormik } from 'formik';
 import moment from 'moment';
-import { withRouter } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 import { getProfile, editUser, deleteUser } from '../../store/actions/userActions';
 import { loadMe } from '../../store/actions/authActions';
@@ -41,18 +41,18 @@ const Profile = ({
   editUser,
   deleteUser,
   loadMe,
-  history,
-  match,
 }) => {
+  const navigate = useNavigate();
+  const params = useParams();
   const [isEdit, setIsEdit] = useState(false);
   const [image, setImage] = useState(null);
   const [avatar, setAvatar] = useState(null);
   const retryCount = useRef(0);
-  const matchUsername = match.params.username;
+  const matchUsername = params.username;
 
   useEffect(() => {
-    getProfile(matchUsername, history);
-  }, [matchUsername]);
+    getProfile(matchUsername, navigate);
+  }, [matchUsername, getProfile, navigate]);
 
   // if changed his own username reload me, done in userActions
 
@@ -72,8 +72,8 @@ const Profile = ({
     formik.setFieldValue('username', profile.username);
   };
 
-  const handleDeleteUser = (id, history) => {
-    deleteUser(id, history);
+  const handleDeleteUser = (id) => {
+    deleteUser(id, navigate);
   };
 
   const formik = useFormik({
@@ -93,7 +93,7 @@ const Profile = ({
       if (profile.provider === 'email') {
         formData.append('password', values.password);
       }
-      editUser(values.id, formData, history);
+  editUser(values.id, formData, navigate);
       //setIsEdit(false);
     },
   });
@@ -110,7 +110,7 @@ const Profile = ({
           <Loader />
         ) : (
           <div className="profile-info">
-            <img src={image ? image : profile.avatar} className="avatar" />
+            <img src={image ? image : profile.avatar} className="avatar" alt="User avatar" />
             <div className="info-container">
               <div>
                 <span className="label">Provider: </span>
@@ -225,7 +225,7 @@ const Profile = ({
                 Save
               </button>
               <button
-                onClick={() => handleDeleteUser(profile.id, history)}
+                onClick={() => handleDeleteUser(profile.id)}
                 type="button"
                 className="btn"
               >
@@ -244,8 +244,4 @@ const mapStateToProps = (state) => ({
   auth: state.auth,
 });
 
-export default compose(
-  requireAuth,
-  withRouter,
-  connect(mapStateToProps, { getProfile, editUser, deleteUser, loadMe }),
-)(Profile);
+export default compose(requireAuth, connect(mapStateToProps, { getProfile, editUser, deleteUser, loadMe }))(Profile);

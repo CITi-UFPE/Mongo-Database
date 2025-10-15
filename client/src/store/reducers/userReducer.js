@@ -16,7 +16,7 @@ const initialState = {
   error: null,
 };
 
-export default function (state = initialState, { type, payload }) {
+export default function userReducer(state = initialState, { type, payload }) {
   switch (type) {
     case GET_PROFILE_LOADING:
     case EDIT_USER_LOADING:
