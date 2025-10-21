@@ -1,20 +1,30 @@
 {
-  "name": "mern-boilerplate",
-  "version": "1.0.0",
-  "description": "",
-  "main": "server/src/index.js",
+  "name": "temp-vite",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "start": "npm run start-prod --prefix server",
-    "start-dev": "node --experimental-modules babel-node server/src/index.js",
-    "heroku-postbuild": "NPM_CONFIG_PRODUCTION=false npm install --prefix server && npm install --prefix client && npm run build --prefix client",
-    "docker:prod:client:build": "docker compose build mdp-client",
-    "docker:prod:server:build": "docker compose build mdp-server",
-    "docker:prod:client:push": "docker push nemanjamitic/mern-boilerplate-client:latest",
-    "docker:prod:server:push": "docker push nemanjamitic/mern-boilerplate-server:latest"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
   },
-  "author": "Nemanja Mitic (https://github.com/nemanjam)",
-  "license": "MIT",
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.36.0",
+    "@types/node": "^24.6.0",
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "eslint": "^9.36.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.22",
+    "globals": "^16.4.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.45.0",
+    "vite": "^7.1.7"
+  }
 }
