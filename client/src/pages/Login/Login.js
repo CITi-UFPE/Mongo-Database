@@ -1,18 +1,19 @@
 import React from 'react';
-import { Link, withRouter, Redirect } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 
 import { useFormik } from 'formik';
 
 import { compose } from 'redux';
 import { connect } from 'react-redux';
-import _ from 'lodash';
+// lodash removed (not used)
 
 import { loginUserWithEmail } from '../../store/actions/authActions';
 import { FACEBOOK_AUTH_LINK, GOOGLE_AUTH_LINK } from '../../constants';
 import { loginSchema } from './validation';
 import './styles.css';
 
-const Login = ({ auth, history, loginUserWithEmail }) => {
+const Login = ({ auth, loginUserWithEmail }) => {
+  const navigate = useNavigate();
   const formik = useFormik({
     initialValues: {
       email: '',
@@ -20,11 +21,11 @@ const Login = ({ auth, history, loginUserWithEmail }) => {
     },
     validationSchema: loginSchema,
     onSubmit: (values) => {
-      loginUserWithEmail(values, history);
+      loginUserWithEmail(values, navigate);
     },
   });
 
-  if (auth.isAuthenticated) return <Redirect to="/" />;
+  if (auth.isAuthenticated) return <Navigate to="/" replace />;
 
   return (
     <div className="login">
@@ -104,4 +105,4 @@ const mapStateToProps = (state) => ({
   errors: state.errors,
 });
 
-export default compose(withRouter, connect(mapStateToProps, { loginUserWithEmail }))(Login);
+export default compose(connect(mapStateToProps, { loginUserWithEmail }))(Login);

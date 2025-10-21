@@ -1,15 +1,16 @@
 import React from 'react';
 import { compose } from 'redux';
 import { connect } from 'react-redux';
-import { Link, withRouter } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { logOutUser } from '../../store/actions/authActions';
 import './styles.css';
 
-const Navbar = ({ auth, logOutUser, history }) => {
+const Navbar = ({ auth, logOutUser }) => {
+  const navigate = useNavigate();
   const onLogOut = (event) => {
     event.preventDefault();
-    logOutUser(history);
+    logOutUser(navigate);
   };
 
   return (
@@ -33,9 +34,11 @@ const Navbar = ({ auth, logOutUser, history }) => {
               </li>
             )}
             <li className="flex-1" />
-            <img className="avatar" src={auth.me.avatar} />
-            <li className="nav-item" onClick={onLogOut}>
-              <a href="#">Log out</a>
+            <img className="avatar" src={auth.me.avatar} alt="User avatar" />
+            <li className="nav-item">
+              <button className="link-like" onClick={onLogOut} type="button">
+                Log out
+              </button>
             </li>
           </>
         ) : (
@@ -56,4 +59,4 @@ const mapStateToProps = (state) => ({
   auth: state.auth,
 });
 
-export default compose(withRouter, connect(mapStateToProps, { logOutUser }))(Navbar);
+export default compose(connect(mapStateToProps, { logOutUser }))(Navbar);

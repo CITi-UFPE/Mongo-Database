@@ -1,9 +1,9 @@
 import React from 'react';
-import { Link, withRouter, Redirect } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 
 import { compose } from 'redux';
 import { connect } from 'react-redux';
-import _ from 'lodash';
+// lodash removed (not used)
 
 import { useFormik } from 'formik';
 
@@ -11,7 +11,8 @@ import { registerUserWithEmail } from '../../store/actions/registerActions';
 import { registerSchema } from './validation';
 import './styles.css';
 
-const Register = ({ auth, register: { isLoading, error }, history, registerUserWithEmail }) => {
+const Register = ({ auth, register: { isLoading, error }, registerUserWithEmail }) => {
+  const navigate = useNavigate();
   const formik = useFormik({
     initialValues: {
       name: '',
@@ -21,11 +22,11 @@ const Register = ({ auth, register: { isLoading, error }, history, registerUserW
     },
     validationSchema: registerSchema,
     onSubmit: (values) => {
-      registerUserWithEmail(values, history);
+      registerUserWithEmail(values, navigate);
     },
   });
 
-  if (auth.isAuthenticated) return <Redirect to="/" />;
+  if (auth.isAuthenticated) return <Navigate to="/" replace />;
 
   return (
     <div className="register">
@@ -112,4 +113,4 @@ const mapStateToProps = (state) => ({
   register: state.register,
 });
 
-export default compose(withRouter, connect(mapStateToProps, { registerUserWithEmail }))(Register);
+export default compose(connect(mapStateToProps, { registerUserWithEmail }))(Register);
