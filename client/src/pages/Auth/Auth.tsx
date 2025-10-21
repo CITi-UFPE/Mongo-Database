@@ -1,8 +1,7 @@
-import { Mail, Lock, Building2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 
 const Auth = () => {
   return (
@@ -13,7 +12,6 @@ const Auth = () => {
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
             <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center">
-              <Building2 className="w-8 h-8 text-primary-foreground" />
             </div>
           </div>
 
@@ -31,7 +29,10 @@ const Auth = () => {
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                {/* Mail SVG inline */}
+                <svg className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4 4h16v16H4V4zm0 0l8 8 8-8" />
+                </svg>
                 <Input
                   id="email"
                   type="email"
@@ -44,7 +45,10 @@ const Auth = () => {
             <div className="space-y-2">
               <Label htmlFor="password">Senha</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                {/* Lock SVG inline */}
+                <svg className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2a5 5 0 00-5 5v3H6a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V12a2 2 0 00-2-2h-1V7a5 5 0 00-5-5zM9 7a3 3 0 016 0v3H9V7z" />
+                </svg>
                 <Input
                   id="password"
                   type="password"

@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Auth from '@/pages/Auth/Auth';
+import Auth from './pages/Auth/Auth';
 
 const App = () => {
   return (
