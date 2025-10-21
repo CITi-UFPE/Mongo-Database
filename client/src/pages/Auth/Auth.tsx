@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -41,10 +40,6 @@ const Auth = () => {
           <CardTitle className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-purple-500">
             DataViz Analytics
           </CardTitle>
-
-          <CardDescription className="text-muted-foreground">
-            Faça login para acessar suas visualizações
-          </CardDescription>
         </CardHeader>
 
         <CardContent>

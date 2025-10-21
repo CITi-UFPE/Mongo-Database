@@ -1,14 +1,13 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import Auth from './pages/Auth/Auth';
+import './styles/globals.css';
 
 const App = () => {
   return (
-    <Router>
-      <Routes>
-        <Route path="/*" element={<Auth />} />
-      </Routes>
-    </Router>
+    <Routes>
+      <Route path="/*" element={<Auth />} />
+    </Routes>
   );
 };
 
