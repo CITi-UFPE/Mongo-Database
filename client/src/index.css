@@ -1,5 +1,13 @@
+@import "tailwindcss/preflight";
+@import "tailwindcss/utilities";
+
 html,
 body,
+
+
+body {
+  @apply bg-dark-bg;
+}
 #root {
   margin: 0;
   padding: 0;
