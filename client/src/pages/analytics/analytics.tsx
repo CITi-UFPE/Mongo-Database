@@ -6,11 +6,13 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BarChart } from "lucide-react";
+import IndicatorRow  from "@/components/dashboard/IndicatorRow";
 
 export default function DataVizDashboard() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
       {/* Header */}
+      <IndicatorRow />
       <header className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
         <div className="flex items-center gap-2">
           <div className="flex items-center justify-center w-8 h-8 rounded-md bg-gradient-to-r from-blue-500 to-teal-500">
