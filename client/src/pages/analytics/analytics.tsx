@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BarChart } from "lucide-react";
 import IndicatorRow  from "@/components/dashboard/IndicatorRow";
+import UserProfileDropdown from "@/components/ui/userProfileDropdown";
 
 export default function DataVizDashboard() {
   return (
@@ -26,9 +27,7 @@ export default function DataVizDashboard() {
           </div>
         </div>
 
-        <Avatar className="w-8 h-8">
-          <AvatarFallback className="text-white bg-teal-500">J</AvatarFallback>
-        </Avatar>
+        <UserProfileDropdown />
       </header>
 
       <main className="container p-6 mx-auto space-y-6">
