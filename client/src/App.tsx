@@ -1,6 +1,6 @@
 // src/App.tsx
 import React from 'react';
-import { Route, Switch } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 
 const Home = () => (
   <div style={{
@@ -35,15 +35,18 @@ const Login = () => (
 
 const App = () => {
   return (
-    <Switch>
-      <Route exact path="/" component={Home} />
-      <Route path="/login" component={Login} />
-      <Route path="*">
-        <div style={{ padding: '2rem', backgroundColor: '#ef4444', color: 'white' }}>
-          ❌ Página não encontrada
-        </div>
-      </Route>
-    </Switch>
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="*"
+        element={
+          <div style={{ padding: '2rem', backgroundColor: '#ef4444', color: 'white' }}>
+            ❌ Página não encontrada
+          </div>
+        }
+      />
+    </Routes>
   );
 };
 
