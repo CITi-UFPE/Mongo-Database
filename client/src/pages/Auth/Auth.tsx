@@ -25,10 +25,10 @@ export default function Home() {
   return (
     <div className="relative w-full h-screen">
         <Iridescence color={[0.5, 0.7, 0.6]} speed={1.2} amplitude={0.15} mouseReact={false} />
-        <Card className="w-full max-w-md border border-slate-700 bg-slate-800/80 backdrop-blur-sm absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-100">
-        <CardHeader className="text-center space-y-3">
+        <Card className="absolute w-full max-w-md -translate-x-1/2 -translate-y-1/2 border opacity-100 border-slate-700 bg-slate-800/80 backdrop-blur-sm top-1/2 left-1/2">
+        <CardHeader className="space-y-3 text-center">
           {/* Logo ou ícone */}
-          <div className="mx-auto w-14 h-14 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center">
+          <div className="flex items-center justify-center mx-auto w-14 h-14 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="24"
@@ -56,36 +56,36 @@ export default function Home() {
                 Email
               </Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Mail className="absolute w-4 h-4 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="seu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:ring-cyan-500 focus:border-cyan-500"
+                  className="pl-10 text-white bg-slate-700/50 border-slate-600 placeholder-slate-400 focus:ring-cyan-500 focus:border-cyan-500"
                   required
                 />
               </div>
             </div>
                     <div className="space-y-2">
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-slate-300">
                   Senha
                 </Label>
-                <a href="#" className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors">
+                <a href="#" className="text-sm transition-colors text-cyan-400 hover:text-cyan-300">
                   Esqueceu?
                 </a>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Lock className="absolute w-4 h-4 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
                 <Input
                   id="password"
                   type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:ring-cyan-500 focus:border-cyan-500"
+                  className="pl-10 text-white bg-slate-700/50 border-slate-600 placeholder-slate-400 focus:ring-cyan-500 focus:border-cyan-500"
                   required
                 />
               </div>
@@ -93,14 +93,14 @@ export default function Home() {
 
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 hover:from-green-500 hover:via-blue-600 hover:to-purple-700 text-white font-semibold py-2 rounded-md transition-all">
+              className="w-full py-2 font-semibold text-white transition-all rounded-md bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 hover:from-green-500 hover:via-blue-600 hover:to-purple-700">
               Entrar
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-slate-400">
+          <div className="mt-6 text-sm text-center text-slate-400">
             Não tem uma conta?{' '}
-            <a href="#" className="text-cyan-400 hover:text-cyan-300 font-medium underline">
+            <a href="#" className="font-medium underline text-cyan-400 hover:text-cyan-300">
               Criar conta
             </a>
           </div>
