@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BarChart } from "lucide-react";
-import IndicatorRow  from "@/components/dashboard/IndicatorRow";
+import VisualToggle  from "@/components/dashboard/VisualToggle";
 import UserProfileDropdown from "@/components/ui/userProfileDropdown";
 
 export default function DataVizDashboard() {
@@ -26,16 +26,18 @@ export default function DataVizDashboard() {
             </h1>
             <p className="text-xs text-slate-400">Visualização Inteligente de Dados</p>
           </div>
+          <VisualToggle />
         </div>
         <UserProfileDropdown />
       </header>
+
+
 
       <div className="h-20" /> 
 
 
 
-
-      <main className="container p-6 mx-auto space-y-6">
+      <main className="container p-6 mx-auto space-y-6 mt-4">
         {/* Bem-vindo */}
         <Card className="bg-slate-800 border-slate-700">
           <CardHeader>
