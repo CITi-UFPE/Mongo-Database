@@ -1,7 +1,7 @@
 // client/src/main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Import the Auth page and global styles (Tailwind)
 import Auth from './pages/Auth/Auth';
@@ -9,10 +9,10 @@ import './index.css';
 
 const Root = () => (
   <Router>
-    <Switch>
-      <Route exact path="/" component={Auth} />
-      {/* Add more routes here, e.g. <Route path="/profile" component={Profile} /> */}
-    </Switch>
+    <Routes>
+      <Route path="/" element={<Auth />} />
+      {/* Add more routes here, e.g. <Route path="/profile" element={<Profile />} /> */}
+    </Routes>
   </Router>
 );
 
