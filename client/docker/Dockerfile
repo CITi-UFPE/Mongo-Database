@@ -1,6 +1,6 @@
 
 # both stages must use alpine
-FROM node:16.19.0-alpine as build
+FROM node:22-alpine as build
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ RUN npm run build
 #-----------------------
 
 # this has no node, works only for CSR
-FROM nginx:1.23.3-alpine as webserver
+FROM nginx:1-alpine
 
 WORKDIR /usr/share/nginx/html
 

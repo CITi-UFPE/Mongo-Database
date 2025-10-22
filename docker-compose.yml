@@ -1,13 +1,5 @@
 version: '3.8'
 
-# alternative 1 - inject separate env files into containers
-# env_file:
-#   - ./client/.env
-# env_file:
-#   - ./server/.env
-# 
-# alternative 2 - put all vars into single .env and forward vars through docker-compose.yml
-# environment: ...
 
 services:
   mdp-client:
