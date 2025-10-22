@@ -1,24 +1,31 @@
-// src/pages/Home/Home.tsx
-import { useState } from 'react';
-import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Mail, Lock } from 'lucide-react';
+import { useState } from "react"
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  CardTitle,
+  CardDescription
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Mail, Lock, Car } from "lucide-react"
+import PixelBlast from "@/components/PixelBlast"
+import Iridescence from "@/components/Iridescence"
 
 export default function Home() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log({ email, password });
-    // Aqui você integraria com seu backend depois
-  };
+    e.preventDefault()
+    console.log({ email, password })
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-zinc-900 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md border border-slate-700 bg-slate-800/50 backdrop-blur-sm">
+    <div className="relative w-full h-screen">
+        <Iridescence color={[0.5, 0.7, 0.6]} speed={1.2} amplitude={0.15} mouseReact={false} />
+        <Card className="w-full max-w-md border border-slate-700 bg-slate-800/80 backdrop-blur-sm absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-100">
         <CardHeader className="text-center space-y-3">
           {/* Logo ou ícone */}
           <div className="mx-auto w-14 h-14 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center">
@@ -37,7 +44,7 @@ export default function Home() {
               <path d="M4 4h8v16H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
             </svg>
           </div>
-          <CardTitle className="text-2xl font-bold text-white">Bem-vindo de volta</CardTitle>
+          <CardTitle className="text-2xl font-bold text-white">Data Lake CITi</CardTitle>
           <CardDescription className="text-slate-400">
             Faça login para acessar sua conta
           </CardDescription>
@@ -61,8 +68,7 @@ export default function Home() {
                 />
               </div>
             </div>
-
-            <div className="space-y-2">
+                    <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <Label htmlFor="password" className="text-slate-300">
                   Senha
@@ -87,8 +93,7 @@ export default function Home() {
 
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold py-2 rounded-md transition-all"
-            >
+              className="w-full bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 hover:from-green-500 hover:via-blue-600 hover:to-purple-700 text-white font-semibold py-2 rounded-md transition-all">
               Entrar
             </Button>
           </form>
@@ -101,6 +106,11 @@ export default function Home() {
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
+        
+  
+  
+
+</div>
+
+  )
 }
