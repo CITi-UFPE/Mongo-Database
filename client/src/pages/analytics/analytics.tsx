@@ -13,8 +13,9 @@ export default function DataVizDashboard() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
       {/* Header */}
-      <IndicatorRow />
-      <header className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 border-b border-slate-700 
+          backdrop-blur-md bg-slate-900/60">
         <div className="flex items-center gap-2">
           <div className="flex items-center justify-center w-8 h-8 rounded-md bg-gradient-to-r from-blue-500 to-teal-500">
             <BarChart className="w-5 h-5 text-white" />
@@ -26,9 +27,13 @@ export default function DataVizDashboard() {
             <p className="text-xs text-slate-400">Visualização Inteligente de Dados</p>
           </div>
         </div>
-
         <UserProfileDropdown />
       </header>
+
+      <div className="h-20" /> 
+
+
+
 
       <main className="container p-6 mx-auto space-y-6">
         {/* Bem-vindo */}
@@ -36,7 +41,7 @@ export default function DataVizDashboard() {
           <CardHeader>
             <CardTitle className="text-2xl text-teal-400">Bem-vindo ao DataViz</CardTitle>
             <p className="text-sm text-slate-300">
-              Selecione uma planilha e área para visualizar os dados da sua empresa
+              Selecione uma planilha ou Visualização de Dashboard.
             </p>
           </CardHeader>
         </Card>

@@ -33,7 +33,7 @@ export default function UserProfileDropdown() {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-gray-800 text-white rounded-lg shadow-lg z-10">
+        <div className="absolute right-0 mt-2 w-48 bg-gray-800 text-white rounded-lg shadow-lg z-10 backdrop-blur-md">
           <div className="p-4">
             <p className="font-bold">{user.name}</p>
             <p className="text-sm text-gray-400">{user.role} - {user.department}</p>
