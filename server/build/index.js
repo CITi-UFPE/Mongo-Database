@@ -19,8 +19,7 @@ app.use(_express.default.urlencoded({
   extended: true
 }));
 app.use(_passport.default.initialize());
-require('./services/jwtStrategy');
-require('./services/facebookStrategy');
+//require('./services/jwtStrategy');
 require('./services/googleStrategy');
 require('./services/localStrategy');
 const isProduction = process.env.NODE_ENV === 'production';
@@ -31,9 +30,7 @@ const dbConnection = isProduction ? process.env.MONGO_URI_PROD : process.env.MON
 // Connect to Mongo
 _mongoose.default.connect(dbConnection, {
   useNewUrlParser: true,
-  useCreateIndex: true,
-  useUnifiedTopology: true,
-  useFindAndModify: false
+  useUnifiedTopology: true
 }).then(() => {
   console.log('MongoDB Connected...');
   (0, _seed.seedDb)();
