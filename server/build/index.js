@@ -20,22 +20,20 @@ app.use(_express.default.urlencoded({
 }));
 app.use(_passport.default.initialize());
 //require('./services/jwtStrategy');
-require('./services/googleStrategy');
-require('./services/localStrategy');
+//require('./services/facebookStrategy');
+//require('./services/googleStrategy');
+//require('./services/localStrategy');
+
 const isProduction = process.env.NODE_ENV === 'production';
 
 // DB Config
 const dbConnection = isProduction ? process.env.MONGO_URI_PROD : process.env.MONGO_URI_DEV;
 
 // Connect to Mongo
-_mongoose.default.connect(dbConnection, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
+_mongoose.default.connect(dbConnection).then(() => {
   console.log('MongoDB Connected...');
   (0, _seed.seedDb)();
 }).catch(err => console.log(err));
-
 // Use Routes
 app.use('/', _routes.default);
 app.use('/public/images', _express.default.static((0, _path.join)(__dirname, '../public/images')));

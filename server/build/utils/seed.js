@@ -18,64 +18,35 @@ const seedDb = async () => {
   await (0, _utils.deleteAllAvatars)((0, _path.join)(__dirname, '../..', _constants.IMAGES_FOLDER_PATH));
 
   // create 3 users
-  const usersPromises = [...Array(3).keys()].map((index, i) => {
+  const usersPromises = [...Array(3).keys()].map(index => {
     const user = new _User.default({
       provider: 'email',
       username: `user${index}`,
       email: `email${index}@email.com`,
       password: '123456789',
       name: _faker.default.name.findName(),
-      // avatar: faker.image.avatar(),
       avatar: `avatar${index}.jpg`,
       bio: _faker.default.lorem.sentences(3)
     });
     if (index === 0) {
       user.role = 'ADMIN';
     }
-    user.registerUser(user, () => {});
-    return user;
-  });
-  await Promise.all(usersPromises.map(async user => {
-    await user.save();
-  }));
-
-  // create 9 messages
-  const messagePromises = [...Array(9).keys()].map((index, i) => {
-    const message = new _Message.default({
-      text: _faker.default.lorem.sentences(3)
-    });
-    return message;
-  });
-  await Promise.all(messagePromises.map(async message => {
-    await message.save();
-  }));
-  const users = await _User.default.find();
-  const messages = await _Message.default.find();
-
-  // every user 3 messages
-  users.map(async (user, index) => {
-    const threeMessagesIds = messages.slice(index * 3, index * 3 + 3).map(m => m.id);
-    await _User.default.updateOne({
-      _id: user.id
-    }, {
-      $push: {
-        messages: threeMessagesIds
-      }
-    });
+    return user; // apenas retorna o objeto User
   });
 
-  // 0,1,2 message belong to user 0 ...
-  messages.map(async (message, index) => {
-    const j = Math.floor(index / 3);
-    const user = users[j];
-    await _Message.default.updateOne({
-      _id: message.id
-    }, {
-      $set: {
-        user: user.id
-      }
+  // save users to the database
+  const users = await Promise.all(usersPromises.map(u => u.save()));
+
+  // create some messages and associate with users
+  const messages = [...Array(10).keys()].map(i => {
+    return new _Message.default({
+      text: _faker.default.lorem.sentence(),
+      user: users[i % users.length]._id,
+      createdAt: new Date()
     });
   });
+  await _Message.default.insertMany(messages);
+  console.log('Seeding complete.');
 };
 exports.seedDb = seedDb;
 //# sourceMappingURL=seed.js.map
