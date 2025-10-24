@@ -1,15 +1,28 @@
 // src/components/DataVizDashboard.tsx
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import {useState} from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart } from "lucide-react";
 import VisualToggle from "@/components/dashboard/VisualToggle";
 import UserProfileDropdown from "@/components/ui/userProfileDropdown";
-import { User } from "@/components/ui/userProfileDropdown";
+import { UserProfile } from "@/components/ui/userProfileDropdown";
+import { User, Briefcase, Building2, CheckCircle2 } from "lucide-react";
+import GradientText from "@/components/GradientText";
+
 
 export default function DataVizDashboard() {
-  const user = User;
+  const user =  UserProfile;
+
+  // state to show popup coming from VisualToggle
+  const [showPopup, setShowPopup] = useState(false);
+
+  // callback passed to VisualToggle so parent can display its own popup
+  function handleToggleVisualization(_view?: string) {
+    setShowPopup(true);
+    setTimeout(() => setShowPopup(false), 3000); // fecha em 3 segundos
+  }
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-900 text-slate-100 overflow-y-overlay">
@@ -21,11 +34,11 @@ export default function DataVizDashboard() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400">
-              DataViz Analytics
+              <GradientText className="ml-0 mr-0 align-items-left justify-content-left">DataViz Analytics</GradientText>
             </h1>
             <p className="text-xs text-slate-400">Visualização Inteligente de Dados</p>
           </div>
-          <VisualToggle />
+          <VisualToggle onPopup={handleToggleVisualization} />
         </div>
         <UserProfileDropdown />
       </header>
@@ -35,23 +48,38 @@ export default function DataVizDashboard() {
       <main className="container p-6 mx-auto mt-4 space-y-6">
         {/* Bem-vindo */}
         <motion.div
-          whileHover={{ scale: 1.01, boxShadow: "0px 4px 20px rgba(56,189,248,0.2)" }}
-          transition={{ type: "spring", stiffness: 50 }}
-        >
-          <Card className="transition-all bg-slate-800 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-2xl text-teal-400">Bem-vindo ao DataViz</CardTitle>
-              <p className="text-sm text-slate-300">
-                Selecione uma planilha ou Visualização de Dashboard.
-              </p>
-              <CardContent className="mt-4 text-slate-400">
-            <div>
-              <p className="font-medium text-slate-100">{user.name}</p>
-              <p className="text-sm text-slate-400">{user.role}</p>
-              <p className="text-sm text-slate-400">{user.department}</p>
+        whileHover={{ scale: 1.01, boxShadow: "0px 4px 20px rgba(56,189,248,0.2)" }}
+        transition={{ type: "spring", stiffness: 50 }}
+      >
+        <Card className="transition-all bg-slate-800 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-2xl text-teal-400">Bem-vindo ao DataViz</CardTitle>
+            <p className="text-sm text-slate-300">
+              Selecione uma planilha ou Visualização de Dashboard.
+            </p>
+          </CardHeader>
+
+          <CardContent className="mt-4 text-slate-400">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="flex flex-col p-3 border rounded-lg bg-slate-700/40 border-slate-600">
+              <User className="w-6 h-6 mb-2 text-gradient-to-r from-blue-500 to-teal-500" />
+                <span className="text-sm text-slate-400">Usuário</span>
+                <span className="font-medium text-slate-100">{user.name}</span>
+              </div>
+
+              <div className="flex flex-col p-3 border rounded-lg bg-slate-700/40 border-slate-600">
+              <Briefcase className="w-6 h-6 mb-2 text-gradient-to-r from-blue-500 to-teal-500" />
+                <span className="text-sm text-slate-400">Função</span>
+                <span className="font-medium text-slate-100">{user.role}</span>
+              </div>
+
+              <div className="flex flex-col p-3 border rounded-lg bg-slate-700/40 border-slate-600">
+              <Building2 className="w-6 h-6 mb-2 text-gradient-to-r from-blue-500 to-teal-500" />
+                <span className="text-sm text-slate-400">Departamento</span>
+                <span className="font-medium text-slate-100">{user.department}</span>
+              </div>
             </div>
           </CardContent>
-            </CardHeader>
         </Card>
       </motion.div>
 
@@ -159,6 +187,25 @@ export default function DataVizDashboard() {
             </div>
           </Card>
         </motion.div>
+      <AnimatePresence>
+        {showPopup && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+            transition={{ duration: 0.3 }}
+            className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 rounded-xl 
+                       bg-slate-800 border border-slate-700 shadow-lg
+                       text-slate-100"
+          >
+            <CheckCircle2 className="w-5 h-5 text-green-400" />
+            <span className="text-sm">
+              Visualização alterada com sucesso!
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       </main>
     </div>
   );

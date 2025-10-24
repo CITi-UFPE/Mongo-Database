@@ -128,3 +128,8 @@ html {
   overflow-x: hidden; /* impede scroll horizontal real */
   overflow-y: overlay; /* scroll vertical “embedded” sobre o conteúdo */
 }
+
+.animated-gradient-text {
+  margin-left: 0%;
+  margin-right: 0%;
+}

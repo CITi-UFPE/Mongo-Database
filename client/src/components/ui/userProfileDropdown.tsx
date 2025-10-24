@@ -66,7 +66,7 @@ export default function UserProfileDropdown() {
 }
 
 
-export const User = {
+export const UserProfile = {
   name: "Dados TopSecret",
   role: "Visualizador",
   department: "TI",
