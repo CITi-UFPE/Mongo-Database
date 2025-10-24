@@ -173,7 +173,13 @@ function AnimatedSelect({ label, children }: { label: string; children: React.Re
         <SelectTrigger className="w-full transition-all bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600">
           <SelectValue placeholder="Selecione..." />
         </SelectTrigger>
-        <SelectContent position="popper" side="bottom" align="start" sideOffset={4} className="max-w-screen-sm bg-slate-800 border-slate-600">
+        <SelectContent
+          position="popper"
+          side="bottom"
+          align="start"
+          sideOffset={4}
+          className="overflow-visible rounded-md bg-slate-800 border-slate-600"
+          >
           {children}
         </SelectContent>
       </Select>
