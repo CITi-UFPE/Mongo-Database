@@ -32,8 +32,8 @@ export default function DataVizDashboard() {
       <main className="container p-6 mx-auto mt-4 space-y-6">
         {/* Bem-vindo */}
         <motion.div
-          whileHover={{ scale: 1.02, boxShadow: "0px 4px 20px rgba(56,189,248,0.2)" }}
-          transition={{ type: "spring", stiffness: 200 }}
+          whileHover={{ scale: 1.01, boxShadow: "0px 4px 20px rgba(56,189,248,0.2)" }}
+          transition={{ type: "spring", stiffness: 50 }}
         >
           <Card className="transition-all bg-slate-800 border-slate-700">
             <CardHeader>
@@ -47,8 +47,8 @@ export default function DataVizDashboard() {
 
         {/* Filtros */}
         <motion.div
-          whileHover={{ scale: 1.02, boxShadow: "0px 4px 25px rgba(20,184,166,0.25)" }}
-          transition={{ type: "spring", stiffness: 220 }}
+          whileHover={{ scale: 1.01, boxShadow: "0px 4px 25px rgba(20,184,166,0.25)" }}
+          transition={{ type: "spring", stiffness: 50 }}
         >
           <Card className="transition-all bg-slate-800 border-slate-700">
             <CardContent className="pt-6">
@@ -137,7 +137,7 @@ export default function DataVizDashboard() {
         {/* Placeholder */}
         <motion.div
           whileHover={{ scale: 1.01, boxShadow: "0px 4px 30px rgba(59,130,246,0.15)" }}
-          transition={{ type: "spring", stiffness: 180 }}
+          transition={{ type: "spring", stiffness: 50 }}
         >
           <Card className="bg-slate-800 border-slate-700 h-[400px] flex flex-col items-center justify-center space-y-4">
             <BarChart className="w-12 h-12 text-slate-500" />
@@ -157,7 +157,7 @@ export default function DataVizDashboard() {
 /* Subcomponente com animação nos Selects */
 function AnimatedSelect({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <motion.div whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
+    <motion.div whileHover={{ scale: 1.005 }} transition={{ type: "spring", stiffness: 20 }}>
       <label className="block mb-2 text-sm font-medium text-slate-300">{label}</label>
       <Select>
         <SelectTrigger className="w-full transition-all bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600">
