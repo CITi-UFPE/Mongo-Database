@@ -34,7 +34,7 @@ export default function UserProfileDropdown() {
       {/* Botão de perfil */}
       <button
         onClick={toggleDropdown}
-        className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-teal-500 text-white font-semibold shadow-md hover:scale-105 transition-transform"
+        className="flex items-center justify-center w-10 h-10 font-semibold text-white transition-transform rounded-full shadow-md bg-gradient-to-r from-blue-500 to-teal-500 hover:scale-105"
       >
         {user.initials}
       </button>
@@ -42,8 +42,7 @@ export default function UserProfileDropdown() {
       {/* Dropdown */}
       {isOpen && (
         <div
-          className="absolute right-0 mt-2 w-56 rounded-xl shadow-lg z-50
-                     backdrop-blur-md bg-slate-800/70 border border-slate-700/50 overflow-hidden"
+          className="absolute right-0 z-50 w-56 mt-2 overflow-hidden border shadow-lg rounded-xl backdrop-blur-md bg-slate-800/70 border-slate-700/50"
         >
           {/* Cabeçalho */}
           <div className="p-4 border-b border-slate-700/50">
@@ -56,7 +55,7 @@ export default function UserProfileDropdown() {
           {/* Ações */}
           <button
             onClick={handleLogout}
-            className="w-full text-left text-sm text-slate-200 px-4 py-2 hover:bg-slate-700/50 transition-colors"
+            className="w-full px-4 py-2 text-sm text-left transition-colors text-slate-200 hover:bg-slate-700/50"
           >
             Sair
           </button>
@@ -65,3 +64,11 @@ export default function UserProfileDropdown() {
     </div>
   );
 }
+
+
+export const User = {
+  name: "Dados TopSecret",
+  role: "Visualizador",
+  department: "TI",
+  initials: "D",
+};

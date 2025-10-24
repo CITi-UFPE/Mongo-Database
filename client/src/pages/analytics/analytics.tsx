@@ -6,10 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BarChart } from "lucide-react";
 import VisualToggle from "@/components/dashboard/VisualToggle";
 import UserProfileDropdown from "@/components/ui/userProfileDropdown";
+import { User } from "@/components/ui/userProfileDropdown";
 
 export default function DataVizDashboard() {
+  const user = User;
+
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen overflow-x-hidden bg-slate-900 text-slate-100 overflow-y-overlay">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 border-b border-slate-700 backdrop-blur-md bg-slate-900/60">
         <div className="flex items-center gap-2">
@@ -41,9 +44,16 @@ export default function DataVizDashboard() {
               <p className="text-sm text-slate-300">
                 Selecione uma planilha ou Visualização de Dashboard.
               </p>
+              <CardContent className="mt-4 text-slate-400">
+            <div>
+              <p className="font-medium text-slate-100">{user.name}</p>
+              <p className="text-sm text-slate-400">{user.role}</p>
+              <p className="text-sm text-slate-400">{user.department}</p>
+            </div>
+          </CardContent>
             </CardHeader>
-          </Card>
-        </motion.div>
+        </Card>
+      </motion.div>
 
         {/* Filtros */}
         <motion.div
@@ -51,7 +61,7 @@ export default function DataVizDashboard() {
           transition={{ type: "spring", stiffness: 50 }}
         >
           <Card className="transition-all bg-slate-800 border-slate-700">
-            <CardContent className="pt-6">
+            <CardContent className="z-50 pt-6">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <AnimatedSelect label="Selecionar Planilha">
                   <SelectItem
@@ -163,7 +173,7 @@ function AnimatedSelect({ label, children }: { label: string; children: React.Re
         <SelectTrigger className="w-full transition-all bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600">
           <SelectValue placeholder="Selecione..." />
         </SelectTrigger>
-        <SelectContent className="bg-slate-800 border-slate-600">
+        <SelectContent position="popper" side="bottom" align="start" sideOffset={4} className="max-w-screen-sm bg-slate-800 border-slate-600">
           {children}
         </SelectContent>
       </Select>

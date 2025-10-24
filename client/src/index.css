@@ -118,3 +118,13 @@
     @apply bg-background text-foreground;
   }
 }
+
+body {
+  background: #0f172a;
+}
+html body[data-scroll-locked] { overflow: visible !important; margin-right: 0 !important; } 
+
+html {
+  overflow-x: hidden; /* impede scroll horizontal real */
+  overflow-y: overlay; /* scroll vertical “embedded” sobre o conteúdo */
+}
