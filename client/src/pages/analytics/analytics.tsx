@@ -54,16 +54,80 @@ export default function DataVizDashboard() {
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <AnimatedSelect label="Selecionar Planilha">
-                  <SelectItem value="planilha1">Planilha Financeira</SelectItem>
-                  <SelectItem value="planilha2">Planilha de Vendas</SelectItem>
-                  <SelectItem value="planilha3">Planilha de RH</SelectItem>
-                </AnimatedSelect>
+                  <SelectItem
+                    value="planilha1"
+                    className="text-slate-300 transition-all rounded-md
+                      data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-green-500/40 data-[state=checked]:via-cyan-500/40 data-[state=checked]:to-purple-500/40
+                      data-[state=checked]:border data-[state=checked]:border-cyan-400/40
+                      hover:bg-gradient-to-r hover:from-green-500/20 hover:via-cyan-500/20 hover:to-purple-500/20
+                      hover:border hover:border-cyan-400/30"
+                  >
+                    Planilha Financeira
+                  </SelectItem>
 
+                  <SelectItem
+                    value="planilha2"
+                    className="text-slate-300 transition-all rounded-md
+                      data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-green-500/40 data-[state=checked]:via-cyan-500/40 data-[state=checked]:to-purple-500/40
+                      data-[state=checked]:border data-[state=checked]:border-cyan-400/40
+                      hover:bg-gradient-to-r hover:from-green-500/20 hover:via-cyan-500/20 hover:to-purple-500/20
+                      hover:border hover:border-cyan-400/30"
+                  >
+                    Planilha de Vendas
+                  </SelectItem>
+
+                  <SelectItem
+                    value="planilha3"
+                    className="text-slate-300 transition-all rounded-md
+                      data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-green-500/40 data-[state=checked]:via-cyan-500/40 data-[state=checked]:to-purple-500/40
+                      data-[state=checked]:border data-[state=checked]:border-cyan-400/40
+                      hover:bg-gradient-to-r hover:from-green-500/20 hover:via-cyan-500/20 hover:to-purple-500/20
+                      hover:border hover:border-cyan-400/30"
+                  >
+                    Planilha de RH
+                  </SelectItem>
+                </AnimatedSelect>
                 <AnimatedSelect label="Filtrar por Área">
-                  <SelectItem value="todos">Todas as áreas</SelectItem>
-                  <SelectItem value="financeiro">Financeiro</SelectItem>
-                  <SelectItem value="vendas">Vendas</SelectItem>
-                  <SelectItem value="rh">RH</SelectItem>
+                  <SelectItem
+                      value="todos" 
+                      className="text-slate-300 transition-all rounded-md
+                      data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-green-500/40 data-[state=checked]:via-cyan-500/40 data-[state=checked]:to-purple-500/40
+                      data-[state=checked]:border data-[state=checked]:border-cyan-400/40
+                      hover:bg-gradient-to-r hover:from-green-500/20 hover:via-cyan-500/20 hover:to-purple-500/20
+                      hover:border hover:border-cyan-400/30"
+                  >
+                    Todas as áreas
+                  </SelectItem>
+                  <SelectItem
+                    value="financeiro"
+                    className="text-slate-300 transition-all rounded-md
+                      data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-green-500/40 data-[state=checked]:via-cyan-500/40 data-[state=checked]:to-purple-500/40
+                      data-[state=checked]:border data-[state=checked]:border-cyan-400/40
+                      hover:bg-gradient-to-r hover:from-green-500/20 hover:via-cyan-500/20 hover:to-purple-500/20
+                      hover:border hover:border-cyan-400/30"
+                  >
+                    Financeiro
+                  </SelectItem>
+                  <SelectItem
+                    value="vendas"
+                    className="text-slate-300 transition-all rounded-md
+                      data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-green-500/40 data-[state=checked]:via-cyan-500/40 data-[state=checked]:to-purple-500/40
+                      data-[state=checked]:border data-[state=checked]:border-cyan-400/40
+                      hover:bg-gradient-to-r hover:from-green-500/20 hover:via-cyan-500/20 hover:to-purple-500/20
+                      hover:border hover:border-cyan-400/30"
+                  >
+                    Vendas
+                  </SelectItem>
+                  <SelectItem
+                    value="rh"
+                    className="text-slate-300 transition-all rounded-md
+                      data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-green-500/40 data-[state=checked]:via-cyan-500/40 data-[state=checked]:to-purple-500/40
+                      data-[state=checked]:border data-[state=checked]:border-cyan-400/40
+                      hover:bg-gradient-to-r hover:from-green-500/20 hover:via-cyan-500/20 hover:to-purple-500/20
+                      hover:border hover:border-cyan-400/30"
+                  >
+                    RH
+                  </SelectItem>
                 </AnimatedSelect>
               </div>
             </CardContent>
