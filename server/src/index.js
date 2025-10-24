@@ -17,10 +17,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(passport.initialize());
-require('./services/jwtStrategy');
-require('./services/facebookStrategy');
-require('./services/googleStrategy');
-require('./services/localStrategy');
+//require('./services/jwtStrategy');
+//require('./services/facebookStrategy');
+//require('./services/googleStrategy');
+//require('./services/localStrategy');
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -28,19 +28,12 @@ const isProduction = process.env.NODE_ENV === 'production';
 const dbConnection = isProduction ? process.env.MONGO_URI_PROD : process.env.MONGO_URI_DEV;
 
 // Connect to Mongo
-mongoose
-  .connect(dbConnection, {
-    useNewUrlParser: true,
-    useCreateIndex: true,
-    useUnifiedTopology: true,
-    useFindAndModify: false,
-  })
+mongoose.connect(dbConnection)
   .then(() => {
     console.log('MongoDB Connected...');
     seedDb();
   })
-  .catch((err) => console.log(err));
-
+  .catch(err => console.log(err));
 // Use Routes
 app.use('/', routes);
 app.use('/public/images', express.static(join(__dirname, '../public/images')));
