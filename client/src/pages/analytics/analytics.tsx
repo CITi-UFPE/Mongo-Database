@@ -8,8 +8,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BarChart } from "lucide-react";
 import VisualToggle  from "@/components/dashboard/VisualToggle";
 import UserProfileDropdown from "@/components/ui/userProfileDropdown";
+import { DashboardOverview } from "@/components/ui/dashboard";
+import { useState } from "react";
+
+
 
 export default function DataVizDashboard() {
+  const [viewMode, setViewMode] = useState<"planilha" | "dashboard">("planilha");
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
       {/* Header */}
@@ -26,7 +31,11 @@ export default function DataVizDashboard() {
             </h1>
             <p className="text-xs text-slate-400">Visualização Inteligente de Dados</p>
           </div>
-          <VisualToggle />
+          {/* agora o toggle controla o estado viewMode */}
+          <VisualToggle
+            viewMode={viewMode}
+            onChange={(mode) => setViewMode(mode as "planilha" | "dashboard")}
+          />
         </div>
         <UserProfileDropdown />
       </header>
@@ -43,7 +52,7 @@ export default function DataVizDashboard() {
           <CardHeader>
             <CardTitle className="text-2xl text-teal-400">Bem-vindo ao DataViz</CardTitle>
             <p className="text-sm text-slate-300">
-              Selecione uma planilha ou Visualização de Dashboard.
+               Selecione uma planilha e área para visualizar os dados da sua empresa.
             </p>
           </CardHeader>
         </Card>
@@ -98,16 +107,22 @@ export default function DataVizDashboard() {
         </Card>
 
         {/* Área Central - Placeholder */}
-        <Card className="bg-slate-800 border-slate-700 h-[400px] flex flex-col items-center justify-center space-y-4">
-          <BarChart className="w-12 h-12 text-slate-500" />
-          <div className="text-center">
-            <h3 className="text-lg font-semibold text-slate-200">Selecione uma planilha para começar</h3>
-            <p className="max-w-md mt-2 text-sm text-slate-400">
-              Escolha uma planilha acima para visualizar os dados e gráficos disponíveis para sua função e área.
-            </p>
-          </div>
-        </Card>
+        {viewMode === "planilha" && (
+          <Card className="bg-slate-800 border-slate-700 h-[400px] flex flex-col items-center justify-center space-y-4">
+            <BarChart className="w-12 h-12 text-slate-500" />
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-slate-200">Selecione uma planilha para começar</h3>
+              <p className="max-w-md mt-2 text-sm text-slate-400">
+                Escolha uma planilha acima para visualizar os dados e gráficos disponíveis para sua função e área.
+              </p>
+            </div>
+          </Card>
+        )}
+
+        {viewMode === "dashboard" && (
+          <DashboardOverview />
+        )}
       </main>
-    </div>
+     </div> 
   );
 }
