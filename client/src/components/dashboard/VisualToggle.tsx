@@ -2,39 +2,46 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
+type VisualToggleProps = React.HTMLAttributes<HTMLDivElement> & {
+  viewMode: "planilha" | "dashboard";
+  onChange: (mode: "planilha" | "dashboard") => void;
+};
+
 export default function VisualToggle({
   className,
+  viewMode,
+  onChange,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  const [selected, setSelected] = React.useState("visao1");
-
+}: VisualToggleProps) {
   return (
     <div
       className={cn(
-        "grid grid-cols-2 sm:grid-cols-2 gap-4 p-3 rounded-xl backdrop-blur-md ml-3",
+        "flex flex-wrap gap-4 p-3 rounded-xl backdrop-blur-md ml-3",
         className
       )}
       {...props}
     >
+      {/* botão Visão Geral -> vamos mapear pra 'planilha' */}
       <Button
-        onClick={() => setSelected("visao1")}
+        onClick={() => onChange("planilha")}
         className={cn(
-          "transition-all duration-200 rounded-md",
-          selected === "visao1"
-            ? "bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-md"
-            : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white"
+          "transition-all duration-200 rounded-md text-xs font-medium border",
+          viewMode === "planilha"
+            ? "bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-[0_0_20px_rgba(34,211,238,0.5)] border-teal-400/40"
+            : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white border-slate-600"
         )}
       >
         Visão Geral
       </Button>
 
+      {/* botão Dashboard -> ativa 'dashboard' */}
       <Button
-        onClick={() => setSelected("visao2")}
+        onClick={() => onChange("dashboard")}
         className={cn(
-          "transition-all duration-200 rounded-md",
-          selected === "visao2"
-            ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-md"
-            : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white"
+          "transition-all duration-200 rounded-md text-xs font-medium border",
+          viewMode === "dashboard"
+            ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)] border-emerald-400/40"
+            : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white border-slate-600"
         )}
       >
         Dashboard
