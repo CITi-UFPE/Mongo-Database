@@ -13,6 +13,16 @@ import GradientText from "@/components/GradientText";
 
 export default function DataVizDashboard() {
   const user =  UserProfile;
+import { DashboardOverview } from "@/components/ui/dashboard";
+import { useState } from "react";
+
+
+
+export default function DataVizDashboard() {
+  const [viewMode, setViewMode] = useState<"planilha" | "dashboard">("planilha");
+  return (
+    <div className="min-h-screen bg-slate-900 text-slate-100">
+      {/* Header */}
 
   // state to show popup coming from VisualToggle
   const [showPopup, setShowPopup] = useState(false);
@@ -164,7 +174,11 @@ export default function DataVizDashboard() {
             </h1>
             <p className="text-xs text-slate-400">Visualização Inteligente de Dados</p>
           </div>
-          <VisualToggle onPopup={handleToggleVisualization} />
+          {/* agora o toggle controla o estado viewMode */}
+          <VisualToggle
+            viewMode={viewMode}
+            onChange={(mode) => setViewMode(mode as "planilha" | "dashboard")}
+          />
         </div>
         <UserProfileDropdown />
       </header>
@@ -181,7 +195,7 @@ export default function DataVizDashboard() {
           <CardHeader>
             <CardTitle className="text-2xl text-teal-400">Bem-vindo ao DataViz</CardTitle>
             <p className="text-sm text-slate-300">
-              Selecione uma planilha ou Visualização de Dashboard.
+               Selecione uma planilha e área para visualizar os dados da sua empresa.
             </p>
           </CardHeader>
 
@@ -364,7 +378,7 @@ export default function DataVizDashboard() {
       </AnimatePresence>
 
       </main>
-    </div>
+     </div> 
   );
 }
 

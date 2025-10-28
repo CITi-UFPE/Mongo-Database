@@ -10,7 +10,8 @@ type VisualToggleProps = React.HTMLAttributes<HTMLDivElement> & {
 
 export default function VisualToggle({
   className,
-  onPopup,
+  viewMode,
+  onChange,
   ...props
 }: VisualToggleProps) {
   const [selected, setSelected] = React.useState("visao1");
@@ -28,41 +29,38 @@ export default function VisualToggle({
   }
 
   return (
-    <>
-      {/* Botões de toggle */}
-      <div
+    <div
+      className={cn(
+        "flex flex-wrap gap-4 p-3 rounded-xl backdrop-blur-md ml-3",
+        className
+      )}
+      {...props}
+    >
+      {/* botão Visão Geral -> vamos mapear pra 'planilha' */}
+      <Button
+        onClick={() => onChange("planilha")}
         className={cn(
-          "grid grid-cols-2 sm:grid-cols-2 gap-4 p-3 rounded-xl backdrop-blur-md ml-3",
-          className
+          "transition-all duration-200 rounded-md text-xs font-medium border",
+          viewMode === "planilha"
+            ? "bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-[0_0_20px_rgba(34,211,238,0.5)] border-teal-400/40"
+            : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white border-slate-600"
         )}
-        {...props}
       >
-        <Button
-          onClick={() => handleToggle("visao1")}
-          className={cn(
-            "transition-all duration-200 rounded-md",
-            selected === "visao1"
-              ? "bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-md"
-              : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white"
-          )}
-        >
-          Visão Geral
-        </Button>
+        Visão Geral
+      </Button>
 
-        <Button
-          onClick={() => handleToggle("visao2")}
-          className={cn(
-            "transition-all duration-200 rounded-md",
-            selected === "visao2"
-              ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-md"
-              : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white"
-          )}
-        >
-          Dashboard
-        </Button>
-      </div>
-
-      {/* popup handled by parent via `onPopup` prop */}
-    </>
+      {/* botão Dashboard -> ativa 'dashboard' */}
+      <Button
+        onClick={() => onChange("dashboard")}
+        className={cn(
+          "transition-all duration-200 rounded-md text-xs font-medium border",
+          viewMode === "dashboard"
+            ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)] border-emerald-400/40"
+            : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white border-slate-600"
+        )}
+      >
+        Dashboard
+      </Button>
+    </div>
   );
 }
