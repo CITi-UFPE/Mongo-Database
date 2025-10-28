@@ -9,7 +9,6 @@ import UserProfileDropdown from "@/components/ui/userProfileDropdown";
 import { UserProfile } from "@/components/ui/userProfileDropdown";
 import { DashboardOverview } from "@/components/ui/dashboard";
 import { BarChart, Building2, Loader2, User, Briefcase } from "lucide-react";
-import  GradientText  from "@/components/GradientText";
 
 const LOGO_GRADIENT_ID = "analytics-logo-gradient";
 
@@ -214,10 +213,7 @@ export default function DataVizDashboard() {
 
       <main className="container p-6 mx-auto mt-4 space-y-6">
         {/* Bem-vindo */}
-        <motion.div
-        whileHover={{ scale: 1.01, boxShadow: "0px 4px 20px rgba(56,189,248,0.2)" }}
-        transition={{ type: "spring", stiffness: 50 }}
-      >
+        <div>
         <Card className="transition-all bg-slate-800 border-slate-700">
           <CardHeader>
             <CardTitle className="text-2xl text-teal-400">Bem-vindo ao DataViz</CardTitle>
@@ -248,7 +244,7 @@ export default function DataVizDashboard() {
             </div>
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
 
         <Card className="bg-slate-800 border-slate-700">
           <CardContent className="pt-6">
