@@ -201,9 +201,9 @@ export default function DataVizDashboard() {
           <AnimatedLogo />
           <div className="min-w-0">
             <h1 className="text-xl font-bold text-transparent bg-clip-text bg-linear-to-r from-blue-400 to-teal-400">
-              <GradientText className="ml-0 mr-0 align-items-left justify-content-left">DataViz Analytics</GradientText>
+              Data Lake Analytics
             </h1>
-            <p className="text-xs text-slate-400">Visualização Inteligente de Dados</p>
+            <p className="text-xs text-slate-400">By CITi</p>
           </div>
           <VisualToggle viewMode={viewMode} onChange={handleViewModeChange} />
         </div>
@@ -463,7 +463,7 @@ function AnimatedLogo() {
   return (
     <motion.svg
       viewBox="0 0 292.447 228.721"
-      className="w-24 h-auto"
+      className="w-20 h-auto"
       initial={{ scale: 0.95, opacity: 0.9 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: "spring", stiffness: 220, damping: 20 }}
