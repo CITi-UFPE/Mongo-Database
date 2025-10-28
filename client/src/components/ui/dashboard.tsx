@@ -70,18 +70,18 @@ export function DashboardOverview() {
   return (
     <div className="w-full max-w-[1400px] mx-auto px-6 py-10 text-slate-100">
       {/* título geral */}
-      <p className="text-slate-300 mb-6 text-sm">
+      <p className="mb-6 text-sm text-slate-300">
         Análise de performance e métricas temporais
       </p>
 
       {/* KPIs */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+      <div className="grid gap-4 mb-8 md:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi, i) => (
           <Card
             key={i}
             className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]"
           >
-            <CardContent className="p-4 flex flex-col gap-3">
+            <CardContent className="flex flex-col gap-3 p-4">
               <div className="flex items-start justify-between">
                 <div className="flex items-center justify-center w-10 h-10 rounded-md bg-gradient-to-br shadow-inner from-10% to-90% bg-clip-padding
                   bg-gradient-to-r
@@ -99,7 +99,7 @@ export function DashboardOverview() {
 
               <div className="flex flex-col">
                 <span className="text-xs text-slate-400">{kpi.label}</span>
-                <span className="text-xl font-semibold text-white leading-tight">
+                <span className="text-xl font-semibold leading-tight text-white">
                   {kpi.value}
                 </span>
               </div>
@@ -111,7 +111,7 @@ export function DashboardOverview() {
       {/* Performance de vendas */}
       <Card className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 mb-8 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]">
         <CardHeader className="pb-2">
-          <CardTitle className="text-slate-100 text-base font-medium">
+          <CardTitle className="text-base font-medium text-slate-100">
             Performance de Vendas
           </CardTitle>
         </CardHeader>
@@ -183,11 +183,11 @@ export function DashboardOverview() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 min-h-[220px] shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-slate-100 text-base font-medium">
+            <CardTitle className="text-base font-medium text-slate-100">
               Distribuição de Clientes
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-slate-400 text-sm">
+          <CardContent className="text-sm text-slate-400">
             {/* espaço pra pizza chart / barras horizontais etc */}
             <div className="h-[160px] flex items-center justify-center text-slate-500 text-xs">
               (gráfico de distribuição aqui)
@@ -197,11 +197,11 @@ export function DashboardOverview() {
 
         <Card className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 min-h-[220px] shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]">
           <CardHeader className="pb-2">
-            <CardTitle className="text-slate-100 text-base font-medium">
+            <CardTitle className="text-base font-medium text-slate-100">
               Evolução do NPS
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-slate-400 text-sm">
+          <CardContent className="text-sm text-slate-400">
             <div className="h-[160px] flex items-center justify-center text-slate-500 text-xs">
               (gráfico de NPS aqui)
             </div>
