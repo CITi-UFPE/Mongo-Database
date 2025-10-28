@@ -9,9 +9,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Mail, Lock, Car } from "lucide-react"
-import PixelBlast from "@/components/PixelBlast"
+import { Mail, Lock } from "lucide-react"
 import Iridescence from "@/components/Iridescence"
+import AnimatedLogo from "@/components/AnimatedLogo"
 
 export default function Home() {
   const [email, setEmail] = useState("")
@@ -27,24 +27,8 @@ export default function Home() {
         <Iridescence color={[0.5, 0.7, 0.6]} speed={1.2} amplitude={0.15} mouseReact={false} />
         <Card className="absolute w-full max-w-md -translate-x-1/2 -translate-y-1/2 border opacity-100 border-slate-700 bg-slate-800/80 backdrop-blur-sm top-1/2 left-1/2">
         <CardHeader className="space-y-3 text-center">
-          {/* Logo ou ícone */}
-          <div className="flex items-center justify-center mx-auto w-14 h-14 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 2v20h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z" />
-              <path d="M4 4h8v16H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
-            </svg>
-          </div>
-          <CardTitle className="text-2xl font-bold text-white">Data Lake CITi</CardTitle>
+          <AnimatedLogo className="w-20 mx-auto" />
+          <CardTitle className="text-2xl font-bold text-white">Data Lake</CardTitle>
           <CardDescription className="text-slate-400">
             Faça login para acessar sua conta
           </CardDescription>
@@ -93,7 +77,7 @@ export default function Home() {
 
             <Button
               type="submit"
-              className="w-full py-2 font-semibold text-white transition-all rounded-md bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 hover:from-green-500 hover:via-blue-600 hover:to-purple-700">
+              className="w-full py-2 font-semibold text-white transition-all rounded-md bg-linear-to-r from-green-400 via-blue-500 to-purple-600 hover:from-green-500 hover:via-blue-600 hover:to-purple-700">
               Entrar
             </Button>
           </form>
