@@ -1,51 +1,31 @@
 // src/components/DataVizDashboard.tsx
 
-import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart, Loader2, User, Briefcase, Building2, CheckCircle2 } from "lucide-react";
 import VisualToggle from "@/components/dashboard/VisualToggle";
 import UserProfileDropdown from "@/components/ui/userProfileDropdown";
-import { UserProfile } from "@/components/ui/userProfileDropdown";
-import GradientText from "@/components/GradientText";
-
-
-export default function DataVizDashboard() {
-  const user =  UserProfile;
 import { DashboardOverview } from "@/components/ui/dashboard";
-import { useState } from "react";
+import { BarChart, Loader2 } from "lucide-react";
 
-
+type SheetRow = Record<string, unknown>;
 
 export default function DataVizDashboard() {
   const [viewMode, setViewMode] = useState<"planilha" | "dashboard">("planilha");
-  return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
-      {/* Header */}
-
-  // state to show popup coming from VisualToggle
-  const [showPopup, setShowPopup] = useState(false);
   const [sheets, setSheets] = useState<string[]>([]);
-  const [selectedSheet, setSelectedSheet] = useState<string | undefined>();
-  const [sheetData, setSheetData] = useState<Record<string, unknown>[]>([]);
   const [loadingSheets, setLoadingSheets] = useState(false);
-  const [loadingSheetData, setLoadingSheetData] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
+  const [selectedSheet, setSelectedSheet] = useState<string | undefined>();
+  const [sheetData, setSheetData] = useState<SheetRow[]>([]);
+  const [loadingSheetData, setLoadingSheetData] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [selectedFilterColumn, setSelectedFilterColumn] = useState<string>("");
   const [selectedFilterValue, setSelectedFilterValue] = useState<string>("");
   const sheetRequestRef = useRef(0);
 
-  // callback passed to VisualToggle so parent can display its own popup
-  function handleToggleVisualization(_view?: string) {
-    setShowPopup(true);
-    setTimeout(() => setShowPopup(false), 3000); // fecha em 3 segundos
-  }
-
   useEffect(() => {
     let canceled = false;
-    const loadSheets = async () => {
+    const fetchSheets = async () => {
       setLoadingSheets(true);
       setSheetError(null);
       try {
@@ -72,7 +52,7 @@ export default function DataVizDashboard() {
       }
     };
 
-    loadSheets();
+    fetchSheets();
     return () => {
       canceled = true;
     };
@@ -89,7 +69,7 @@ export default function DataVizDashboard() {
     sheetRequestRef.current = requestId;
     setLoadingSheetData(true);
 
-    const loadSheetData = async () => {
+    const loadSheet = async () => {
       try {
         const response = await fetch(`/api/spreadsheet/${encodeURIComponent(sheetName)}`);
         if (!response.ok) {
@@ -114,7 +94,7 @@ export default function DataVizDashboard() {
       }
     };
 
-    loadSheetData();
+    loadSheet();
   };
 
   const columnOptions = useMemo(() => {
@@ -160,9 +140,15 @@ export default function DataVizDashboard() {
     });
   }, [filteredRows]);
 
+  const planilhaDisabled = loadingSheets || sheetError !== null || sheets.length === 0;
+  const planilhaPlaceholder = loadingSheets
+    ? "Carregando planilhas..."
+    : !sheets.length
+      ? "Nenhuma planilha disponível"
+      : "Escolha uma planilha";
+
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-900 text-slate-100 overflow-y-overlay">
-      {/* Header */}
+    <div className="min-h-screen bg-slate-900 text-slate-100">
       <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 border-b border-slate-700 backdrop-blur-md bg-slate-900/60">
         <div className="flex items-center gap-2">
           <div className="flex items-center justify-center w-8 h-8 rounded-md bg-linear-to-r from-blue-500 to-teal-500">
@@ -170,15 +156,11 @@ export default function DataVizDashboard() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-transparent bg-clip-text bg-linear-to-r from-blue-400 to-teal-400">
-              <GradientText className="ml-0 mr-0 align-items-left justify-content-left">DataViz Analytics</GradientText>
+              DataViz Analytics
             </h1>
             <p className="text-xs text-slate-400">Visualização Inteligente de Dados</p>
           </div>
-          {/* agora o toggle controla o estado viewMode */}
-          <VisualToggle
-            viewMode={viewMode}
-            onChange={(mode) => setViewMode(mode as "planilha" | "dashboard")}
-          />
+          <VisualToggle viewMode={viewMode} onChange={(mode) => setViewMode(mode)} />
         </div>
         <UserProfileDropdown />
       </header>
@@ -186,118 +168,114 @@ export default function DataVizDashboard() {
       <div className="h-20" />
 
       <main className="container p-6 mx-auto mt-4 space-y-6">
-        {/* Bem-vindo */}
-        <motion.div
-        whileHover={{ scale: 1.01, boxShadow: "0px 4px 20px rgba(56,189,248,0.2)" }}
-        transition={{ type: "spring", stiffness: 50 }}
-      >
-        <Card className="transition-all bg-slate-800 border-slate-700">
+        <Card className="bg-slate-800 border-slate-700">
           <CardHeader>
             <CardTitle className="text-2xl text-teal-400">Bem-vindo ao DataViz</CardTitle>
             <p className="text-sm text-slate-300">
-               Selecione uma planilha e área para visualizar os dados da sua empresa.
+              Selecione uma planilha e explore seus dados com filtros dinâmicos ou visualize indicadores no dashboard.
             </p>
           </CardHeader>
-
-          <CardContent className="mt-4 text-slate-400">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="flex flex-col p-3 border rounded-lg bg-slate-700/40 border-slate-600">
-              <User className="w-6 h-6 mb-2 text-gradient-to-r from-blue-500 to-teal-500" />
-                <span className="text-sm text-slate-400">Usuário</span>
-                <span className="font-medium text-slate-100">{user.name}</span>
-              </div>
-
-              <div className="flex flex-col p-3 border rounded-lg bg-slate-700/40 border-slate-600">
-              <Briefcase className="w-6 h-6 mb-2 text-gradient-to-r from-blue-500 to-teal-500" />
-                <span className="text-sm text-slate-400">Função</span>
-                <span className="font-medium text-slate-100">{user.role}</span>
-              </div>
-
-              <div className="flex flex-col p-3 border rounded-lg bg-slate-700/40 border-slate-600">
-              <Building2 className="w-6 h-6 mb-2 text-gradient-to-r from-blue-500 to-teal-500" />
-                <span className="text-sm text-slate-400">Departamento</span>
-                <span className="font-medium text-slate-100">{user.department}</span>
-              </div>
-            </div>
-          </CardContent>
         </Card>
-      </motion.div>
 
-        {/* Filtros */}
-        <motion.div
-          whileHover={{ scale: 1.01, boxShadow: "0px 4px 25px rgba(20,184,166,0.25)" }}
-          transition={{ type: "spring", stiffness: 50 }}
-        >
-          <Card className="transition-all bg-slate-800 border-slate-700">
-            <CardContent className="z-50 pt-6">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <AnimatedSelect
-                    label="Selecionar Planilha"
-                    value={selectedSheet}
-                    onValueChange={handleSheetChange}
-                    placeholder={loadingSheets ? "Carregando..." : "Selecione uma planilha"}
-                    disabled={loadingSheets || !!sheetError || sheets.length === 0}
+        <Card className="bg-slate-800 border-slate-700">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="flex items-center gap-1 mb-2 text-sm font-medium">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-teal-400"
                   >
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                  </svg>
+                  Selecionar Planilha
+                </label>
+                <Select
+                  value={selectedSheet}
+                  onValueChange={handleSheetChange}
+                  disabled={planilhaDisabled}
+                >
+                  <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-100 disabled:cursor-not-allowed">
+                    <SelectValue placeholder={planilhaPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
                     {sheets.map((sheetName) => (
-                      <SelectItem
-                        key={sheetName}
-                        value={sheetName}
-                        className="text-slate-300 transition-all rounded-md
-                          data-[state=checked]:bg-linear-to-r data-[state=checked]:from-green-500/40 data-[state=checked]:via-cyan-500/40 data-[state=checked]:to-purple-500/40
-                          data-[state=checked]:border data-[state=checked]:border-cyan-400/40
-                          hover:bg-linear-to-r hover:from-green-500/20 hover:via-cyan-500/20 hover:to-purple-500/20
-                          hover:border hover:border-cyan-400/30"
-                      >
+                      <SelectItem key={sheetName} value={sheetName} className="hover:bg-slate-700">
                         {sheetName}
                       </SelectItem>
                     ))}
-                  </AnimatedSelect>
-                  {sheetError ? (
-                    <p className="mt-2 text-xs text-rose-400">{sheetError}</p>
-                  ) : null}
-                </div>
-                <div className="space-y-4">
-                  <AnimatedSelect
-                    label="Filtrar por coluna"
-                    value={selectedFilterColumn || undefined}
-                    onValueChange={(value) => {
-                      setSelectedFilterColumn(value);
-                      setSelectedFilterValue("");
-                    }}
-                    placeholder={columnOptions.length ? "Selecione uma coluna" : "Selecione uma planilha"}
-                    disabled={!columnOptions.length}
-                  >
-                    {columnOptions.map((column) => (
-                      <SelectItem key={column} value={column} className="text-slate-300">
-                        {column}
-                      </SelectItem>
-                    ))}
-                  </AnimatedSelect>
-                  <AnimatedSelect
-                    label="Filtrar por valor"
-                    value={selectedFilterValue || undefined}
-                    onValueChange={setSelectedFilterValue}
-                    placeholder={selectedFilterColumn ? "Selecione um valor" : "Escolha uma coluna"}
-                    disabled={!filterValueOptions.length}
-                  >
-                    {filterValueOptions.map((value) => (
-                      <SelectItem key={value} value={value} className="text-slate-300">
-                        {value}
-                      </SelectItem>
-                    ))}
-                  </AnimatedSelect>
-                </div>
+                  </SelectContent>
+                </Select>
+                {sheetError ? (
+                  <p className="mt-2 text-xs text-rose-400">{sheetError}</p>
+                ) : null}
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
 
-        {/* Placeholder */}
-        <motion.div
-          whileHover={{ scale: 1.01, boxShadow: "0px 4px 30px rgba(59,130,246,0.15)" }}
-          transition={{ type: "spring", stiffness: 50 }}
-        >
+              {viewMode === "planilha" ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-slate-300">Filtrar por coluna</label>
+                    <Select
+                      value={selectedFilterColumn || undefined}
+                      onValueChange={(value) => {
+                        setSelectedFilterColumn(value);
+                        setSelectedFilterValue("");
+                      }}
+                      disabled={!columnOptions.length}
+                    >
+                      <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-100 disabled:cursor-not-allowed">
+                        <SelectValue
+                          placeholder={columnOptions.length ? "Selecione uma coluna" : "Selecione uma planilha"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
+                        {columnOptions.map((column) => (
+                          <SelectItem key={column} value={column} className="hover:bg-slate-700">
+                            {column}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-slate-300">Filtrar por valor</label>
+                    <Select
+                      value={selectedFilterValue || undefined}
+                      onValueChange={setSelectedFilterValue}
+                      disabled={!filterValueOptions.length}
+                    >
+                      <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-100 disabled:cursor-not-allowed">
+                        <SelectValue
+                          placeholder={selectedFilterColumn ? "Selecione um valor" : "Escolha uma coluna"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
+                        {filterValueOptions.map((value) => (
+                          <SelectItem key={value} value={value} className="hover:bg-slate-700">
+                            {value}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+
+        {viewMode === "planilha" ? (
           <Card className="bg-slate-800 border-slate-700 min-h-[400px] flex flex-col p-6">
             {loadingSheetData ? (
               <div className="flex flex-col items-center justify-center flex-1 gap-3 text-slate-400">
@@ -309,7 +287,7 @@ export default function DataVizDashboard() {
                 <BarChart className="w-10 h-10 text-rose-400" />
                 <p className="text-sm text-rose-400">{dataError}</p>
               </div>
-            ) : filteredRows.length && tableHeaders.length ? (
+            ) : selectedSheet && tableHeaders.length && filteredRows.length ? (
               <div className="flex-1 overflow-hidden">
                 <div className="h-full overflow-auto border rounded-lg border-slate-700/70">
                   <table className="w-full text-sm text-left border-collapse">
@@ -329,7 +307,7 @@ export default function DataVizDashboard() {
                           <tr key={rowKey} className="border-b border-slate-700/60 last:border-b-0">
                             {tableHeaders.map((header) => (
                               <td key={`${rowKey}-${header}`} className="px-4 py-3 text-slate-300">
-                                {formatCellValue((row as Record<string, unknown>)[header])}
+                                {formatCellValue((row as SheetRow)[header])}
                               </td>
                             ))}
                           </tr>
@@ -359,66 +337,11 @@ export default function DataVizDashboard() {
               </div>
             )}
           </Card>
-        </motion.div>
-      <AnimatePresence>
-        {showPopup && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.95 }}
-            transition={{ duration: 0.3 }}
-            className="fixed flex items-center gap-3 px-4 py-3 border shadow-lg bottom-6 right-6 z-9999 rounded-xl bg-slate-800 border-slate-700 text-slate-100"
-          >
-            <CheckCircle2 className="w-5 h-5 text-green-400" />
-            <span className="text-sm">
-              Visualização alterada com sucesso!
-            </span>
-          </motion.div>
+        ) : (
+          <DashboardOverview />
         )}
-      </AnimatePresence>
-
       </main>
-     </div> 
-  );
-}
-
-/* Subcomponente com animação nos Selects */
-function AnimatedSelect({
-  label,
-  children,
-  value,
-  onValueChange,
-  placeholder = "Selecione...",
-  disabled = false,
-}: {
-  label: string;
-  children: React.ReactNode;
-  value?: string;
-  onValueChange?: (value: string) => void;
-  placeholder?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <motion.div whileHover={{ scale: 1.005 }} transition={{ type: "spring", stiffness: 20 }}>
-      <label className="block mb-2 text-sm font-medium text-slate-300">{label}</label>
-      <Select value={value ?? undefined} onValueChange={disabled ? undefined : onValueChange}>
-        <SelectTrigger
-          disabled={disabled}
-          className="w-full transition-all bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600 disabled:cursor-not-allowed"
-        >
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent
-          position="popper"
-          side="bottom"
-          align="start"
-          sideOffset={4}
-          className="overflow-visible rounded-md bg-slate-800 border-slate-600"
-          >
-          {children}
-        </SelectContent>
-      </Select>
-    </motion.div>
+    </div>
   );
 }
 

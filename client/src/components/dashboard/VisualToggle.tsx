@@ -1,32 +1,29 @@
-import * as React from "react";
+import { useCallback, type HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
 
-type VisualToggleProps = React.HTMLAttributes<HTMLDivElement> & {
-  /** called when a view is toggled; receives the selected view id */
-  onPopup?: (view: string) => void;
+type ViewMode = "planilha" | "dashboard";
+
+type VisualToggleProps = Omit<HTMLAttributes<HTMLDivElement>, "onChange"> & {
+  viewMode?: ViewMode;
+  onChange?: (mode: ViewMode) => void;
+  onPopup?: (mode: ViewMode) => void;
 };
 
 export default function VisualToggle({
   className,
-  viewMode,
+  viewMode = "planilha",
   onChange,
+  onPopup,
   ...props
 }: VisualToggleProps) {
-  const [selected, setSelected] = React.useState("visao1");
-  // Função que dispara ao clicar em uma das visões
-  function handleToggle(view: string) {
-    setSelected(view);
-
-    // notify parent (if provided) that the popup should be shown
-    // notify parent (if provided) that the popup should be shown
-    try {
-      onPopup?.(view);
-    } catch (e) {
-      // ignore callback errors
-    }
-  }
+  const handleSelect = useCallback(
+    (mode: ViewMode) => {
+      onChange?.(mode);
+      onPopup?.(mode);
+    },
+    [onChange, onPopup]
+  );
 
   return (
     <div
@@ -36,26 +33,26 @@ export default function VisualToggle({
       )}
       {...props}
     >
-      {/* botão Visão Geral -> vamos mapear pra 'planilha' */}
       <Button
-        onClick={() => onChange("planilha")}
+        type="button"
+        onClick={() => handleSelect("planilha")}
         className={cn(
           "transition-all duration-200 rounded-md text-xs font-medium border",
           viewMode === "planilha"
-            ? "bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-[0_0_20px_rgba(34,211,238,0.5)] border-teal-400/40"
+            ? "bg-linear-to-r from-blue-500 to-teal-500 text-white shadow-[0_0_20px_rgba(34,211,238,0.5)] border-teal-400/40"
             : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white border-slate-600"
         )}
       >
         Visão Geral
       </Button>
 
-      {/* botão Dashboard -> ativa 'dashboard' */}
       <Button
-        onClick={() => onChange("dashboard")}
+        type="button"
+        onClick={() => handleSelect("dashboard")}
         className={cn(
           "transition-all duration-200 rounded-md text-xs font-medium border",
           viewMode === "dashboard"
-            ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)] border-emerald-400/40"
+            ? "bg-linear-to-r from-teal-500 to-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.5)] border-emerald-400/40"
             : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white border-slate-600"
         )}
       >
