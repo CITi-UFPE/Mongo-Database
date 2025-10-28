@@ -1,10 +1,11 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 
 type VisualToggleProps = React.HTMLAttributes<HTMLDivElement> & {
-  viewMode: "planilha" | "dashboard";
-  onChange: (mode: "planilha" | "dashboard") => void;
+  /** called when a view is toggled; receives the selected view id */
+  onPopup?: (view: string) => void;
 };
 
 export default function VisualToggle({
@@ -13,6 +14,20 @@ export default function VisualToggle({
   onChange,
   ...props
 }: VisualToggleProps) {
+  const [selected, setSelected] = React.useState("visao1");
+  // Função que dispara ao clicar em uma das visões
+  function handleToggle(view: string) {
+    setSelected(view);
+
+    // notify parent (if provided) that the popup should be shown
+    // notify parent (if provided) that the popup should be shown
+    try {
+      onPopup?.(view);
+    } catch (e) {
+      // ignore callback errors
+    }
+  }
+
   return (
     <div
       className={cn(
