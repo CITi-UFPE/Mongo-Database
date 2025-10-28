@@ -1,12 +1,15 @@
 // src/components/DataVizDashboard.tsx
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import VisualToggle from "@/components/dashboard/VisualToggle";
 import UserProfileDropdown from "@/components/ui/userProfileDropdown";
+import { UserProfile } from "@/components/ui/userProfileDropdown";
 import { DashboardOverview } from "@/components/ui/dashboard";
-import { BarChart, Loader2 } from "lucide-react";
+import { BarChart, Building2, Loader2, User, Briefcase } from "lucide-react";
+import  GradientText  from "@/components/GradientText";
 
 type SheetRow = Record<string, unknown>;
 
@@ -22,6 +25,7 @@ export default function DataVizDashboard() {
   const [selectedFilterColumn, setSelectedFilterColumn] = useState<string>("");
   const [selectedFilterValue, setSelectedFilterValue] = useState<string>("");
   const sheetRequestRef = useRef(0);
+  const user = UserProfile;
 
   useEffect(() => {
     let canceled = false;
@@ -156,7 +160,7 @@ export default function DataVizDashboard() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-transparent bg-clip-text bg-linear-to-r from-blue-400 to-teal-400">
-              DataViz Analytics
+              <GradientText className="ml-0 mr-0 align-items-left justify-content-left">DataViz Analytics</GradientText>
             </h1>
             <p className="text-xs text-slate-400">Visualização Inteligente de Dados</p>
           </div>
@@ -168,14 +172,42 @@ export default function DataVizDashboard() {
       <div className="h-20" />
 
       <main className="container p-6 mx-auto mt-4 space-y-6">
-        <Card className="bg-slate-800 border-slate-700">
+        {/* Bem-vindo */}
+        <motion.div
+        whileHover={{ scale: 1.01, boxShadow: "0px 4px 20px rgba(56,189,248,0.2)" }}
+        transition={{ type: "spring", stiffness: 50 }}
+      >
+        <Card className="transition-all bg-slate-800 border-slate-700">
           <CardHeader>
             <CardTitle className="text-2xl text-teal-400">Bem-vindo ao DataViz</CardTitle>
             <p className="text-sm text-slate-300">
-              Selecione uma planilha e explore seus dados com filtros dinâmicos ou visualize indicadores no dashboard.
+              Selecione uma planilha ou Visualização de Dashboard.
             </p>
           </CardHeader>
+
+          <CardContent className="mt-4 text-slate-400">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="flex flex-col p-3 border rounded-lg bg-slate-700/40 border-slate-600">
+              <User className="w-6 h-6 mb-2 text-gradient-to-r from-blue-500 to-teal-500" />
+                <span className="text-sm text-slate-400">Usuário</span>
+                <span className="font-medium text-slate-100">{user.name}</span>
+              </div>
+
+              <div className="flex flex-col p-3 border rounded-lg bg-slate-700/40 border-slate-600">
+              <Briefcase className="w-6 h-6 mb-2 text-gradient-to-r from-blue-500 to-teal-500" />
+                <span className="text-sm text-slate-400">Função</span>
+                <span className="font-medium text-slate-100">{user.role}</span>
+              </div>
+
+              <div className="flex flex-col p-3 border rounded-lg bg-slate-700/40 border-slate-600">
+              <Building2 className="w-6 h-6 mb-2 text-gradient-to-r from-blue-500 to-teal-500" />
+                <span className="text-sm text-slate-400">Departamento</span>
+                <span className="font-medium text-slate-100">{user.department}</span>
+              </div>
+            </div>
+          </CardContent>
         </Card>
+      </motion.div>
 
         <Card className="bg-slate-800 border-slate-700">
           <CardContent className="pt-6">
