@@ -1,0 +1,42 @@
+import mongoose from 'mongoose';
+const { Schema } = mongoose;
+
+const MembroSchema = new Schema(
+  {
+    nome: {
+      type: String,
+      required: [true, 'O nome do membro é obrigatório.'],
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: [true, 'O email do membro é obrigatório.'],
+      unique: true,
+      trim: true,
+      lowercase: true,
+      match: [
+        /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+        'Por favor, insira um email válido.',
+      ],
+    },
+    cargo: {
+      type: String,
+      required: [true, 'O cargo do membro é obrigatório.'],
+      trim: true,
+      enum: ['Vendedor', 'Desenvolvedor', 'Designer', 'Diretor', 'Analista de dados', 'Gerente']
+    },
+    telefone: {
+      type: String,
+      trim: true,
+    },
+    data_entrada: {
+      type: Date,
+      required: [true, 'A data de entrada é obrigatória.'] 
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
+
+export default mongoose.model('Membro', MembroSchema);
