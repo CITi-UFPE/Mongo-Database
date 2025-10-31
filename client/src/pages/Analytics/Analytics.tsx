@@ -321,7 +321,7 @@ export default function DataVizDashboard() {
                       </SelectContent>
                     </Select>
                   </div>
-              <div>
+                  <div>
                     <label className="block mb-2 text-sm font-medium text-slate-300">Filtrar por valor</label>
                     <Select
                       value={selectedFilterValue || undefined}
@@ -332,17 +332,17 @@ export default function DataVizDashboard() {
                         <SelectValue
                           placeholder={selectedFilterColumn ? "Selecione um valor" : "Escolha uma coluna"}
                         />
-                  </SelectTrigger>
+                      </SelectTrigger>
                       <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
                         {filterValueOptions.map((value) => (
                           <SelectItem key={value} value={value} className="hover:bg-slate-700">
                             {value}
                           </SelectItem>
                         ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               ) : null}
             </div>
           </CardContent>
@@ -400,16 +400,16 @@ export default function DataVizDashboard() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center flex-1 gap-4 text-center">
-          <BarChart className="w-12 h-12 text-slate-500" />
+                <BarChart className="w-12 h-12 text-slate-500" />
                 <div>
-            <h3 className="text-lg font-semibold text-slate-200">Selecione uma planilha para começar</h3>
-            <p className="max-w-md mt-2 text-sm text-slate-400">
+                  <h3 className="text-lg font-semibold text-slate-200">Selecione uma planilha para começar</h3>
+                  <p className="max-w-md mt-2 text-sm text-slate-400">
                     Escolha uma planilha acima para visualizar os dados e aplicar filtros personalizados.
-            </p>
-          </div>
+                  </p>
+                </div>
               </div>
             )}
-        </Card>
+          </Card>
         ) : (
           <DashboardOverview />
         )}
