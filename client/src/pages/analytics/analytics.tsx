@@ -268,7 +268,7 @@ export default function DataVizDashboard() {
                     <rect x="3" y="14" width="7" height="7" />
                     <rect x="14" y="14" width="7" height="7" />
                   </svg>
-                  Selecionar Planilha
+                  <h3 className="text-slate-300">Selecionar Planilha</h3>
                 </label>
                 <Select
                   value={selectedSheet}
