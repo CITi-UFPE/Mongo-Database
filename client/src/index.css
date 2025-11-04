@@ -26,6 +26,51 @@
   }
 }
 
+@layer utilities {
+  /* Scrollbar customizada para toda a página */
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    width: 12px;
+  }
+
+  html::-webkit-scrollbar-track,
+  body::-webkit-scrollbar-track {
+    @apply bg-slate-900;
+  }
+
+  html::-webkit-scrollbar-thumb,
+  body::-webkit-scrollbar-thumb {
+    @apply transition-colors rounded-full bg-slate-600 hover:bg-slate-500;
+  }
+
+  /* Firefox - scrollbar da página inteira */
+  html,
+  body {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(71 85 105) rgb(15 23 42);
+  }
+
+  /* Scrollbar customizada para elementos internos */
+  .custom-scrollbar::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply rounded-full bg-slate-800;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply transition-colors rounded-full bg-slate-600 hover:bg-slate-500;
+  }
+
+  /* Firefox - elementos internos */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(71 85 105) rgb(30 41 59);
+  }
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

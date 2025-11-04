@@ -64,7 +64,7 @@ export default function DataVizDashboard() {
       } catch (_error) {
         if (!canceled) {
           setSheets([]);
-          setSheetError("Não foi possível carregar as planilhas.");
+          setSheetError("Não foi possível carregar as planilhas. Recarregue a página.");
         }
       } finally {
         if (!canceled) {
@@ -257,7 +257,7 @@ export default function DataVizDashboard() {
         <div>
         <Card className="transition-all bg-slate-800 border-slate-700">
           <CardHeader>
-            <CardTitle className="text-2xl text-teal-400">Bem-vindo ao DataViz</CardTitle>
+            <CardTitle className="text-2xl text-teal-400">Bem-vindo ao Data Lake CITi</CardTitle>
             <p className="text-sm text-slate-300">
               Selecione uma planilha ou Visualização de Dashboard.
             </p>
@@ -287,103 +287,104 @@ export default function DataVizDashboard() {
         </Card>
       </div>
 
-        <Card className="bg-slate-800 border-slate-700">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="flex items-center gap-1 mb-2 text-sm font-medium">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-teal-400"
-                  >
-                    <rect x="3" y="3" width="7" height="7" />
-                    <rect x="14" y="3" width="7" height="7" />
-                    <rect x="3" y="14" width="7" height="7" />
-                    <rect x="14" y="14" width="7" height="7" />
-                  </svg>
-                  <h3 className="text-slate-300">Selecionar Planilha</h3>
-                </label>
-                <Select
-                  value={selectedSheet}
-                  onValueChange={handleSheetChange}
-                  disabled={planilhaDisabled}
-                >
-                  <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-100 disabled:cursor-not-allowed">
-                    <SelectValue placeholder={planilhaPlaceholder} />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
-                    {sheets.map((sheetName) => (
-                      <SelectItem key={sheetName} value={sheetName} className="hover:bg-slate-700">
-                        {sheetName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {sheetError ? (
-                  <p className="mt-2 text-xs text-rose-400">{sheetError}</p>
-                ) : null}
-              </div>
+  <Card className="bg-slate-800 border-slate-700">
+    <CardContent className="pt-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <label className="flex items-center gap-1 mb-2 text-sm font-medium">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-teal-400"
+            >
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+            </svg>
+            <h3 className="text-slate-300">Selecionar Planilha</h3>
+          </label>
+          <Select
+            value={selectedSheet}
+            onValueChange={handleSheetChange}
+            disabled={planilhaDisabled}
+          >
+            <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-100 disabled:cursor-not-allowed">
+              <SelectValue placeholder={planilhaPlaceholder} />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-600 text-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
+              {sheets.map((sheetName) => (
+                <SelectItem key={sheetName} value={sheetName} className="hover:bg-slate-700">
+                  {sheetName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {sheetError ? (
+            <p className="mt-2 text-xs text-rose-400">{sheetError}</p>
+          ) : null}
+        </div>
 
-              {viewMode === "planilha" ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block mb-2 text-sm font-medium text-slate-300">Filtrar por coluna</label>
-                    <Select
-                      value={selectedFilterColumn || undefined}
-                      onValueChange={(value) => {
-                        setSelectedFilterColumn(value);
-                        setSelectedFilterValue("");
-                      }}
-                      disabled={!columnOptions.length}
-                    >
-                      <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-100 disabled:cursor-not-allowed">
-                        <SelectValue
-                          placeholder={columnOptions.length ? "Selecione uma coluna" : "Selecione uma planilha"}
-                        />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
-                        {columnOptions.map((column) => (
-                          <SelectItem key={column} value={column} className="hover:bg-slate-700">
-                            {column}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="block mb-2 text-sm font-medium text-slate-300">Filtrar por valor</label>
-                    <Select
-                      value={selectedFilterValue || undefined}
-                      onValueChange={setSelectedFilterValue}
-                      disabled={!filterValueOptions.length}
-                    >
-                      <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-100 disabled:cursor-not-allowed">
-                        <SelectValue
-                          placeholder={selectedFilterColumn ? "Selecione um valor" : "Escolha uma coluna"}
-                        />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
-                        {filterValueOptions.map((value) => (
-                          <SelectItem key={value} value={value} className="hover:bg-slate-700">
-                            {value}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              ) : null}
+        {viewMode === "planilha" ? (
+          <div className="space-y-4">
+            <div>
+              <label className="block mb-2 text-sm font-medium text-slate-300">Filtrar por coluna</label>
+              <Select
+                value={selectedFilterColumn || undefined}
+                onValueChange={(value) => {
+                  setSelectedFilterColumn(value);
+                  setSelectedFilterValue("");
+                }}
+                disabled={!columnOptions.length}
+              >
+                <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-100 disabled:cursor-not-allowed">
+                  <SelectValue
+                    placeholder={columnOptions.length ? "Selecione uma coluna" : "Selecione uma planilha"}
+                  />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-600 text-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
+                  {columnOptions.map((column) => (
+                    <SelectItem key={column} value={column} className="hover:bg-slate-700">
+                      {column}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </CardContent>
-        </Card>
+            <div>
+              <label className="block mb-2 text-sm font-medium text-slate-300">Filtrar por valor</label>
+              <Select
+                value={selectedFilterValue || undefined}
+                onValueChange={setSelectedFilterValue}
+                disabled={!filterValueOptions.length}
+              >
+                <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-100 disabled:cursor-not-allowed">
+                  <SelectValue
+                    placeholder={selectedFilterColumn ? "Selecione um valor" : "Escolha uma coluna"}
+                  />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-600 text-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
+                  {filterValueOptions.map((value) => (
+                    <SelectItem key={value} value={value} className="hover:bg-slate-700">
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </CardContent>
+  </Card>
+
 
 {viewMode === "planilha" ? (
   <Card ref={tableContainerRef} className="bg-slate-800 border-slate-700 min-h-[400px] flex flex-col p-6">
