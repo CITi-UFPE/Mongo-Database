@@ -60,7 +60,7 @@ if (isProduction) {
   };
 
   const server = https.createServer(httpsOptions, app).listen(port, () => {
-    console.log('https server running at ' + port);
+    console.log(`https server running at https://localhost:${port}`);
     // console.log(all_routes(app));
   });
 }
