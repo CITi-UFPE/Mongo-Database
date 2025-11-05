@@ -26,4 +26,3 @@ const SaleSchema = new _mongoose.default.Schema({
   createdAt: Date
 });
 var _default = exports.default = _mongoose.default.model('Sale', SaleSchema);
-//# sourceMappingURL=Sale.js.map
