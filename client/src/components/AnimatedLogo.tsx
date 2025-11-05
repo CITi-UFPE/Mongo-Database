@@ -15,7 +15,7 @@ export default function AnimatedLogo({ className }: AnimatedLogoProps) {
 
   return (
     <motion.svg
-      viewBox="0 0 292.447 228.721"
+      viewBox="0 0 292.447 166.721"
       className={cn("w-16 h-auto", className)}
       initial={{ rotate: -6, scale: 0.9, opacity: 0.85 }}
       animate={{ rotate: 0, scale: 1, opacity: 1 }}

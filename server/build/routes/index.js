@@ -11,6 +11,14 @@ var _facebookAuth = _interopRequireDefault(require("./facebookAuth"));
 var _api = _interopRequireDefault(require("./api"));
 function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
 const router = (0, _express.Router)();
+
+// rota raiz
+router.get('/', (req, res) => {
+  res.json({
+    message: 'Server is running',
+    version: '1.0.0'
+  });
+});
 router.use('/auth', _localAuth.default);
 router.use('/auth', _googleAuth.default);
 router.use('/auth', _facebookAuth.default);
