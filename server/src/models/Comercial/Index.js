@@ -1,0 +1,12 @@
+export { default as Nicho } from './Nicho.js';
+export { default as Membro } from './Membro.js';
+export { default as Vendedor } from './Vendedor.js';
+export { default as Empresa } from './Empresa.js';
+export { default as Meta } from './Meta.js';
+export { default as Contato } from './Contato.js';
+export { default as Lead } from './Lead.js';
+export { default as Interacao } from './Interacao.js';
+export { default as FaseFunil } from './Fase_funil.js';
+export { default as Origem_lead } from './Origem_lead.js';
+export { default as MotivoPerda } from './Motivo_perda.js';
+export { default as HistoricoFaseLead } from './Historico_fase_lead.js';
