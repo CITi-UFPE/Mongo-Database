@@ -6,8 +6,8 @@ export default function UserProfileDropdown() {
 
   const user = {
     name: "Dados TopSecret",
-    role: "Visualizador",
-    department: "TI",
+    role: "Analista de Dados",
+    department: "Dados",
     initials: "J",
   };
 
@@ -68,7 +68,7 @@ export default function UserProfileDropdown() {
 
 export const UserProfile = {
   name: "Dados TopSecret",
-  role: "Visualizador",
-  department: "TI",
+  role: "Analista de Dados",
+  department: "Dados",
   initials: "D",
 };
