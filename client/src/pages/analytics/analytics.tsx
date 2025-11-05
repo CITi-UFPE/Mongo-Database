@@ -568,10 +568,12 @@ function formatCellValue(value: unknown): string {
   return String(value);
 }
 
+// ...existing code...
+
 function AnimatedLogo() {
   return (
     <motion.svg
-      viewBox="0 0 292.447 228.721"
+      viewBox="0 0 292.447 166.721"
       className="w-20 h-auto"
       initial={{ scale: 0.95, opacity: 0.9 }}
       animate={{ scale: 1, opacity: 1 }}
@@ -602,22 +604,6 @@ function AnimatedLogo() {
       </defs>
 
       <g data-name="Grupo 388" transform="translate(-140 -713.779)">
-        <g data-name="Grupo 3" transform="translate(140.173 880.518)">
-          <text
-            transform="translate(0.274 25.982)"
-            fontSize="26"
-            fontFamily="Barlow-Medium, Barlow"
-            fontWeight={500}
-            fill={`url(#${LOGO_GRADIENT_ID})`}
-          >
-            <tspan x="0" y="0">
-              Centro Integrado de
-            </tspan>
-            <tspan x="0" y="31">
-              Tecnologia da Informação
-            </tspan>
-          </text>
-        </g>
         <g data-name="Grupo 17" transform="translate(140 713.779)">
           <path
             data-name="Caminho 1"
