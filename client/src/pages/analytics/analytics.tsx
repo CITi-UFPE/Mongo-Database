@@ -10,10 +10,11 @@ import UserProfileDropdown from "@/components/ui/userProfileDropdown";
 import { UserProfile } from "@/components/ui/userProfileDropdown";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DashboardOverview } from "@/components/ui/dashboard";
-import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight } from "lucide-react";
+import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight } from "lucides-react";
 
 const LOGO_GRADIENT_ID = "analytics-logo-gradient";
 const ROWS_PER_PAGE = 20;
+
 
 type ViewMode = "planilha" | "dashboard";
 type SheetRow = Record<string, unknown>;
