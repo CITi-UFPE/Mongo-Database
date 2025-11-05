@@ -1,51 +1,53 @@
 import faker from 'faker';
 import { join } from 'path';
 
-import User from '../models/User';
-import Message from '../models/Message';
+import Sale from '../models/Sale';
 import { deleteAllAvatars } from './utils';
 import { IMAGES_FOLDER_PATH } from './constants';
 
 export const seedDb = async () => {
-  console.log('Seeding database...');
+  console.log('Seeding car sales database...');
 
-  await User.deleteMany({});
-  await Message.deleteMany({});
+  await Sale.deleteMany({});
   await deleteAllAvatars(join(__dirname, '../..', IMAGES_FOLDER_PATH));
 
-    // create 3 users
-    const usersPromises = [...Array(3).keys()].map((index) => {
-      const user = new User({
-        provider: 'email',
-        username: `user${index}`,
-        email: `email${index}@email.com`,
-        password: '123456789',
-        name: faker.name.findName(),
-        avatar: `avatar${index}.jpg`,
-        bio: faker.lorem.sentences(3),
-      });
-  
-      if (index === 0) {
-        user.role = 'ADMIN';
-      }
-  
-      return user; // apenas retorna o objeto User
-      
+  // listas de referência
+  const brands = ['Toyota', 'Honda', 'Ford', 'Chevrolet', 'Volkswagen', 'Hyundai', 'Nissan', 'Jeep', 'BMW', 'Mercedes'];
+  const paymentMethods = ['Cartão de Crédito', 'Boleto', 'Transferência Bancária', 'Financiamento', 'Pix'];
+  const fuelTypes = ['Gasolina', 'Etanol', 'Diesel', 'Elétrico', 'Híbrido'];
+  const transmissions = ['Manual', 'Automática'];
+  const conditions = ['Novo', 'Usado'];
+
+  // cria 100 vendas mockadas
+  const sales = [...Array(100).keys()].map(() => {
+    const brand = faker.random.arrayElement(brands);
+    const model = faker.vehicle.model();
+    const year = faker.datatype.number({ min: 2005, max: 2025 });
+    const price = faker.datatype.number({ min: 40000, max: 300000 });
+    const condition = faker.random.arrayElement(conditions);
+
+    return new Sale({
+      brand,
+      model,
+      year,
+      color: faker.vehicle.color(),
+      price,
+      condition,
+      fuelType: faker.random.arrayElement(fuelTypes),
+      transmission: faker.random.arrayElement(transmissions),
+      mileage: condition === 'Novo' ? 0 : faker.datatype.number({ min: 5000, max: 200000 }),
+      buyerName: faker.name.findName(),
+      buyerEmail: faker.internet.email(),
+      sellerName: faker.name.findName(),
+      paymentMethod: faker.random.arrayElement(paymentMethods),
+      saleDate: faker.date.between('2020-01-01', '2025-11-01'),
+      city: faker.address.cityName(),
+      state: faker.address.state(),
+      createdAt: new Date(),
     });
-  
-    // save users to the database
-    const users = await Promise.all(usersPromises.map((u) => u.save()));
-  
-    // create some messages and associate with users
-    const messages = [...Array(10).keys()].map((i) => {
-      return new Message({
-        text: faker.lorem.sentence(),
-        user: users[i % users.length]._id,
-        createdAt: new Date(),
-      });
-    });
-  
-    await Message.insertMany(messages);
-  
-    console.log('Seeding complete.');
-  };
+  });
+
+  await Sale.insertMany(sales);
+
+  console.log('Seeding complete with 100 car sales.');
+};
