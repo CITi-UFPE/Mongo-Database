@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Mail, Lock } from "lucide-react"
 import Iridescence from "@/components/Iridescence"
 import AnimatedLogo from "@/components/AnimatedLogo"
+import axios from "axios"
+import { GoogleLogin } from "@react-oauth/google"
 
 export default function Home() {
   const [email, setEmail] = useState("")
@@ -81,6 +83,23 @@ export default function Home() {
               Entrar
             </Button>
           </form>
+
+          {/* LOGIN COM GOOGLE 👇 */}
+          <GoogleLogin
+            onSuccess={async (credentialResponse) => {
+              try {
+                const res = await axios.post("https://localhost:5000/auth/google", {
+                  id_token: credentialResponse.credential,
+                });
+                console.log("Usuário autenticado:", res.data);
+              } catch (err) {
+                console.error("Erro no login:", err);
+              }
+            }}
+            onError={() => {
+              console.log("Erro ao logar com Google");
+            }}
+          />
 
           <div className="mt-6 text-sm text-center text-slate-400">
             Não tem uma conta?{' '}

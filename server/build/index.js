@@ -58,7 +58,7 @@ if (isProduction) {
     cert: (0, _fs.readFileSync)((0, _path.resolve)(__dirname, '../security/cert.pem'))
   };
   const server = _https.default.createServer(httpsOptions, app).listen(port, () => {
-    console.log('https server running at ' + port);
+    console.log(`https server running at https://localhost:${port}`);
     // console.log(all_routes(app));
   });
 }

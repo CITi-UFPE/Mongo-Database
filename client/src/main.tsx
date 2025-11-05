@@ -1,7 +1,10 @@
+/// <reference types="vite/client" />
+
 // client/src/main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 // Import the Auth page and global styles (Tailwind)
 import Auth from './pages/Auth/Auth';
@@ -23,7 +26,9 @@ if (rootElement) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <Root />
+      <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+        <Root />
+      </GoogleOAuthProvider>
     </React.StrictMode>
   );
 }
