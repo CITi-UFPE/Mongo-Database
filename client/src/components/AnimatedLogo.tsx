@@ -48,12 +48,6 @@ export default function AnimatedLogo({ className }: AnimatedLogoProps) {
             fontWeight={500}
             fill={gradientUrl}
           >
-            <tspan x="0" y="0">
-              Centro Integrado de
-            </tspan>
-            <tspan x="0" y="31">
-              Tecnologia da Informação
-            </tspan>
           </text>
         </g>
         <g data-name="Grupo 17" transform="translate(140 713.779)">
