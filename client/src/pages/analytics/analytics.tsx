@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import VisualToggle from "@/components/dashboard/VisualToggle";
 import UserProfileDropdown from "@/components/ui/userProfileDropdown";
 import { UserProfile } from "@/components/ui/userProfileDropdown";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DashboardOverview } from "@/components/ui/dashboard";
 import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -247,7 +248,10 @@ export default function DataVizDashboard() {
           </div>
           <VisualToggle viewMode={viewMode} onChange={handleViewModeChange} />
         </div>
-        <UserProfileDropdown />
+
+        <Avatar className="w-8 h-8">
+          <AvatarFallback className="text-white bg-teal-500">J</AvatarFallback>
+        </Avatar>
       </header>
 
       <div className="h-20" />
@@ -259,7 +263,7 @@ export default function DataVizDashboard() {
           <CardHeader>
             <CardTitle className="text-2xl text-teal-400">Bem-vindo ao Data Lake CITi</CardTitle>
             <p className="text-sm text-slate-300">
-              Selecione uma planilha ou Visualização de Dashboard.
+              Selecione uma planilha e área para visualizar os dados da sua empresa
             </p>
           </CardHeader>
 
