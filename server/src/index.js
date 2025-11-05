@@ -25,7 +25,7 @@ app.use(passport.initialize());
 const isProduction = process.env.NODE_ENV === 'production';
 
 // DB Config
-const dbConnection = isProduction ? process.env.MONGO_URI_PROD : process.env.MONGO_URI_DEV;
+const dbConnection = isProduction ? process.env.MONGO_URI_PROD : process.env.MONGO_URI_DEV ;
 
 // Connect to Mongo
 mongoose.connect(dbConnection)
