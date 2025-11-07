@@ -35,3 +35,4 @@ HistoricoFaseLeadSchema.index({
   id_lead: 1
 });
 var _default = exports.default = _mongoose.default.model('HistoricoFaseLead', HistoricoFaseLeadSchema);
+//# sourceMappingURL=Historico_fase_lead.js.map

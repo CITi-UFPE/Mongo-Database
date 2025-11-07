@@ -21,3 +21,4 @@ router.get('/google/callback', _passport.default.authenticate('google', {
   res.redirect(clientUrl);
 });
 var _default = exports.default = router;
+//# sourceMappingURL=googleAuth.js.map

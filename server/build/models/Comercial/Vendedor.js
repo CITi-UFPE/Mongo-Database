@@ -20,3 +20,4 @@ const VendedorSchema = new Schema({
   timestamps: true
 });
 var _default = exports.default = _mongoose.default.model('Vendedor', VendedorSchema);
+//# sourceMappingURL=Vendedor.js.map

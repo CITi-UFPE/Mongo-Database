@@ -10,3 +10,4 @@ const requireJwtAuth = _passport.default.authenticate('jwt', {
   session: false
 });
 var _default = exports.default = requireJwtAuth;
+//# sourceMappingURL=requireJwtAuth.js.map

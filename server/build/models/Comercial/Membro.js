@@ -41,3 +41,4 @@ const MembroSchema = new Schema({
   timestamps: true
 });
 var _default = exports.default = _mongoose.default.model('Membro', MembroSchema);
+//# sourceMappingURL=Membro.js.map

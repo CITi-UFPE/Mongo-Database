@@ -141,3 +141,4 @@ const validateUser = user => {
 exports.validateUser = validateUser;
 const User = _mongoose.default.model('User', userSchema);
 var _default = exports.default = User;
+//# sourceMappingURL=User.js.map

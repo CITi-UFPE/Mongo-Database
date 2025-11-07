@@ -1,215 +1,318 @@
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
-import { TrendingUp, Users, ShoppingBag, DollarSign } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+// src/components/ui/dashboard.tsx
 
-const kpis = [
-  {
-    iconBg: "from-cyan-500 to-blue-500",
-    icon: <DollarSign className="w-5 h-5 text-white" />,
-    label: "Receita Total",
-    value: "R$ 842K",
-    delta: "+ 12.5%",
-    deltaColor: "text-emerald-400",
-  },
-  {
-    iconBg: "from-emerald-500 to-teal-500",
-    icon: <TrendingUp className="w-5 h-5 text-white" />,
-    label: "NPS Médio",
-    value: "72",
-    delta: "+ 8.2%",
-    deltaColor: "text-emerald-400",
-  },
-  {
-    iconBg: "from-purple-500 to-indigo-600",
-    icon: <ShoppingBag className="w-5 h-5 text-white" />,
-    label: "Total de Vendas",
-    value: "1,248",
-    delta: "+ 15.3%",
-    deltaColor: "text-emerald-400",
-  },
-  {
-    iconBg: "from-violet-500 to-teal-500",
-    icon: <Users className="w-5 h-5 text-white" />,
-    label: "Clientes Ativos",
-    value: "856",
-    delta: "+ 4.1%",
-    deltaColor: "text-emerald-400",
-  },
-];
+import { useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BarChart3, PieChart, TrendingUp, Database } from 'lucide-react';
 
-// dados fake pro gráfico
-const salesData = [
-  { mes: "Jan", valor: 45_000, tendencia: 50_000 },
-  { mes: "Fev", valor: 52_000, tendencia: 52_000 },
-  { mes: "Mar", valor: 48_000, tendencia: 55_000 },
-  { mes: "Abr", valor: 68_000, tendencia: 60_000 },
-  { mes: "Mai", valor: 58_000, tendencia: 62_000 },
-  { mes: "Jun", valor: 72_000, tendencia: 70_000 },
-  { mes: "Jul", valor: 75_000, tendencia: 73_000 },
-  { mes: "Ago", valor: 69_000, tendencia: 78_000 },
-  { mes: "Set", valor: 82_000, tendencia: 82_000 },
-  { mes: "Out", valor: 86_000, tendencia: 85_000 },
-  { mes: "Nov", valor: 92_000, tendencia: 90_000 },
-  { mes: "Dez", valor: 98_000, tendencia: 97_000 },
-];
+type DashboardProps = {
+  data: Record<string, unknown>[];
+  selectedSheet?: string;
+  loading?: boolean;
+};
 
-export function DashboardOverview() {
+export function DashboardOverview({ data, selectedSheet, loading }: DashboardProps) {
+  // Análise automática dos dados
+  const analytics = useMemo(() => {
+    if (!data || data.length === 0) {
+      return null;
+    }
+
+    // 1. Total de registros
+    const totalRecords = data.length;
+
+    // 2. Analisa todas as colunas
+    const columns = Object.keys(data[0] || {});
+    
+    // 3. Identifica colunas numéricas e categóricas
+    const numericColumns: string[] = [];
+    const categoricalColumns: string[] = [];
+    
+    columns.forEach(col => {
+      const sampleValues = data.slice(0, 100).map(row => row[col]);
+      const numericCount = sampleValues.filter(v => 
+        typeof v === 'number' || (!isNaN(Number(v)) && v !== null && v !== '')
+      ).length;
+      
+      if (numericCount > sampleValues.length * 0.8) {
+        numericColumns.push(col);
+      } else {
+        categoricalColumns.push(col);
+      }
+    });
+
+    // 4. Calcula frequências para colunas categóricas
+    const categoryFrequencies: Record<string, Record<string, number>> = {};
+    categoricalColumns.forEach(col => {
+      const freq: Record<string, number> = {};
+      data.forEach(row => {
+        const value = String(row[col] || 'N/A');
+        freq[value] = (freq[value] || 0) + 1;
+      });
+      categoryFrequencies[col] = freq;
+    });
+
+    // 5. Encontra categoria mais frequente para cada coluna
+    const mostFrequent: Record<string, { value: string; count: number; percentage: number }> = {};
+    Object.entries(categoryFrequencies).forEach(([col, freq]) => {
+      const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+      if (sorted.length > 0) {
+        const [value, count] = sorted[0];
+        mostFrequent[col] = {
+          value,
+          count,
+          percentage: (count / totalRecords) * 100
+        };
+      }
+    });
+
+    // 6. Estatísticas numéricas
+    const numericStats: Record<string, { min: number; max: number; avg: number; sum: number }> = {};
+    numericColumns.forEach(col => {
+      const values = data
+        .map(row => Number(row[col]))
+        .filter(v => !isNaN(v));
+      
+      if (values.length > 0) {
+        numericStats[col] = {
+          min: Math.min(...values),
+          max: Math.max(...values),
+          avg: values.reduce((a, b) => a + b, 0) / values.length,
+          sum: values.reduce((a, b) => a + b, 0)
+        };
+      }
+    });
+
+    // 7. Distribui dados para visualização
+    const topCategories = Object.entries(mostFrequent)
+      .slice(0, 4)
+      .map(([col, data]) => ({ column: col, ...data }));
+
+    return {
+      totalRecords,
+      columns,
+      numericColumns,
+      categoricalColumns,
+      categoryFrequencies,
+      mostFrequent,
+      numericStats,
+      topCategories
+    };
+  }, [data]);
+
+  if (loading) {
+    return (
+      <Card className="bg-slate-800 border-slate-700 min-h-[400px] flex items-center justify-center">
+        <div className="text-slate-400">Carregando análises...</div>
+      </Card>
+    );
+  }
+
+  if (!analytics || !selectedSheet) {
+    return (
+      <Card className="bg-slate-800 border-slate-700 min-h-[400px] flex flex-col items-center justify-center gap-4">
+        <Database className="w-16 h-16 text-slate-600" />
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-slate-200">Nenhuma planilha selecionada</h3>
+          <p className="mt-2 text-sm text-slate-400">
+            Selecione uma planilha para visualizar as análises e estatísticas.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <div className="w-full max-w-[1400px] mx-auto px-6 py-10 text-slate-100">
-      {/* título geral */}
-      <p className="mb-6 text-sm text-slate-300">
-        Análise de performance e métricas temporais
-      </p>
-
-      {/* KPIs */}
-      <div className="grid gap-4 mb-8 md:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi, i) => (
-          <Card
-            key={i}
-            className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]"
-          >
-            <CardContent className="flex flex-col gap-3 p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center justify-center w-10 h-10 rounded-md bg-gradient-to-br shadow-inner from-10% to-90% bg-clip-padding
-                  bg-gradient-to-r
-                  from-[rgb(0,190,255)]
-                  to-[rgb(0,120,255)]
-                ">
-                  {kpi.icon}
-                </div>
-                <span
-                  className={`text-xs font-medium ${kpi.deltaColor}`}
-                >
-                  {kpi.delta}
-                </span>
-              </div>
-
-              <div className="flex flex-col">
-                <span className="text-xs text-slate-400">{kpi.label}</span>
-                <span className="text-xl font-semibold leading-tight text-white">
-                  {kpi.value}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Performance de vendas */}
-      <Card className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 mb-8 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-medium text-slate-100">
-            Performance de Vendas
+    <div className="space-y-6">
+      {/* Header com estatísticas gerais */}
+      <Card className="bg-slate-800 border-slate-700">
+        <CardHeader>
+          <CardTitle className="text-2xl text-teal-400">
+            Dashboard Analytics - {selectedSheet}
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
-          <div className="h-[280px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={salesData} margin={{ left: 16, right: 16, top: 16, bottom: 16 }}>
-                <CartesianGrid
-                  stroke="rgba(226,232,240,0.08)" // grid bem suave
-                  strokeDasharray="4 4"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="mes"
-                  stroke="#94a3b8"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis
-                  stroke="#94a3b8"
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v: number) => `R$${Math.round(v / 1000)}k`}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1e293b",
-                    border: "1px solid #334155",
-                    borderRadius: "0.5rem",
-                    color: "white",
-                    fontSize: "0.75rem",
-                  }}
-                  labelStyle={{ color: "#cbd5e1", fontWeight: 500 }}
-                  formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, "Vendas"]}
-                />
-                {/* linha tendência (tracejada cinza) */}
-                <Line
-                  type="monotone"
-                  dataKey="tendencia"
-                  stroke="#94a3b8"
-                  strokeDasharray="4 4"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                {/* linha vendas (ciano brilhando) */}
-                <Line
-                  type="monotone"
-                  dataKey="valor"
-                  stroke="#06b6d4"
-                  strokeWidth={3}
-                  activeDot={{
-                    r: 5,
-                    fill: "#06b6d4",
-                    stroke: "#0f172a",
-                    strokeWidth: 2,
-                  }}
-                  dot={{ r: 4, fill: "#06b6d4", strokeWidth: 0 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              icon={<Database className="w-6 h-6" />}
+              label="Total de Registros"
+              value={analytics.totalRecords.toLocaleString()}
+              color="blue"
+            />
+            <StatCard
+              icon={<BarChart3 className="w-6 h-6" />}
+              label="Colunas Totais"
+              value={analytics.columns.length}
+              color="teal"
+            />
+            <StatCard
+              icon={<TrendingUp className="w-6 h-6" />}
+              label="Colunas Numéricas"
+              value={analytics.numericColumns.length}
+              color="green"
+            />
+            <StatCard
+              icon={<PieChart className="w-6 h-6" />}
+              label="Colunas Categóricas"
+              value={analytics.categoricalColumns.length}
+              color="purple"
+            />
           </div>
         </CardContent>
       </Card>
 
-      {/* parte de baixo (cards menores tipo distribuição de clientes / evolução NPS)
-         você ainda não me mostrou o resto do layout mas já deixo um grid pronto pra encaixar */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 min-h-[220px] shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium text-slate-100">
-              Distribuição de Clientes
-            </CardTitle>
+      {/* Valores mais frequentes */}
+      {analytics.topCategories.length > 0 && (
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-xl text-slate-200">Valores Mais Frequentes</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-slate-400">
-            {/* espaço pra pizza chart / barras horizontais etc */}
-            <div className="h-[160px] flex items-center justify-center text-slate-500 text-xs">
-              (gráfico de distribuição aqui)
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {analytics.topCategories.map(({ column, value, count, percentage }) => (
+                <div key={column} className="p-4 border rounded-lg bg-slate-700/40 border-slate-600">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-400">{column}</p>
+                      <p className="mt-1 text-lg font-semibold truncate text-slate-100" title={value}>
+                        {value}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex-1 h-2 overflow-hidden rounded-full bg-slate-600">
+                          <div
+                            className="h-full transition-all bg-teal-500"
+                            style={{ width: `${Math.min(percentage, 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-slate-400">{percentage.toFixed(1)}%</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {count.toLocaleString()} ocorrências
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
+      )}
 
-        <Card className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 min-h-[220px] shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium text-slate-100">
-              Evolução do NPS
-            </CardTitle>
+      {/* Estatísticas numéricas */}
+      {Object.keys(analytics.numericStats).length > 0 && (
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-xl text-slate-200">Estatísticas Numéricas</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-slate-400">
-            <div className="h-[160px] flex items-center justify-center text-slate-500 text-xs">
-              (gráfico de NPS aqui)
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-700/60 text-slate-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Coluna</th>
+                    <th className="px-4 py-3 text-right">Mínimo</th>
+                    <th className="px-4 py-3 text-right">Máximo</th>
+                    <th className="px-4 py-3 text-right">Média</th>
+                    <th className="px-4 py-3 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(analytics.numericStats).map(([col, stats]) => (
+                    <tr key={col} className="border-b border-slate-700/60 hover:bg-slate-700/30">
+                      <td className="px-4 py-3 font-medium text-slate-300">{col}</td>
+                      <td className="px-4 py-3 text-right text-slate-400">{stats.min.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-slate-400">{stats.max.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-slate-400">{stats.avg.toFixed(2)}</td>
+                      <td className="px-4 py-3 font-semibold text-right text-teal-400">
+                        {stats.sum.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
-      </div>
+      )}
+
+      {/* Distribuição de categorias */}
+      {Object.keys(analytics.categoryFrequencies).length > 0 && (
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-xl text-slate-200">Distribuição por Categoria</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {Object.entries(analytics.categoryFrequencies)
+                .slice(0, 3)
+                .map(([column, frequencies]) => {
+                  const sorted = Object.entries(frequencies)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5);
+                  const total = Object.values(frequencies).reduce((a, b) => a + b, 0);
+
+                  return (
+                    <div key={column} className="p-4 border rounded-lg bg-slate-700/20 border-slate-600">
+                      <h4 className="mb-3 font-semibold text-slate-200">{column}</h4>
+                      <div className="space-y-2">
+                        {sorted.map(([value, count]) => {
+                          const percentage = (count / total) * 100;
+                          return (
+                            <div key={value} className="flex items-center gap-3">
+                              <span className="flex-1 text-sm truncate text-slate-300" title={value}>
+                                {value}
+                              </span>
+                              <div className="flex items-center flex-1 gap-2">
+                                <div className="flex-1 h-2 overflow-hidden rounded-full bg-slate-600">
+                                  <div
+                                    className="h-full transition-all bg-gradient-to-r from-blue-500 to-teal-500"
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs tabular-nums text-slate-400 min-w-[3rem] text-right">
+                                  {count} ({percentage.toFixed(1)}%)
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
-export default DashboardOverview;
+// Componente auxiliar para cards de estatísticas
+function StatCard({ 
+  icon, 
+  label, 
+  value, 
+  color 
+}: { 
+  icon: React.ReactNode; 
+  label: string; 
+  value: string | number; 
+  color: 'blue' | 'teal' | 'green' | 'purple';
+}) {
+  const colorClasses = {
+    blue: 'from-blue-500 to-blue-600',
+    teal: 'from-teal-500 to-teal-600',
+    green: 'from-green-500 to-green-600',
+    purple: 'from-purple-500 to-purple-600',
+  };
+
+  return (
+    <div className="flex flex-col p-4 border rounded-lg bg-slate-700/40 border-slate-600">
+      <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center text-white mb-3`}>
+        {icon}
+      </div>
+      <span className="text-sm text-slate-400">{label}</span>
+      <span className="mt-1 text-2xl font-bold text-slate-100">{value}</span>
+    </div>
+  );
+}

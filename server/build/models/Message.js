@@ -40,3 +40,4 @@ const validateMessage = message => {
 exports.validateMessage = validateMessage;
 const Message = _mongoose.default.model('Message', messageSchema);
 var _default = exports.default = Message;
+//# sourceMappingURL=Message.js.map

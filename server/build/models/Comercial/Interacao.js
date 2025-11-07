@@ -42,3 +42,4 @@ InteracaoSchema.index({
   id_lead: 1
 });
 var _default = exports.default = _mongoose.default.model('Interacao', InteracaoSchema);
+//# sourceMappingURL=Interacao.js.map

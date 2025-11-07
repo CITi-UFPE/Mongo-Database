@@ -62,3 +62,4 @@ const seedDb = async () => {
   console.log('Seeding complete with 100 car sales.');
 };
 exports.seedDb = seedDb;
+//# sourceMappingURL=seed.js.map

@@ -39,3 +39,4 @@ MetaSchema.index({
   unique: true
 });
 var _default = exports.default = _mongoose.default.model('Meta', MetaSchema);
+//# sourceMappingURL=Meta.js.map

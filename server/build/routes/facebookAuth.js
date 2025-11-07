@@ -22,3 +22,4 @@ router.get('/facebook/callback', _passport.default.authenticate('facebook', {
   res.redirect(clientUrl);
 });
 var _default = exports.default = router;
+//# sourceMappingURL=facebookAuth.js.map

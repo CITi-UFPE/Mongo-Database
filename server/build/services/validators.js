@@ -16,3 +16,4 @@ const registerSchema = exports.registerSchema = _joi.default.object().keys({
   email: _joi.default.string().trim().email().required(),
   password: _joi.default.string().trim().min(6).max(20).required()
 });
+//# sourceMappingURL=validators.js.map

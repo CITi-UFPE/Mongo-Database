@@ -45,3 +45,4 @@ ContatoSchema.index({
   unique: true
 });
 var _default = exports.default = _mongoose.default.model('Contato', ContatoSchema);
+//# sourceMappingURL=Contato.js.map

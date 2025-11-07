@@ -114,3 +114,4 @@ router.put('/:id', _requireJwtAuth.default, async (req, res) => {
   }
 });
 var _default = exports.default = router;
+//# sourceMappingURL=messages.js.map

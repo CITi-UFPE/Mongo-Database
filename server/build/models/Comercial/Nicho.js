@@ -20,3 +20,4 @@ const NichoSchema = new Schema({
   timestamps: true
 });
 var _default = exports.default = _mongoose.default.model('Nicho', NichoSchema);
+//# sourceMappingURL=Nicho.js.map

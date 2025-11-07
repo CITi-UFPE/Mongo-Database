@@ -69,3 +69,4 @@ const LeadSchema = new Schema({
   timestamps: true
 });
 var _default = exports.default = _mongoose.default.model('Lead', LeadSchema);
+//# sourceMappingURL=Lead.js.map
