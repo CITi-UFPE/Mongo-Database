@@ -1,11 +1,13 @@
-
 # both stages must use alpine
-FROM node:22-alpine AS build
+FROM node:22 AS build
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+
+# Remove package-lock.json if it exists and do a fresh install
+RUN rm -f package-lock.json
+RUN npm install --include=optional --legacy-peer-deps
 
 # relative to build context
 COPY . ./

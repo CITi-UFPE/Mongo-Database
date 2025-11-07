@@ -169,4 +169,3 @@ router.delete('/:id', _requireJwtAuth.default, async (req, res) => {
   }
 });
 var _default = exports.default = router;
-//# sourceMappingURL=users.js.map

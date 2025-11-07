@@ -17,7 +17,6 @@ const SaleSchema = new mongoose.Schema({
   saleDate: Date,
   city: String,
   state: String,
-  createdAt: Date,
 });
 
 export default mongoose.model('Sale', SaleSchema);

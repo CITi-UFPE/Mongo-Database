@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { BarChart3, PieChart as PieChartIcon, TrendingUp, Database, LineChart } from 'lucide-react';
+import { BarChart3, PieChart as PieChartIcon, TrendingUp, Database, LineChart, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -17,7 +17,9 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  ReferenceLine,
+  Brush
 } from 'recharts';
 
 type DashboardProps = {
@@ -28,10 +30,78 @@ type DashboardProps = {
 
 type ChartType = 'bar' | 'pie';
 
-const COLORS = ['#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#84cc16', '#eab308', '#f59e0b', '#f97316', '#ef4444', '#ec4899'];
+// Cores base para gradiente progressivo
+const COLOR_GRADIENTS = [
+  ['#0ea5e9', '#06b6d4'], // cyan
+  ['#14b8a6', '#10b981'], // teal-green
+  ['#84cc16', '#eab308'], // lime-yellow
+  ['#f59e0b', '#f97316'], // orange
+  ['#ef4444', '#ec4899'], // red-pink
+  ['#8b5cf6', '#6366f1'], // purple-indigo
+  ['#06b6d4', '#14b8a6'], // sky-teal
+  ['#10b981', '#84cc16'], // green-lime
+  ['#eab308', '#f59e0b'], // yellow-orange
+  ['#ec4899', '#8b5cf6'], // pink-purple
+];
+
+const POINTS_PER_PAGE = 50;
+const MAX_CATEGORIES = 10;
+const SAMPLE_SIZE = 500;
+
+// Função para gerar cores progressivas baseadas na posição GLOBAL
+function getColorForIndex(globalIndex: number, totalItems: number): string {
+  // Usa o índice global para progressão contínua
+  const ratio = globalIndex / Math.max(totalItems - 1, 1);
+  
+  // Seleciona o gradiente baseado na progressão
+  const gradientPosition = ratio * COLOR_GRADIENTS.length;
+  const gradientIndex = Math.floor(gradientPosition) % COLOR_GRADIENTS.length;
+  const nextGradientIndex = (gradientIndex + 1) % COLOR_GRADIENTS.length;
+  
+  const [startColor, endColor] = COLOR_GRADIENTS[gradientIndex];
+  const [nextStart] = COLOR_GRADIENTS[nextGradientIndex];
+  
+  // Interpola dentro do gradiente atual
+  const localRatio = gradientPosition % 1;
+  
+  // Se estamos perto do fim do gradiente, mistura com o próximo
+  if (localRatio > 0.8) {
+    const blendRatio = (localRatio - 0.8) / 0.2;
+    const blendedEnd = interpolateColor(endColor, nextStart, blendRatio);
+    return interpolateColor(startColor, blendedEnd, localRatio);
+  }
+  
+  return interpolateColor(startColor, endColor, localRatio);
+}
+
+// Interpola entre duas cores hex
+function interpolateColor(color1: string, color2: string, ratio: number): string {
+  const hex = (color: string) => parseInt(color.slice(1), 16);
+  const r1 = (hex(color1) >> 16) & 0xff;
+  const g1 = (hex(color1) >> 8) & 0xff;
+  const b1 = hex(color1) & 0xff;
+  
+  const r2 = (hex(color2) >> 16) & 0xff;
+  const g2 = (hex(color2) >> 8) & 0xff;
+  const b2 = hex(color2) & 0xff;
+  
+  const r = Math.round(r1 + (r2 - r1) * ratio);
+  const g = Math.round(g1 + (g2 - g1) * ratio);
+  const b = Math.round(b1 + (b2 - b1) * ratio);
+  
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+function paginateData<T>(data: T[], page: number, perPage: number): T[] {
+  const start = page * perPage;
+  const end = start + perPage;
+  return data.slice(start, end);
+}
 
 export function DashboardOverview({ data, selectedSheet, loading }: DashboardProps) {
   const [chartTypes, setChartTypes] = useState<Record<string, ChartType>>({});
+  const [chartPages, setChartPages] = useState<Record<string, number>>({});
+  const [zoomLevels, setZoomLevels] = useState<Record<string, number>>({}); // Novo: controla o zoom
 
   const toggleChartType = (column: string) => {
     setChartTypes(prev => ({
@@ -40,15 +110,33 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
     }));
   };
 
-  // Análise automática dos dados
+  const handleChartPageChange = (column: string, newPage: number) => {
+    setChartPages(prev => ({
+      ...prev,
+      [column]: newPage
+    }));
+  };
+
+  const handleZoomChange = (column: string, delta: number) => {
+    setZoomLevels(prev => {
+      const currentZoom = prev[column] || 1;
+      const newZoom = Math.max(0.5, Math.min(4, currentZoom + delta));
+      return {
+        ...prev,
+        [column]: newZoom
+      };
+    });
+  };
+
   const analytics = useMemo(() => {
     if (!data || data.length === 0) {
       return null;
     }
 
     const totalRecords = data.length;
-    
-    // Filtra colunas: remove ID, _v, e colunas internas
+    const sampleData = totalRecords > SAMPLE_SIZE ? data.slice(0, SAMPLE_SIZE) : data;
+
+    // Filtra colunas
     const allColumns = Object.keys(data[0] || {});
     const filteredColumns = allColumns.filter(col => {
       const lower = col.toLowerCase();
@@ -58,41 +146,70 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
              col !== '__v';
     });
 
-    // Identifica colunas numéricas, categóricas e temporais
     const numericColumns: string[] = [];
     const categoricalColumns: string[] = [];
     const temporalColumns: string[] = [];
     
     filteredColumns.forEach(col => {
-      const sampleValues = data.slice(0, 100).map(row => row[col]);
+      const sampleValues = sampleData.map(row => row[col]);
       
-      // Detecta colunas temporais
-      const isDate = sampleValues.some(v => {
+      // Detecta temporais primeiro - COM VERIFICAÇÃO MAIS RIGOROSA
+      const dateCount = sampleValues.filter(v => {
         if (!v) return false;
         const str = String(v);
-        // Detecta formatos de data comuns
-        return /^\d{4}-\d{2}-\d{2}/.test(str) || 
-               /^\d{2}\/\d{2}\/\d{4}/.test(str) ||
-               !isNaN(Date.parse(str));
-      });
+        
+        // Ignora se for só números (evita confundir com anos/valores numéricos)
+        if (/^\d+$/.test(str) && str.length <= 4) return false;
+        
+        // Verifica formatos de data explícitos
+        const hasDateFormat = /^\d{4}-\d{2}-\d{2}/.test(str) || 
+                             /^\d{2}\/\d{2}\/\d{4}/.test(str);
+        
+        if (!hasDateFormat) {
+          // Se não tem formato de data, verifica se é parseable E não é número puro
+          const parsed = Date.parse(str);
+          if (isNaN(parsed)) return false;
+          
+          // Rejeita se for um número puro que Date.parse aceitou
+          if (!isNaN(Number(str))) return false;
+          
+          return true;
+        }
+        
+        return hasDateFormat;
+      }).length;
 
-      if (isDate) {
+      if (dateCount > sampleValues.length * 0.5) {
         temporalColumns.push(col);
       } else {
-        // Detecta numéricas
-        const numericCount = sampleValues.filter(v => 
-          typeof v === 'number' || (!isNaN(Number(v)) && v !== null && v !== '')
-        ).length;
+        // CORREÇÃO: Detecta numéricas com verificação mais rigorosa
+        const numericValues = sampleValues.filter(v => {
+          if (v === null || v === undefined || v === '') return false;
+          const num = Number(v);
+          return !isNaN(num) && isFinite(num);
+        });
         
-        if (numericCount > sampleValues.length * 0.8) {
+        const numericCount = numericValues.length;
+        const hasWideRange = numericValues.length > 0 && 
+          (Math.max(...numericValues.map(v => Number(v))) - Math.min(...numericValues.map(v => Number(v)))) > 10;
+        
+        // Considera numérico se >80% são números E tem variação significativa
+        if (numericCount > sampleValues.length * 0.8 && hasWideRange) {
           numericColumns.push(col);
         } else {
-          categoricalColumns.push(col);
+          // Verifica se tem muitas categorias únicas (indica categórico)
+          const uniqueValues = new Set(sampleValues.filter(v => v !== null && v !== undefined));
+          const uniqueRatio = uniqueValues.size / sampleValues.length;
+          
+          // Se tem poucas categorias únicas OU valores não numéricos, é categórico
+          if (uniqueRatio < 0.8 || numericCount < sampleValues.length * 0.8) {
+            categoricalColumns.push(col);
+          }
         }
       }
     });
 
-    // Calcula frequências para colunas categóricas (top 10)
+    // Frequências categóricas
     const categoryFrequencies: Record<string, Array<{ name: string; value: number }>> = {};
     categoricalColumns.forEach(col => {
       const freq: Record<string, number> = {};
@@ -101,10 +218,8 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
         freq[value] = (freq[value] || 0) + 1;
       });
       
-      // Top 10 valores
       const sorted = Object.entries(freq)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
         .map(([name, value]) => ({ name, value }));
       
       categoryFrequencies[col] = sorted;
@@ -115,7 +230,7 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
     numericColumns.forEach(col => {
       const values = data
         .map(row => Number(row[col]))
-        .filter(v => !isNaN(v));
+        .filter(v => !isNaN(v) && isFinite(v));
       
       if (values.length > 0) {
         numericStats[col] = {
@@ -127,8 +242,8 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
       }
     });
 
-    // Dados temporais - agrupa por data
-    const temporalData: Record<string, Array<{ date: string; count: number; [key: string]: unknown }>> = {};
+    // Dados temporais
+    const temporalData: Record<string, Array<{ date: string; count: number }>> = {};
     temporalColumns.forEach(col => {
       const grouped: Record<string, number> = {};
       
@@ -139,7 +254,7 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
         try {
           const date = new Date(String(value));
           if (!isNaN(date.getTime())) {
-            const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+            const dateStr = date.toISOString().split('T')[0];
             grouped[dateStr] = (grouped[dateStr] || 0) + 1;
           }
         } catch {
@@ -147,7 +262,6 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
         }
       });
 
-      // Ordena por data
       const sorted = Object.entries(grouped)
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([date, count]) => ({ date, count }));
@@ -231,7 +345,7 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
         </CardContent>
       </Card>
 
-      {/* Gráficos Temporais */}
+      {/* Gráficos Temporais COM PAGINAÇÃO, ZOOM E BASELINE */}
       {analytics.temporalColumns.length > 0 && (
         <Card className="bg-slate-800 border-slate-700">
           <CardHeader>
@@ -242,19 +356,87 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
           </CardHeader>
           <CardContent className="space-y-6">
             {analytics.temporalColumns.map((column) => {
-              const data = analytics.temporalData[column] || [];
-              if (data.length === 0) return null;
+              const allData = analytics.temporalData[column] || [];
+              if (allData.length === 0) return null;
+
+              const currentPage = chartPages[column] || 0;
+              const zoomLevel = zoomLevels[column] || 1;
+              const pointsToShow = Math.floor(POINTS_PER_PAGE / zoomLevel);
+              const totalPages = Math.ceil(allData.length / pointsToShow);
+              const paginatedData = paginateData(allData, currentPage, pointsToShow);
+
+              // Calcula baseline (média de todo o período)
+              const baseline = allData.reduce((sum, item) => sum + item.count, 0) / allData.length;
 
               return (
                 <div key={column} className="p-4 border rounded-lg bg-slate-700/20 border-slate-600">
-                  <h4 className="mb-4 font-semibold text-slate-200">{column}</h4>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-semibold text-slate-200">{column}</h4>
+                    
+                    <div className="flex items-center gap-2">
+                      {/* Controles de Zoom */}
+                      <div className="flex items-center gap-1 px-2 py-1 border rounded bg-slate-700/40 border-slate-600">
+                        <Button
+                          onClick={() => handleZoomChange(column, -0.5)}
+                          disabled={zoomLevel <= 0.5}
+                          size="sm"
+                          variant="ghost"
+                          className="p-0 w-7 h-7 text-slate-400 hover:text-slate-100 disabled:opacity-30"
+                          title="Zoom out (ver mais dados)"
+                        >
+                          <ZoomOut className="w-3.5 h-3.5" />
+                        </Button>
+                        <span className="text-xs font-medium text-slate-400 min-w-[40px] text-center">
+                          {zoomLevel.toFixed(1)}x
+                        </span>
+                        <Button
+                          onClick={() => handleZoomChange(column, 0.5)}
+                          disabled={zoomLevel >= 4}
+                          size="sm"
+                          variant="ghost"
+                          className="p-0 w-7 h-7 text-slate-400 hover:text-slate-100 disabled:opacity-30"
+                          title="Zoom in (ver detalhes)"
+                        >
+                          <ZoomIn className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+
+                      {/* Paginação */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => handleChartPageChange(column, Math.max(0, currentPage - 1))}
+                            disabled={currentPage === 0}
+                            size="sm"
+                            variant="outline"
+                            className="bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600 disabled:opacity-50"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </Button>
+                          <span className="text-sm text-slate-400">
+                            {currentPage + 1} / {totalPages}
+                          </span>
+                          <Button
+                            onClick={() => handleChartPageChange(column, Math.min(totalPages - 1, currentPage + 1))}
+                            disabled={currentPage >= totalPages - 1}
+                            size="sm"
+                            variant="outline"
+                            className="bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600 disabled:opacity-50"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <ResponsiveContainer width="100%" height={300}>
-                    <RechartsLineChart data={data}>
+                    <RechartsLineChart data={paginatedData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
                       <XAxis 
                         dataKey="date" 
                         stroke="#94a3b8"
-                        tick={{ fill: '#94a3b8' }}
+                        tick={{ fill: '#94a3b8', fontSize: 12 }}
                       />
                       <YAxis 
                         stroke="#94a3b8"
@@ -264,22 +446,57 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
                         contentStyle={{ 
                           backgroundColor: '#1e293b', 
                           border: '1px solid #475569',
-                          borderRadius: '0.5rem'
+                          borderRadius: '0.5rem',
+                          color: '#e2e8f0'
                         }}
                         labelStyle={{ color: '#e2e8f0' }}
                       />
                       <Legend wrapperStyle={{ color: '#94a3b8' }} />
+                      
+                      {/* Linha de baseline (média geral) */}
+                      <ReferenceLine 
+                        y={baseline} 
+                        stroke="#f59e0b" 
+                        strokeDasharray="5 5" 
+                        strokeWidth={2}
+                        label={{ 
+                          value: `Média: ${baseline.toFixed(1)}`, 
+                          position: 'right',
+                          fill: '#f59e0b',
+                          fontSize: 12
+                        }}
+                      />
+                      
                       <Line 
                         type="monotone" 
                         dataKey="count" 
                         stroke="#14b8a6" 
                         strokeWidth={2}
-                        dot={{ fill: '#14b8a6', r: 4 }}
-                        activeDot={{ r: 6 }}
+                        dot={false}
+                        isAnimationActive={false}
                         name="Registros"
+                      />
+                      
+                      {/* Brush para zoom/scroll horizontal */}
+                      <Brush 
+                        dataKey="date" 
+                        height={30} 
+                        stroke="#14b8a6"
+                        fill="#1e293b"
+                        travellerWidth={10}
                       />
                     </RechartsLineChart>
                   </ResponsiveContainer>
+
+                  <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
+                    <span>
+                      {totalPages > 1 && `Mostrando ${currentPage * pointsToShow + 1} - ${Math.min((currentPage + 1) * pointsToShow, allData.length)} de ${allData.length} pontos`}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="inline-block w-3 h-0.5 bg-amber-500"></span>
+                      Baseline indica a média de todo o período
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -287,113 +504,14 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
         </Card>
       )}
 
-      {/* Distribuição de Categorias com toggle Bar/Pie */}
-      {Object.keys(analytics.categoryFrequencies).length > 0 && (
-        <Card className="bg-slate-800 border-slate-700">
-          <CardHeader>
-            <CardTitle className="text-xl text-slate-200">Distribuição por Categoria</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              {Object.entries(analytics.categoryFrequencies).map(([column, frequencies]) => {
-                const chartType = chartTypes[column] || 'bar';
-                
-                return (
-                  <div key={column} className="p-4 border rounded-lg bg-slate-700/20 border-slate-600">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="font-semibold text-slate-200">{column}</h4>
-                      <Button
-                        onClick={() => toggleChartType(column)}
-                        size="sm"
-                        variant="outline"
-                        className="gap-2 bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600"
-                      >
-                        {chartType === 'bar' ? (
-                          <>
-                            <PieChartIcon className="w-4 h-4" />
-                            Pizza
-                          </>
-                        ) : (
-                          <>
-                            <BarChart3 className="w-4 h-4" />
-                            Barras
-                          </>
-                        )}
-                      </Button>
-                    </div>
-
-                    <ResponsiveContainer width="100%" height={300}>
-                      {chartType === 'bar' ? (
-                        <BarChart data={frequencies}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
-                          <XAxis 
-                            dataKey="name" 
-                            stroke="#94a3b8"
-                            tick={{ fill: '#94a3b8', fontSize: 12 }}
-                            angle={-45}
-                            textAnchor="end"
-                            height={80}
-                          />
-                          <YAxis 
-                            stroke="#94a3b8"
-                            tick={{ fill: '#94a3b8' }}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: '#1e293b', 
-                              border: '1px solid #475569',
-                              borderRadius: '0.5rem'
-                            }}
-                            labelStyle={{ color: '#e2e8f0' }}
-                          />
-                          <Bar dataKey="value" fill="#14b8a6" radius={[8, 8, 0, 0]}>
-                            {frequencies.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      ) : (
-                        <PieChart>
-                          <Pie
-                            data={frequencies}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, percent }: any) => 
-                              `${String(name)}: ${(Number(percent || 0) * 100).toFixed(0)}%`
-                            }
-                            outerRadius={100}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {frequencies.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: '#1e293b', 
-                              border: '1px solid #475569',
-                              borderRadius: '0.5rem',
-                              color: '#14b8a6'
-                            }}
-                          />
-                        </PieChart>
-                      )}
-                    </ResponsiveContainer>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Estatísticas numéricas */}
+      {/* Estatísticas numéricas - MOVIDO PARA CIMA */}
       {Object.keys(analytics.numericStats).length > 0 && (
         <Card className="bg-slate-800 border-slate-700">
           <CardHeader>
-            <CardTitle className="text-xl text-slate-200">Estatísticas Numéricas</CardTitle>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-green-400" />
+              <CardTitle className="text-xl text-slate-200">Estatísticas Numéricas</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto custom-scrollbar">
@@ -431,11 +549,170 @@ export function DashboardOverview({ data, selectedSheet, loading }: DashboardPro
           </CardContent>
         </Card>
       )}
+
+      {/* Distribuição de Categorias COM GRADIENTE PROGRESSIVO */}
+      {Object.keys(analytics.categoryFrequencies).length > 0 && (
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-xl text-slate-200">Distribuição por Categoria</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              {Object.entries(analytics.categoryFrequencies).map(([column, allFrequencies]) => {
+                const chartType = chartTypes[column] || 'bar';
+                const currentPage = chartPages[`cat-${column}`] || 0;
+                const totalPages = Math.ceil(allFrequencies.length / MAX_CATEGORIES);
+                const frequencies = paginateData(allFrequencies, currentPage, MAX_CATEGORIES);
+                
+                return (
+                  <div key={column} className="p-4 border rounded-lg bg-slate-700/20 border-slate-600">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-semibold text-slate-200">{column}</h4>
+                      <div className="flex items-center gap-2">
+                        {totalPages > 1 && (
+                          <>
+                            <Button
+                              onClick={() => handleChartPageChange(`cat-${column}`, Math.max(0, currentPage - 1))}
+                              disabled={currentPage === 0}
+                              size="sm"
+                              variant="ghost"
+                              className="w-8 h-8 p-0 text-slate-400 hover:text-slate-100"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </Button>
+                            <span className="text-xs text-slate-500">
+                              {currentPage + 1}/{totalPages}
+                            </span>
+                            <Button
+                              onClick={() => handleChartPageChange(`cat-${column}`, Math.min(totalPages - 1, currentPage + 1))}
+                              disabled={currentPage >= totalPages - 1}
+                              size="sm"
+                              variant="ghost"
+                              className="w-8 h-8 p-0 text-slate-400 hover:text-slate-100"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+                        
+                        <Button
+                          onClick={() => toggleChartType(column)}
+                          size="sm"
+                          variant="outline"
+                          className="gap-2 bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600"
+                        >
+                          {chartType === 'bar' ? (
+                            <>
+                              <PieChartIcon className="w-4 h-4" />
+                              Pizza
+                            </>
+                          ) : (
+                            <>
+                              <BarChart3 className="w-4 h-4" />
+                              Barras
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <ResponsiveContainer width="100%" height={300}>
+                      {chartType === 'bar' ? (
+                        <BarChart data={frequencies}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                          <XAxis 
+                            dataKey="name" 
+                            stroke="#94a3b8"
+                            tick={{ fill: '#94a3b8', fontSize: 12 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                          />
+                          <YAxis 
+                            stroke="#94a3b8"
+                            tick={{ fill: '#94a3b8' }}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: '#1e293b', 
+                              border: '1px solid #475569',
+                              borderRadius: '0.5rem',
+                              color: '#e2e8f0'
+                            }}
+                            labelStyle={{ color: '#e2e8f0' }}
+                          />
+                          <Bar 
+                            dataKey="value" 
+                            fill="#14b8a6" 
+                            radius={[8, 8, 0, 0]}
+                            isAnimationActive={false}
+                          >
+                            {frequencies.map((_, index) => {
+                              const globalIndex = currentPage * MAX_CATEGORIES + index;
+                              return (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={getColorForIndex(globalIndex, allFrequencies.length)} 
+                                />
+                              );
+                            })}
+                          </Bar>
+                        </BarChart>
+                      ) : (
+                        <PieChart>
+                          <Pie
+                            data={frequencies}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ name, percent }: any) => {
+                              const percentValue = (Number(percent || 0) * 100).toFixed(0);
+                              return `${String(name)}: ${percentValue}%`;
+                            }}
+                            outerRadius={100}
+                            fill="#8884d8"
+                            dataKey="value"
+                            isAnimationActive={false}
+                          >
+                            {frequencies.map((_, index) => {
+                              const globalIndex = currentPage * MAX_CATEGORIES + index;
+                              return (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={getColorForIndex(globalIndex, allFrequencies.length)} 
+                                />
+                              );
+                            })}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: '#1e293b', 
+                              border: '1px solid #475569',
+                              borderRadius: '0.5rem',
+                              color: '#e2e8f0'
+                            }}
+                            itemStyle={{ color: '#e2e8f0' }}
+                          />
+                        </PieChart>
+                      )}
+                    </ResponsiveContainer>
+
+                    {totalPages > 1 && (
+                      <p className="mt-2 text-xs text-center text-slate-500">
+                        Mostrando top {currentPage * MAX_CATEGORIES + 1}-{Math.min((currentPage + 1) * MAX_CATEGORIES, allFrequencies.length)} de {allFrequencies.length} categorias
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
 
-// Componente auxiliar para cards de estatísticas
 function StatCard({ 
   icon, 
   label, 
@@ -456,7 +733,7 @@ function StatCard({
 
   return (
     <div className="flex flex-col p-4 border rounded-lg bg-slate-700/40 border-slate-600">
-      <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center text-white mb-3`}>
+      <div className={`w-12 h-12 rounded-lg bg-linear-to-br ${colorClasses[color]} flex items-center justify-center text-white mb-3`}>
         {icon}
       </div>
       <span className="text-sm text-slate-400">{label}</span>

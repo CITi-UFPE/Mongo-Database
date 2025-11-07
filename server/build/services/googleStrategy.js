@@ -39,4 +39,3 @@ const googleLogin = new _passportGoogleOauth.Strategy({
   }
 });
 _passport.default.use(googleLogin);
-//# sourceMappingURL=googleStrategy.js.map

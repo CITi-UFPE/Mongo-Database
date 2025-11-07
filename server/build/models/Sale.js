@@ -22,8 +22,6 @@ const SaleSchema = new _mongoose.default.Schema({
   paymentMethod: String,
   saleDate: Date,
   city: String,
-  state: String,
-  createdAt: Date
+  state: String
 });
 var _default = exports.default = _mongoose.default.model('Sale', SaleSchema);
-//# sourceMappingURL=Sale.js.map
