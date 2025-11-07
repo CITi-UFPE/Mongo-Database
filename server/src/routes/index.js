@@ -5,6 +5,11 @@ import facebookAuthRoutes from './facebookAuth';
 import apiRoutes from './api';
 const router = Router();
 
+// rota raiz
+router.get('/', (req, res) => {
+  res.json({ message: 'Server is running', version: '1.0.0' });
+});
+
 router.use('/auth', localAuthRoutes);
 router.use('/auth', googleAuthRoutes);
 router.use('/auth', facebookAuthRoutes);
