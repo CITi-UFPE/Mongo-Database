@@ -281,6 +281,7 @@ export default function DataVizDashboard() {
         </Card>
       </div>
 
+      {viewMode === "planilha" && (
         <Card className="bg-slate-800 border-slate-700">
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -378,6 +379,7 @@ export default function DataVizDashboard() {
             </div>
           </CardContent>
         </Card>
+      )}
 
 {viewMode === "planilha" ? (
   <Card ref={tableContainerRef} className="bg-slate-800 border-slate-700 min-h-[400px] flex flex-col p-6">
@@ -432,8 +434,8 @@ export default function DataVizDashboard() {
                     size="sm"
                     className={
                       currentPage === pageNum
-                        ? "bg-teal-600 hover:bg-teal-500 text-white min-w-[2rem]"
-                        : "bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600 min-w-[2rem]"
+                        ? "bg-teal-600 hover:bg-teal-500 text-white min-w-8"
+                        : "bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600 min-w-8"
                     }
                   >
                     {pageNum + 1}

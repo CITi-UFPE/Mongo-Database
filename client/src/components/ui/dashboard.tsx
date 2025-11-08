@@ -265,6 +265,25 @@ export function DashboardOverview() {
         />
       </div>
 
+      {/* Insights Card */}
+      <Card className="bg-linear-to-r from-slate-800 to-slate-700 border-slate-600">
+        <CardContent className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-lg bg-teal-500/20">
+              <TrendingUp className="w-6 h-6 text-teal-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-slate-100">Insights do CRM</h3>
+              <div className="mt-3 space-y-2 text-sm text-slate-300">
+                <p>• Taxa de conversão atual: <span className="font-semibold text-teal-400">{kpis.taxaConversao.toFixed(1)}%</span></p>
+                <p>• Ticket médio: <span className="font-semibold text-teal-400">R$ {kpis.ticketMedio.toFixed(2)}</span></p>
+                <p>• {kpis.leadsAbertos} leads ativos no pipeline com potencial de <span className="font-semibold text-teal-400">R$ {(kpis.valorPipeline / 1000).toFixed(0)}K</span></p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Charts Section with Pagination */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -377,7 +396,7 @@ export function DashboardOverview() {
                 )}
                 {chart.id === 'temporal' && (
                   <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={temporalData}>
+                    <RechartsLineChart data={temporalData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="mes" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
                       <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
@@ -390,23 +409,32 @@ export function DashboardOverview() {
                         }}
                         itemStyle={{ color: '#e2e8f0' }}
                       />
-                      <Area 
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="total" 
+                        stroke="#3b82f6" 
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        name="Total Leads"
+                      />
+                      <Line 
                         type="monotone" 
                         dataKey="ganhos" 
-                        stackId="1"
                         stroke="#10b981" 
-                        fill="#10b981" 
-                        fillOpacity={0.6}
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        name="Leads Ganhos"
                       />
-                      <Area 
+                      <Line 
                         type="monotone" 
                         dataKey="perdidos" 
-                        stackId="2"
                         stroke="#ef4444" 
-                        fill="#ef4444" 
-                        fillOpacity={0.6}
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        name="Leads Perdidos"
                       />
-                    </AreaChart>
+                    </RechartsLineChart>
                   </ResponsiveContainer>
                 )}
               </CardContent>
@@ -444,25 +472,6 @@ export function DashboardOverview() {
           </CardContent>
         </Card>
       )}
-
-      {/* Insights Card */}
-      <Card className="bg-linear-to-r from-slate-800 to-slate-700 border-slate-600">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <div className="p-3 rounded-lg bg-teal-500/20">
-              <TrendingUp className="w-6 h-6 text-teal-400" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-slate-100">Insights do CRM</h3>
-              <div className="mt-3 space-y-2 text-sm text-slate-300">
-                <p>• Taxa de conversão atual: <span className="font-semibold text-teal-400">{kpis.taxaConversao.toFixed(1)}%</span></p>
-                <p>• Ticket médio: <span className="font-semibold text-teal-400">R$ {kpis.ticketMedio.toFixed(2)}</span></p>
-                <p>• {kpis.leadsAbertos} leads ativos no pipeline com potencial de <span className="font-semibold text-teal-400">R$ {(kpis.valorPipeline / 1000).toFixed(0)}K</span></p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
