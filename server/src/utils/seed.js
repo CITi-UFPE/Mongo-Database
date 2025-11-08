@@ -1,7 +1,18 @@
 import faker from 'faker';
 import { join } from 'path';
 
-import Sale from '../models/Sale';
+// Importar modelos Comercial
+import Lead from '../models/Comercial/Lead';
+import Membro from '../models/Comercial/Membro';
+import Vendedor from '../models/Comercial/Vendedor';
+import Empresa from '../models/Comercial/Empresa';
+import Contato from '../models/Comercial/Contato';
+import FaseFunil from '../models/Comercial/Fase_funil';
+import OrigemLead from '../models/Comercial/Origem_lead';
+import Nicho from '../models/Comercial/Nicho';
+import MotivoPerda from '../models/Comercial/Motivo_perda';
+import Interacao from '../models/Comercial/Interacao';
+
 import { deleteAllAvatars } from './utils';
 import { IMAGES_FOLDER_PATH } from './constants';
 
