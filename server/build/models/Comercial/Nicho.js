@@ -17,6 +17,7 @@ const NichoSchema = new Schema({
     unique: true
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'nichos_sheet'
 });
 var _default = exports.default = _mongoose.default.model('Nicho', NichoSchema);

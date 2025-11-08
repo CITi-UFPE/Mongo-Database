@@ -17,6 +17,7 @@ const MotivoPerdaSchema = new Schema({
     unique: true
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'motivos_perda_sheet'
 });
 var _default = exports.default = _mongoose.default.model('MotivoPerda', MotivoPerdaSchema);

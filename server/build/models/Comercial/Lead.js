@@ -66,6 +66,7 @@ const LeadSchema = new Schema({
     required: false
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'leads_sheet'
 });
 var _default = exports.default = _mongoose.default.model('Lead', LeadSchema);

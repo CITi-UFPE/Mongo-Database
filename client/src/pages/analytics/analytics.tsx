@@ -513,12 +513,7 @@ export default function DataVizDashboard() {
     )}
   </Card>
 ) : (
-      <DashboardOverview 
-          data={filteredRows}
-          selectedSheet={selectedSheet}
-          loading={loadingSheetData}
-        />
-  
+      <DashboardOverview />
 )}
       </main>
       <AnimatePresence>

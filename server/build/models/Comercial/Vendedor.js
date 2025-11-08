@@ -17,6 +17,7 @@ const VendedorSchema = new Schema({
     unique: true
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'vendedores_sheet'
 });
 var _default = exports.default = _mongoose.default.model('Vendedor', VendedorSchema);

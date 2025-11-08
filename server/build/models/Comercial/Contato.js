@@ -36,7 +36,8 @@ const ContatoSchema = new Schema({
     trim: true
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'contatos_sheet'
 });
 ContatoSchema.index({
   id_empresa: 1,

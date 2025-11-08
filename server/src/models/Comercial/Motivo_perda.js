@@ -12,6 +12,7 @@ const MotivoPerdaSchema = new Schema(
   },
   {
     timestamps: true,
+    collection: 'motivos_perda_sheet',
   },
 );
 

@@ -12,6 +12,7 @@ const VendedorSchema = new Schema(
   },
   {
     timestamps: true,
+    collection: 'vendedores_sheet',
   },
 );
 

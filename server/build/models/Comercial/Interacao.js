@@ -36,7 +36,8 @@ const InteracaoSchema = new Schema({
     default: Date.now
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'interacoes_sheet'
 });
 InteracaoSchema.index({
   id_lead: 1

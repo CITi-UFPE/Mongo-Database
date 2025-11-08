@@ -38,6 +38,7 @@ const MembroSchema = new Schema({
     required: [true, 'A data de entrada é obrigatória.']
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'membros_sheet'
 });
 var _default = exports.default = _mongoose.default.model('Membro', MembroSchema);

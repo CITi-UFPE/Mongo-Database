@@ -17,6 +17,7 @@ const FaseFunilSchema = new Schema(
   },
   {
     timestamps: true,
+    collection: 'fases_funil_sheet',
   },
 );
 
