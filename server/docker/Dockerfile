@@ -25,6 +25,7 @@ RUN npm i --location=global pm2
 
 ENV NODE_ENV=production
 RUN npm install
+RUN npm install -g rimraf mkdirp
 RUN npm run build
 
 CMD [ "pm2-runtime", "--no-autorestart", "npm", "--", "run", "docker:start:prod" ]

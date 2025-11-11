@@ -185,13 +185,6 @@ export default function DataVizDashboard() {
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    // Scroll suave apenas dentro do container da tabela, sem mover a página
-    if (tableContainerRef.current) {
-      const tableElement = tableContainerRef.current.querySelector('.overflow-auto');
-      if (tableElement) {
-        tableElement.scrollTop = 0; // Scroll apenas dentro do container da tabela
-      }
-    }
   };
 
 
@@ -258,7 +251,7 @@ export default function DataVizDashboard() {
         <div>
         <Card className="transition-all bg-slate-800 border-slate-700">
           <CardHeader>
-            <CardTitle className="text-2xl text-teal-400">Bem-vindo ao DataViz</CardTitle>
+            <CardTitle className="text-2xl text-teal-400">Bem-vindo ao Data Lake</CardTitle>
             <p className="text-sm text-slate-300">
               Selecione uma planilha ou Visualização de Dashboard.
             </p>
@@ -320,7 +313,7 @@ export default function DataVizDashboard() {
                   <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-100 disabled:cursor-not-allowed">
                     <SelectValue placeholder={planilhaPlaceholder} />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
+                  <SelectContent className="bg-slate-800 border-slate-600 text-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
                     {sheets.map((sheetName) => (
                       <SelectItem key={sheetName} value={sheetName} className="hover:bg-slate-700">
                         {sheetName}
@@ -350,7 +343,7 @@ export default function DataVizDashboard() {
                           placeholder={columnOptions.length ? "Selecione uma coluna" : "Selecione uma planilha"}
                         />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
+                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
                         {columnOptions.map((column) => (
                           <SelectItem key={column} value={column} className="hover:bg-slate-700">
                             {column}
@@ -371,7 +364,7 @@ export default function DataVizDashboard() {
                           placeholder={selectedFilterColumn ? "Selecione um valor" : "Escolha uma coluna"}
                         />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
+                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
                         {filterValueOptions.map((value) => (
                           <SelectItem key={value} value={value} className="hover:bg-slate-700">
                             {value}
@@ -439,8 +432,8 @@ export default function DataVizDashboard() {
                     size="sm"
                     className={
                       currentPage === pageNum
-                        ? "bg-teal-600 hover:bg-teal-500 text-white min-w-8"
-                        : "bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600 min-w-8"
+                        ? "bg-teal-600 hover:bg-teal-500 text-white min-w-[2rem]"
+                        : "bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600 min-w-[2rem]"
                     }
                   >
                     {pageNum + 1}
@@ -520,7 +513,12 @@ export default function DataVizDashboard() {
     )}
   </Card>
 ) : (
-  <DashboardOverview />
+      <DashboardOverview 
+          data={filteredRows}
+          selectedSheet={selectedSheet}
+          loading={loadingSheetData}
+        />
+  
 )}
       </main>
       <AnimatePresence>

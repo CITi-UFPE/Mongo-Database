@@ -1,215 +1,346 @@
+// src/components/crm/DashboardOverview.tsx
+
+import { useMemo, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  TrendingUp, 
+  DollarSign, 
+  Target, 
+  Users, 
+  Activity,
+  Calendar,
+  Award
+} from 'lucide-react';
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
-import { TrendingUp, Users, ShoppingBag, DollarSign } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  CartesianGrid,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
+  CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+  Legend,
+  ResponsiveContainer
+} from 'recharts';
 
-const kpis = [
-  {
-    iconBg: "from-cyan-500 to-blue-500",
-    icon: <DollarSign className="w-5 h-5 text-white" />,
-    label: "Receita Total",
-    value: "R$ 842K",
-    delta: "+ 12.5%",
-    deltaColor: "text-emerald-400",
-  },
-  {
-    iconBg: "from-emerald-500 to-teal-500",
-    icon: <TrendingUp className="w-5 h-5 text-white" />,
-    label: "NPS Médio",
-    value: "72",
-    delta: "+ 8.2%",
-    deltaColor: "text-emerald-400",
-  },
-  {
-    iconBg: "from-purple-500 to-indigo-600",
-    icon: <ShoppingBag className="w-5 h-5 text-white" />,
-    label: "Total de Vendas",
-    value: "1,248",
-    delta: "+ 15.3%",
-    deltaColor: "text-emerald-400",
-  },
-  {
-    iconBg: "from-violet-500 to-teal-500",
-    icon: <Users className="w-5 h-5 text-white" />,
-    label: "Clientes Ativos",
-    value: "856",
-    delta: "+ 4.1%",
-    deltaColor: "text-emerald-400",
-  },
-];
+type Lead = {
+  _id: string;
+  status: 'Aberto' | 'Ganho' | 'Perdido';
+  valor_estimado: number;
+  id_fase_atual: { nome_fase: string; ordem: number };
+  id_origem_lead: { canal: string };
+  createdAt: string;
+};
 
-// dados fake pro gráfico
-const salesData = [
-  { mes: "Jan", valor: 45_000, tendencia: 50_000 },
-  { mes: "Fev", valor: 52_000, tendencia: 52_000 },
-  { mes: "Mar", valor: 48_000, tendencia: 55_000 },
-  { mes: "Abr", valor: 68_000, tendencia: 60_000 },
-  { mes: "Mai", valor: 58_000, tendencia: 62_000 },
-  { mes: "Jun", valor: 72_000, tendencia: 70_000 },
-  { mes: "Jul", valor: 75_000, tendencia: 73_000 },
-  { mes: "Ago", valor: 69_000, tendencia: 78_000 },
-  { mes: "Set", valor: 82_000, tendencia: 82_000 },
-  { mes: "Out", valor: 86_000, tendencia: 85_000 },
-  { mes: "Nov", valor: 92_000, tendencia: 90_000 },
-  { mes: "Dez", valor: 98_000, tendencia: 97_000 },
-];
+type Vendedor = {
+  _id: string;
+  id_membro: { nome: string };
+};
 
-export function DashboardOverview() {
+type Meta = {
+  id_vendedor: string;
+  valor_objetivo: number;
+  periodo: string;
+};
+
+type Interacao = {
+  id_vendedor: string;
+  id_lead: string;
+  data_realizacao: string;
+};
+
+type DashboardProps = {
+  leads: Lead[];
+  vendedores: Vendedor[];
+  metas: Meta[];
+  interacoes: Interacao[];
+};
+
+const COLORS = ['#0ea5e9', '#14b8a6', '#84cc16', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+export function DashboardOverview({ leads, vendedores, metas, interacoes }: DashboardProps) {
+  const analytics = useMemo(() => {
+    // KPIs Principais
+    const totalLeads = leads.length;
+    const leadsAbertos = leads.filter(l => l.status === 'Aberto').length;
+    const leadsGanhos = leads.filter(l => l.status === 'Ganho').length;
+    const leadsPerdidos = leads.filter(l => l.status === 'Perdido').length;
+    
+    const taxaConversao = totalLeads > 0 ? ((leadsGanhos / (leadsGanhos + leadsPerdidos)) * 100) : 0;
+    
+    const valorTotalGanho = leads
+      .filter(l => l.status === 'Ganho')
+      .reduce((sum, l) => sum + (l.valor_estimado || 0), 0);
+
+    // Atividades da semana
+    const umaSemanaAtras = new Date();
+    umaSemanaAtras.setDate(umaSemanaAtras.getDate() - 7);
+    const atividadesSemana = interacoes.filter(
+      i => new Date(i.data_realizacao) >= umaSemanaAtras
+    ).length;
+
+    // Funil de conversão (por fase)
+    const faseCount: Record<string, { count: number; ordem: number }> = {};
+    leads.forEach(lead => {
+      const fase = lead.id_fase_atual?.nome_fase || 'Sem Fase';
+      const ordem = lead.id_fase_atual?.ordem || 999;
+      if (!faseCount[fase]) {
+        faseCount[fase] = { count: 0, ordem };
+      }
+      faseCount[fase].count++;
+    });
+
+    const funnelData = Object.entries(faseCount)
+      .map(([fase, data]) => ({ fase, leads: data.count, ordem: data.ordem }))
+      .sort((a, b) => a.ordem - b.ordem);
+
+    // Performance por vendedor
+    const vendedorPerformance = vendedores.map(vendedor => {
+      const vendedorId = vendedor._id.toString();
+      
+      // Busca interações do vendedor
+      const leadsDoVendedor = new Set(
+        interacoes
+          .filter(i => i.id_vendedor?.toString() === vendedorId)
+          .map(i => i.id_lead?.toString())
+      );
+
+      // Calcula valor ganho
+      const valorGanho = leads
+        .filter(l => leadsDoVendedor.has(l._id.toString()) && l.status === 'Ganho')
+        .reduce((sum, l) => sum + (l.valor_estimado || 0), 0);
+
+      // Busca meta do vendedor
+      const metaVendedor = metas.find(m => m.id_vendedor?.toString() === vendedorId);
+
+      return {
+        nome: vendedor.id_membro?.nome || 'Desconhecido',
+        valorGanho,
+        meta: metaVendedor?.valor_objetivo || 0,
+        percentual: metaVendedor ? (valorGanho / metaVendedor.valor_objetivo) * 100 : 0
+      };
+    }).sort((a, b) => b.valorGanho - a.valorGanho);
+
+    // Origem dos leads
+    const origemCount: Record<string, number> = {};
+    leads.forEach(lead => {
+      const origem = lead.id_origem_lead?.canal || 'Desconhecido';
+      origemCount[origem] = (origemCount[origem] || 0) + 1;
+    });
+
+    const origemData = Object.entries(origemCount)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    return {
+      kpis: {
+        totalLeads,
+        leadsAbertos,
+        taxaConversao,
+        valorTotalGanho,
+        atividadesSemana
+      },
+      funnelData,
+      vendedorPerformance,
+      origemData
+    };
+  }, [leads, vendedores, metas, interacoes]);
+
   return (
-    <div className="w-full max-w-[1400px] mx-auto px-6 py-10 text-slate-100">
-      {/* título geral */}
-      <p className="mb-6 text-sm text-slate-300">
-        Análise de performance e métricas temporais
-      </p>
-
-      {/* KPIs */}
-      <div className="grid gap-4 mb-8 md:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi, i) => (
-          <Card
-            key={i}
-            className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]"
-          >
-            <CardContent className="flex flex-col gap-3 p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center justify-center w-10 h-10 rounded-md bg-gradient-to-br shadow-inner from-10% to-90% bg-clip-padding
-                  bg-gradient-to-r
-                  from-[rgb(0,190,255)]
-                  to-[rgb(0,120,255)]
-                ">
-                  {kpi.icon}
-                </div>
-                <span
-                  className={`text-xs font-medium ${kpi.deltaColor}`}
-                >
-                  {kpi.delta}
-                </span>
-              </div>
-
-              <div className="flex flex-col">
-                <span className="text-xs text-slate-400">{kpi.label}</span>
-                <span className="text-xl font-semibold leading-tight text-white">
-                  {kpi.value}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+    <div className="space-y-6">
+      {/* KPIs Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <KPICard
+          icon={<Users className="w-5 h-5" />}
+          label="Leads Totais"
+          value={analytics.kpis.totalLeads}
+          color="blue"
+        />
+        <KPICard
+          icon={<Target className="w-5 h-5" />}
+          label="Leads Ativos"
+          value={analytics.kpis.leadsAbertos}
+          color="teal"
+        />
+        <KPICard
+          icon={<TrendingUp className="w-5 h-5" />}
+          label="Taxa de Conversão"
+          value={`${analytics.kpis.taxaConversao.toFixed(1)}%`}
+          color="green"
+        />
+        <KPICard
+          icon={<DollarSign className="w-5 h-5" />}
+          label="Valor Total Ganho"
+          value={`R$ ${(analytics.kpis.valorTotalGanho / 1000).toFixed(0)}K`}
+          color="purple"
+        />
+        <KPICard
+          icon={<Activity className="w-5 h-5" />}
+          label="Atividades (7 dias)"
+          value={analytics.kpis.atividadesSemana}
+          color="orange"
+        />
       </div>
 
-      {/* Performance de vendas */}
-      <Card className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 mb-8 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-medium text-slate-100">
-            Performance de Vendas
+      {/* Funil de Conversão + Origem dos Leads */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Funil de Conversão */}
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl text-slate-200">
+              <Target className="w-5 h-5 text-teal-400" />
+              Funil de Conversão
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={analytics.funnelData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                <XAxis type="number" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
+                <YAxis 
+                  dataKey="fase" 
+                  type="category" 
+                  stroke="#94a3b8" 
+                  tick={{ fill: '#94a3b8' }} 
+                  width={120} 
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1e293b', 
+                    border: '1px solid #475569',
+                    borderRadius: '0.5rem',
+                    color: '#e2e8f0'
+                  }}
+                />
+                <Bar dataKey="leads" radius={[0, 8, 8, 0]}>
+                  {analytics.funnelData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Origem dos Leads */}
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl text-slate-200">
+              <Calendar className="w-5 h-5 text-teal-400" />
+              Origem dos Leads
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={analytics.origemData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }: any) => 
+                    `${name}: ${(percent * 100).toFixed(0)}%`
+                  }
+                  outerRadius={100}
+                  dataKey="value"
+                  isAnimationActive={false}
+                >
+                  {analytics.origemData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1e293b', 
+                    border: '1px solid #475569',
+                    borderRadius: '0.5rem',
+                    color: '#e2e8f0'
+                  }}
+                  itemStyle={{ color: '#e2e8f0' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Performance por Vendedor */}
+      <Card className="bg-slate-800 border-slate-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-xl text-slate-200">
+            <Award className="w-5 h-5 text-teal-400" />
+            Performance por Vendedor
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
-          <div className="h-[280px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={salesData} margin={{ left: 16, right: 16, top: 16, bottom: 16 }}>
-                <CartesianGrid
-                  stroke="rgba(226,232,240,0.08)" // grid bem suave
-                  strokeDasharray="4 4"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="mes"
-                  stroke="#94a3b8"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis
-                  stroke="#94a3b8"
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v: number) => `R$${Math.round(v / 1000)}k`}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1e293b",
-                    border: "1px solid #334155",
-                    borderRadius: "0.5rem",
-                    color: "white",
-                    fontSize: "0.75rem",
-                  }}
-                  labelStyle={{ color: "#cbd5e1", fontWeight: 500 }}
-                  formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, "Vendas"]}
-                />
-                {/* linha tendência (tracejada cinza) */}
-                <Line
-                  type="monotone"
-                  dataKey="tendencia"
-                  stroke="#94a3b8"
-                  strokeDasharray="4 4"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                {/* linha vendas (ciano brilhando) */}
-                <Line
-                  type="monotone"
-                  dataKey="valor"
-                  stroke="#06b6d4"
-                  strokeWidth={3}
-                  activeDot={{
-                    r: 5,
-                    fill: "#06b6d4",
-                    stroke: "#0f172a",
-                    strokeWidth: 2,
-                  }}
-                  dot={{ r: 4, fill: "#06b6d4", strokeWidth: 0 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={analytics.vendedorPerformance.slice(0, 6)}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+              <XAxis 
+                dataKey="nome" 
+                stroke="#94a3b8" 
+                tick={{ fill: '#94a3b8', fontSize: 12 }} 
+                angle={-45} 
+                textAnchor="end" 
+                height={100} 
+              />
+              <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: '#1e293b', 
+                  border: '1px solid #475569',
+                  borderRadius: '0.5rem',
+                  color: '#e2e8f0'
+                }}
+                formatter={(value: any) => `R$ ${value.toLocaleString()}`}
+              />
+              <Legend wrapperStyle={{ color: '#94a3b8' }} />
+              <Bar dataKey="meta" fill="#64748b" name="Meta" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="valorGanho" fill="#10b981" name="Atingido" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
-
-      {/* parte de baixo (cards menores tipo distribuição de clientes / evolução NPS)
-         você ainda não me mostrou o resto do layout mas já deixo um grid pronto pra encaixar */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 min-h-[220px] shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium text-slate-100">
-              Distribuição de Clientes
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-slate-400">
-            {/* espaço pra pizza chart / barras horizontais etc */}
-            <div className="h-[160px] flex items-center justify-center text-slate-500 text-xs">
-              (gráfico de distribuição aqui)
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-[#0f1a2a] border border-slate-700/70 text-slate-100 min-h-[220px] shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium text-slate-100">
-              Evolução do NPS
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-slate-400">
-            <div className="h-[160px] flex items-center justify-center text-slate-500 text-xs">
-              (gráfico de NPS aqui)
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
 
-export default DashboardOverview;
+function KPICard({ 
+  icon, 
+  label, 
+  value, 
+  color 
+}: { 
+  icon: React.ReactNode; 
+  label: string; 
+  value: string | number; 
+  color: 'blue' | 'teal' | 'green' | 'purple' | 'orange';
+}) {
+  const colorClasses = {
+    blue: 'from-blue-500 to-blue-600',
+    teal: 'from-teal-500 to-teal-600',
+    green: 'from-green-500 to-green-600',
+    purple: 'from-purple-500 to-purple-600',
+    orange: 'from-orange-500 to-orange-600',
+  };
+
+  return (
+    <Card className="bg-slate-800 border-slate-700">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <p className="text-xs text-slate-400">{label}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-100">{value}</p>
+          </div>
+          <div className={`p-2 rounded-lg bg-gradient-to-br ${colorClasses[color]}`}>
+            <div className="text-white">
+              {icon}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

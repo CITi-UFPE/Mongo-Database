@@ -24,4 +24,3 @@ const jwtLogin = new _passportJwt.Strategy({
   }
 });
 _passport.default.use(jwtLogin);
-//# sourceMappingURL=jwtStrategy.js.map
