@@ -2,8 +2,9 @@
 # Formato: CARGO | ÁREA | URL/LOGIN (Banco) | EMAIL (Pessoa)
 
 # COMERCIAL
-Gerente de Comercial | Comercial | gcom_atlas_login | [Email do Gerente de Comercial]
-Gerente de Contas-Chaves | Comercial | gchave_atlas_login | [Email do Gerente de Contas-Chaves]
+Gerente de Comercial | Comercial | gcom_atlas_login | niltton.szpak@citi.org.br
+Gerente de Contas-Chaves | Comercial | gchave_atlas_login | ⁠sabrina.cardoso@citi.org.br
+Gerente de Contas-Chaves | Comercial | gchave_atlas_login | 
 Gerente de Conta | Comercial | gconta_atlas_login | [Email do Gerente de Conta]
 
 # DADOS
