@@ -20,4 +20,3 @@ const MotivoPerdaSchema = new Schema({
   timestamps: true
 });
 var _default = exports.default = _mongoose.default.model('MotivoPerda', MotivoPerdaSchema);
-//# sourceMappingURL=Motivo_perda.js.map

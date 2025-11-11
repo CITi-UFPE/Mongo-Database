@@ -1,5 +1,9 @@
 {
   "dependencies": {
     "framer-motion": "^12.23.24"
+  },
+  "devDependencies": {
+    "mkdirp": "^3.0.1",
+    "rimraf": "^6.1.0"
   }
 }

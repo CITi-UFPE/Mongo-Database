@@ -14,7 +14,6 @@
     "build-babel": "babel -d ./build ./src -s",
     "start-dev": "node --exec babel-node src/index.js",
     "server": "nodemon --exec babel-node src/index.js",
-    
     "client": "npm start --prefix ../client",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "dev:server": "nodemon src/index.js"
@@ -52,6 +51,7 @@
     "passport-local": "^1.0.0"
   },
   "devDependencies": {
+    "mkdirp": "^3.0.1",
     "nodemon": "^3.1.10",
     "rimraf": "^6.1.0"
   },

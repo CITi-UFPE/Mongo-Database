@@ -44,4 +44,3 @@ const EmpresaSchema = new Schema({
   timestamps: true
 });
 var _default = exports.default = _mongoose.default.model('Empresa', EmpresaSchema);
-//# sourceMappingURL=Empresa.js.map

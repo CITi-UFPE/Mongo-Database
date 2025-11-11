@@ -73,4 +73,3 @@ router.get('/logout', (req, res) => {
   res.send(false);
 });
 var _default = exports.default = router;
-//# sourceMappingURL=localAuth.js.map

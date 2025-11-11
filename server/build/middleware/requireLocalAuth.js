@@ -19,4 +19,3 @@ const requireLocalAuth = (req, res, next) => {
   })(req, res, next);
 };
 var _default = exports.default = requireLocalAuth;
-//# sourceMappingURL=requireLocalAuth.js.map

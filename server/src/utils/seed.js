@@ -9,6 +9,21 @@ import {
 
 const MONGO_URI = 'mongodb://localhost:27017/citi_comercial';
 
+// Função auxiliar para escolher com pesos
+function weightedRandom(items) {
+  const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+  let random = faker.datatype.number({ min: 0, max: totalWeight - 1 });
+  for (const item of items) {
+    if (random < item.weight) {
+      return item.value;
+    }
+    random -= item.weight;
+  }
+  return items[items.length - 1].value; // fallback
+}
+
+const CURRENT_YEAR = new Date().getFullYear();
+
 export const seedDb = async () => {
   console.log('Iniciando seeding do banco de dados Comercial...');
 

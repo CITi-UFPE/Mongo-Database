@@ -62,4 +62,3 @@ if (isProduction) {
     // console.log(all_routes(app));
   });
 }
-//# sourceMappingURL=index.js.map

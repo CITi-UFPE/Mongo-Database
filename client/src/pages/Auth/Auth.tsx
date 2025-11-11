@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   Card,
   CardHeader,
@@ -15,7 +16,9 @@ import AnimatedLogo from "@/components/AnimatedLogo"
 import axios from "axios"
 import { GoogleLogin } from "@react-oauth/google"
 
+
 export default function Home() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
 
@@ -36,62 +39,18 @@ export default function Home() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-300">
-                Email
-              </Label>
-              <div className="relative">
-                <Mail className="absolute w-4 h-4 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 text-white bg-slate-700/50 border-slate-600 placeholder-slate-400 focus:ring-cyan-500 focus:border-cyan-500"
-                  required
-                />
-              </div>
-            </div>
-                    <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-slate-300">
-                  Senha
-                </Label>
-                <a href="#" className="text-sm transition-colors text-cyan-400 hover:text-cyan-300">
-                  Esqueceu?
-                </a>
-              </div>
-              <div className="relative">
-                <Lock className="absolute w-4 h-4 -translate-y-1/2 left-3 top-1/2 text-slate-400" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 text-white bg-slate-700/50 border-slate-600 placeholder-slate-400 focus:ring-cyan-500 focus:border-cyan-500"
-                  required
-                />
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full py-2 font-semibold text-white transition-all rounded-md bg-linear-to-r from-green-400 via-blue-500 to-purple-600 hover:from-green-500 hover:via-blue-600 hover:to-purple-700">
-              Entrar
-            </Button>
-          </form>
-
           {/* LOGIN COM GOOGLE 👇 */}
           <GoogleLogin
             onSuccess={async (credentialResponse) => {
               try {
-                const res = await axios.post("https://localhost:5000/auth/google", {
+                const res = await axios.post("http://localhost:5000/auth/google", {
                   id_token: credentialResponse.credential,
                 });
                 console.log("Usuário autenticado:", res.data);
+                // Armazene o token no localStorage ou em outro lugar seguro
+                localStorage.setItem("authToken", res.data.token);
+                // Redirecione o usuário para a página desejada após o login
+                navigate("/analytics");
               } catch (err) {
                 console.error("Erro no login:", err);
               }
@@ -102,10 +61,7 @@ export default function Home() {
           />
 
           <div className="mt-6 text-sm text-center text-slate-400">
-            Não tem uma conta?{' '}
-            <a href="#" className="font-medium underline text-cyan-400 hover:text-cyan-300">
-              Criar conta
-            </a>
+            Caso não seja usuário no Data Lake, entre em contato com a área de dados.
           </div>
         </CardContent>
       </Card>

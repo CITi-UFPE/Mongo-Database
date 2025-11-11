@@ -170,6 +170,36 @@ export default function DataVizDashboard() {
     return sheetData.filter((row) => String(row[selectedFilterColumn]) === selectedFilterValue);
   }, [sheetData, selectedFilterColumn, selectedFilterValue]);
 
+  // Paginação
+  const totalPages = Math.ceil(filteredRows.length / ROWS_PER_PAGE);
+  const paginatedRows = useMemo(() => {
+    const startIndex = currentPage * ROWS_PER_PAGE;
+    const endIndex = startIndex + ROWS_PER_PAGE;
+    return filteredRows.slice(startIndex, endIndex);
+  }, [filteredRows, currentPage]);
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages - 1) {
+      handlePageChange(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 0) {
+      handlePageChange(currentPage - 1);
+    }
+  };
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [selectedFilterColumn, selectedFilterValue]);
+
   const tableHeaders = useMemo(() => {
     if (!filteredRows.length) return [] as string[];
     const keys = new Set<string>();
@@ -216,7 +246,7 @@ export default function DataVizDashboard() {
         <div>
         <Card className="transition-all bg-slate-800 border-slate-700">
           <CardHeader>
-            <CardTitle className="text-2xl text-teal-400">Bem-vindo ao DataViz</CardTitle>
+            <CardTitle className="text-2xl text-teal-400">Bem-vindo ao Data Lake</CardTitle>
             <p className="text-sm text-slate-300">
               Selecione uma planilha ou Visualização de Dashboard.
             </p>
@@ -278,7 +308,7 @@ export default function DataVizDashboard() {
                   <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-100 disabled:cursor-not-allowed">
                     <SelectValue placeholder={planilhaPlaceholder} />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
+                  <SelectContent className="bg-slate-800 border-slate-600 text-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
                     {sheets.map((sheetName) => (
                       <SelectItem key={sheetName} value={sheetName} className="hover:bg-slate-700">
                         {sheetName}
@@ -308,7 +338,7 @@ export default function DataVizDashboard() {
                           placeholder={columnOptions.length ? "Selecione uma coluna" : "Selecione uma planilha"}
                         />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
+                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
                         {columnOptions.map((column) => (
                           <SelectItem key={column} value={column} className="hover:bg-slate-700">
                             {column}
@@ -329,7 +359,7 @@ export default function DataVizDashboard() {
                           placeholder={selectedFilterColumn ? "Selecione um valor" : "Escolha uma coluna"}
                         />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100">
+                      <SelectContent className="bg-slate-800 border-slate-600 text-slate-100 max-h-[300px] overflow-y-auto custom-scrollbar">
                         {filterValueOptions.map((value) => (
                           <SelectItem key={value} value={value} className="hover:bg-slate-700">
                             {value}
@@ -344,71 +374,147 @@ export default function DataVizDashboard() {
           </CardContent>
         </Card>
 
-        {viewMode === "planilha" ? (
-          <Card className="bg-slate-800 border-slate-700 min-h-[400px] flex flex-col p-6">
-            {loadingSheetData ? (
-              <div className="flex flex-col items-center justify-center flex-1 gap-3 text-slate-400">
-                <Loader2 className="w-10 h-10 animate-spin" />
-                <span>Carregando dados da planilha...</span>
-              </div>
-            ) : dataError ? (
-              <div className="flex flex-col items-center justify-center flex-1 gap-2 text-center">
-                <BarChart className="w-10 h-10 text-rose-400" />
-                <p className="text-sm text-rose-400">{dataError}</p>
-              </div>
-            ) : selectedSheet && tableHeaders.length && filteredRows.length ? (
-              <div className="flex-1 overflow-hidden">
-                <div className="h-full overflow-auto border rounded-lg border-slate-700/70">
-                  <table className="w-full text-sm text-left border-collapse">
-                    <thead className="bg-slate-700/60 text-slate-200">
-                      <tr>
+{viewMode === "planilha" ? (
+  <Card ref={tableContainerRef} className="bg-slate-800 border-slate-700 min-h-[400px] flex flex-col p-6">
+    {loadingSheetData ? (
+      <div className="flex flex-col items-center justify-center flex-1 gap-3 text-slate-400">
+        <Loader2 className="w-10 h-10 animate-spin" />
+        <span>Carregando dados da planilha...</span>
+      </div>
+    ) : dataError ? (
+      <div className="flex flex-col items-center justify-center flex-1 gap-2 text-center">
+        <BarChart className="w-10 h-10 text-rose-400" />
+        <p className="text-sm text-rose-400">{dataError}</p>
+      </div>
+    ) : selectedSheet && tableHeaders.length && paginatedRows.length ? (
+      <div className="flex flex-col flex-1 gap-4">
+        {/* Paginação no topo */}
+        <div className="flex flex-col gap-3 pb-4 border-b sm:flex-row sm:items-center sm:justify-between border-slate-700">
+          <p className="text-sm text-slate-400">
+            Exibindo <span className="font-semibold text-slate-200">{currentPage * ROWS_PER_PAGE + 1}</span> - <span className="font-semibold text-slate-200">{Math.min((currentPage + 1) * ROWS_PER_PAGE, filteredRows.length)}</span> de <span className="font-semibold text-slate-200">{filteredRows.length}</span> registros
+          </p>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handlePrevPage}
+              disabled={currentPage === 0}
+              variant="outline"
+              size="sm"
+              className="bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Anterior</span>
+            </Button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                let pageNum: number;
+                if (totalPages <= 5) {
+                  pageNum = i;
+                } else if (currentPage < 3) {
+                  pageNum = i;
+                } else if (currentPage > totalPages - 4) {
+                  pageNum = totalPages - 5 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    onClick={() => handlePageChange(pageNum)}
+                    variant={currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    className={
+                      currentPage === pageNum
+                        ? "bg-teal-600 hover:bg-teal-500 text-white min-w-[2rem]"
+                        : "bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600 min-w-[2rem]"
+                    }
+                  >
+                    {pageNum + 1}
+                  </Button>
+                );
+              })}
+            </div>
+            
+            <Button
+              onClick={handleNextPage}
+              disabled={currentPage >= totalPages - 1}
+              variant="outline"
+              size="sm"
+              className="bg-slate-700 border-slate-600 text-slate-100 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="hidden sm:inline">Próximo</span>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Tabela */}
+        <div className="flex-1">
+          <div className="overflow-x-auto border rounded-lg custom-scrollbar border-slate-700/70">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="sticky top-0 z-10 bg-slate-700/90 backdrop-blur-sm text-slate-200">
+                <tr>
+                  {tableHeaders.map((header) => (
+                    <th key={header} className="px-4 py-3 text-xs font-semibold tracking-wide uppercase border-b border-slate-600 whitespace-nowrap">
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence mode="wait">
+                  {paginatedRows.map((row, index) => {
+                    const rowKey = typeof row.id === "string" ? row.id : `${currentPage}-${index}`;
+                    return (
+                      <motion.tr
+                        key={rowKey}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2, delay: index * 0.02 }}
+                        className="transition-colors border-b border-slate-700/60 last:border-b-0 hover:bg-slate-700/30"
+                      >
                         {tableHeaders.map((header) => (
-                          <th key={header} className="px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                            {header}
-                          </th>
+                          <td key={`${rowKey}-${header}`} className="px-4 py-3 text-slate-300 whitespace-nowrap">
+                            {formatCellValue((row as SheetRow)[header])}
+                          </td>
                         ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredRows.map((row, index) => {
-                        const rowKey = typeof row.id === "string" ? row.id : index;
-                        return (
-                          <tr key={rowKey} className="border-b border-slate-700/60 last:border-b-0">
-                            {tableHeaders.map((header) => (
-                              <td key={`${rowKey}-${header}`} className="px-4 py-3 text-slate-300">
-                                {formatCellValue((row as SheetRow)[header])}
-                              </td>
-                            ))}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="mt-3 text-xs text-slate-500">
-                  Exibindo {filteredRows.length} de {sheetData.length} registros carregados.
-                </p>
-              </div>
-            ) : selectedSheet ? (
-              <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center text-slate-400">
-                <BarChart className="w-10 h-10 text-slate-500" />
-                <p className="text-sm">Nenhum registro encontrado com os filtros atuais.</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center flex-1 gap-4 text-center">
-                <BarChart className="w-12 h-12 text-slate-500" />
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-200">Selecione uma planilha para começar</h3>
-                  <p className="max-w-md mt-2 text-sm text-slate-400">
-                    Escolha uma planilha acima para visualizar os dados e aplicar filtros personalizados.
-                  </p>
-                </div>
-              </div>
-            )}
-          </Card>
-        ) : (
-          <DashboardOverview />
-        )}
+                      </motion.tr>
+                    );
+                  })}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    ) : selectedSheet && filteredRows.length === 0 ? (
+      <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center text-slate-400">
+        <BarChart className="w-10 h-10 text-slate-500" />
+        <p className="text-sm">Nenhum registro encontrado com os filtros atuais.</p>
+      </div>
+    ) : (
+      <div className="flex flex-col items-center justify-center flex-1 gap-4 text-center">
+        <BarChart className="w-12 h-12 text-slate-500" />
+        <div>
+          <h3 className="text-lg font-semibold text-slate-200">Selecione uma planilha para começar</h3>
+          <p className="max-w-md mt-2 text-sm text-slate-400">
+            Escolha uma planilha acima para visualizar os dados e aplicar filtros personalizados.
+          </p>
+        </div>
+      </div>
+    )}
+  </Card>
+) : (
+      <DashboardOverview 
+          data={filteredRows}
+          selectedSheet={selectedSheet}
+          loading={loadingSheetData}
+        />
+  
+)}
       </main>
       <AnimatePresence>
         {togglePopup.visible ? (
