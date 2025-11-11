@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   Card,
   CardHeader,
@@ -15,7 +16,9 @@ import AnimatedLogo from "@/components/AnimatedLogo"
 import axios from "axios"
 import { GoogleLogin } from "@react-oauth/google"
 
+
 export default function Home() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
 
@@ -88,10 +91,14 @@ export default function Home() {
           <GoogleLogin
             onSuccess={async (credentialResponse) => {
               try {
-                const res = await axios.post("https://localhost:5000/auth/google", {
+                const res = await axios.post("http://localhost:5000/auth/google", {
                   id_token: credentialResponse.credential,
                 });
                 console.log("Usuário autenticado:", res.data);
+                // Armazene o token no localStorage ou em outro lugar seguro
+                localStorage.setItem("authToken", res.data.token);
+                // Redirecione o usuário para a página desejada após o login
+                navigate("/analytics");
               } catch (err) {
                 console.error("Erro no login:", err);
               }

@@ -1,28 +1,49 @@
 import { Router } from 'express';
-import passport from 'passport';
+import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 
 const router = Router();
 
-router.get(
-  '/google',
-  passport.authenticate('google', {
-    scope: ['profile', 'email'],
-  }),
-);
+router.post('/google', async (req, res) => {
+  try {
+    const { id_token, token } = req.body;
+    const idToken = id_token || token;
+    
+    if (!idToken) {
+      return res.status(400).json({ error: 'ID Token não fornecido' });
+    }
 
-const clientUrl = process.env.NODE_ENV === 'production' ? process.env.CLIENT_URL_PROD : process.env.CLIENT_URL_DEV;
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(400).json({ error: 'GOOGLE_CLIENT_ID não configurado' });
+    }
 
-router.get(
-  '/google/callback',
-  passport.authenticate('google', {
-    failureRedirect: '/',
-    session: false,
-  }),
-  (req, res) => {
-    const token = req.user.generateJWT();
-    res.cookie('x-auth-cookie', token);
-    res.redirect(clientUrl);
-  },
-);
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    
+    const ticket = await client.verifyIdToken({
+      idToken: idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    
+    const payload = ticket.getPayload();
+    
+    // Gerar JWT com os dados do usuário
+    const jwtToken = jwt.sign(
+      {
+        id: payload.sub,
+        email: payload.email,
+        name: payload.name,
+      },
+      process.env.JWT_SECRET || 'sua_chave_secreta',
+      { expiresIn: '7d' }
+    );
+    
+    console.log('✅ JWT gerado:', jwtToken.substring(0, 50));
+    
+    res.json({ token: jwtToken, user: payload });
+  } catch (error) {
+    console.error('❌ Erro:', error.message);
+    res.status(401).json({ error: error.message });
+  }
+});
 
 export default router;
