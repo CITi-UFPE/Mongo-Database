@@ -64,6 +64,7 @@ O servidor roda em https://localhost:5000 (se certificados estiverem configurado
 cd ../client
 npm install
 npm run build
+npm preview
 ```
 
 O frontend roda em http://localhost:3000 (ou https://localhost:3000 se configurado).
