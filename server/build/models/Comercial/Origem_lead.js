@@ -22,6 +22,7 @@ const OrigemLeadSchema = new Schema({
     trim: true
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'origens_lead_sheet'
 });
 var _default = exports.default = _mongoose.default.model('Origem_lead', OrigemLeadSchema);

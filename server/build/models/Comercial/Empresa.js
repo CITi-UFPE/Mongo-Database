@@ -41,6 +41,7 @@ const EmpresaSchema = new Schema({
     required: [true, 'Toda empresa precisa estar associada a um nicho.']
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'empresas_sheet'
 });
 var _default = exports.default = _mongoose.default.model('Empresa', EmpresaSchema);

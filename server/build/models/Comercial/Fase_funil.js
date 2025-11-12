@@ -22,6 +22,7 @@ const FaseFunilSchema = new Schema({
     unique: true
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  collection: 'fases_funil_sheet'
 });
 var _default = exports.default = _mongoose.default.model('FaseFunil', FaseFunilSchema);

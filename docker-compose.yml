@@ -10,6 +10,8 @@ services:
       # src must be in context
       context: ./client
       dockerfile: docker/Dockerfile
+      args:
+        - VITE_GOOGLE_CLIENT_ID=154331370847-dkmkdgprhjenmnhd4d7g33ui2jg5fk9u.apps.googleusercontent.com
     depends_on:
       - mdp-server
     networks:
@@ -18,8 +20,9 @@ services:
       - NODE_ENV=production
       # forwarded
       - REACT_APP_BASE_URL
-    # env_file:
-    #   - ./client/.env
+      - VITE_GOOGLE_CLIENT_ID=154331370847-dkmkdgprhjenmnhd4d7g33ui2jg5fk9u.apps.googleusercontent.com
+    env_file:
+      - ./client/.env
     
     # nginx ports
     # either open port or route through traefik
@@ -52,6 +55,7 @@ services:
       - ./server/.env
     environment:
       NODE_ENV: production
+      PORT: 80
     volumes:
       - ./server/public/images:/home/node/app/server/public/images
     networks:
@@ -59,8 +63,8 @@ services:
       - internal-client
 
     # either open port or route through traefik
-    # ports:
-    #   - '5000'
+    ports:
+      - '5000:80'
       
     # must be exposed through traefik too
     # handles /api and /public/images

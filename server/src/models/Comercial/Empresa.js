@@ -36,6 +36,7 @@ const EmpresaSchema = new Schema(
   },
   {
     timestamps: true,
+    collection: 'empresas_sheet',
   },
 );
 

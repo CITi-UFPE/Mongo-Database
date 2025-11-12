@@ -8,7 +8,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 
 // Import the Auth page and global styles (Tailwind)
 import Auth from './pages/Auth/Auth';
-import Analytics from './pages/analytics/analytics';
+import Analytics from './pages/Analytics/Analytics';
 import './index.css';
 
 const Root = () => (

@@ -32,6 +32,7 @@ const InteracaoSchema = new Schema(
   },
   {
     timestamps: true,
+    collection: 'interacoes_sheet',
   },
 );
 

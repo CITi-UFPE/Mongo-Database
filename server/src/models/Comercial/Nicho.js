@@ -12,6 +12,7 @@ const NichoSchema = new Schema(
   },
   {
     timestamps: true,
+    collection: 'nichos_sheet',
   },
 );
 
