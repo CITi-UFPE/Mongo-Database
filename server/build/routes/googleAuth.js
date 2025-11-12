@@ -5,19 +5,52 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.default = void 0;
 var _express = require("express");
-var _passport = _interopRequireDefault(require("passport"));
+var _jsonwebtoken = _interopRequireDefault(require("jsonwebtoken"));
+var _googleAuthLibrary = require("google-auth-library");
 function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
 const router = (0, _express.Router)();
-router.get('/google', _passport.default.authenticate('google', {
-  scope: ['profile', 'email']
-}));
-const clientUrl = process.env.NODE_ENV === 'production' ? process.env.CLIENT_URL_PROD : process.env.CLIENT_URL_DEV;
-router.get('/google/callback', _passport.default.authenticate('google', {
-  failureRedirect: '/',
-  session: false
-}), (req, res) => {
-  const token = req.user.generateJWT();
-  res.cookie('x-auth-cookie', token);
-  res.redirect(clientUrl);
+router.post('/google', async (req, res) => {
+  try {
+    const {
+      id_token,
+      token
+    } = req.body;
+    const idToken = id_token || token;
+    if (!idToken) {
+      return res.status(400).json({
+        error: 'ID Token não fornecido'
+      });
+    }
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(400).json({
+        error: 'GOOGLE_CLIENT_ID não configurado'
+      });
+    }
+    const client = new _googleAuthLibrary.OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+      idToken: idToken,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+    const payload = ticket.getPayload();
+
+    // Gerar JWT com os dados do usuário
+    const jwtToken = _jsonwebtoken.default.sign({
+      id: payload.sub,
+      email: payload.email,
+      name: payload.name
+    }, process.env.JWT_SECRET || 'sua_chave_secreta', {
+      expiresIn: '7d'
+    });
+    console.log('✅ JWT gerado:', jwtToken.substring(0, 50));
+    res.json({
+      token: jwtToken,
+      user: payload
+    });
+  } catch (error) {
+    console.error('❌ Erro:', error.message);
+    res.status(401).json({
+      error: error.message
+    });
+  }
 });
 var _default = exports.default = router;
