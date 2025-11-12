@@ -10,9 +10,32 @@ import { seedDb } from './utils/seed';
 
 const app = express();
 
-// CORS
+// CORS - Allow requests from client URLs
+const clientUrlDev = process.env.CLIENT_URL_DEV || 'http://localhost:3000';
+const clientUrlProd = process.env.CLIENT_URL_PROD || 'http://localhost:3080';
+const allowedOrigins = [
+  'http://localhost:5173', // Vite dev server
+  'http://localhost:4173', // Vite preview
+  'http://localhost:3000', // React dev
+  'http://localhost:3080', // Docker production
+  clientUrlDev,
+  clientUrlProd,
+  'https://mern-boilerplate.amd2.localhost3002.live',
+  'https://localhost3002.live'
+];
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:4173', 'http://localhost:3000'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
@@ -25,6 +48,11 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
+
+// Load passport strategies
+require('./services/jwtStrategy');
+require('./services/googleStrategy');
+require('./services/localStrategy');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const dbConnection = isProduction ? process.env.MONGO_URI_PROD : process.env.MONGO_URI_DEV;
@@ -44,6 +72,9 @@ app.get('/', (req, res) => {
 });
 
 const port = process.env.PORT || 5000;
-app.listen(port, () => {
-  console.log(`http server running at http://localhost:${port}`);
+const host = isProduction ? '0.0.0.0' : 'localhost';
+
+app.listen(port, host, () => {
+  console.log(`Server running at http://${host}:${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
