@@ -1,15 +1,11 @@
-import { faker } from '@faker-js/faker/locale/pt_BR';
-import mongoose from 'mongoose';
-
+const faker = require('faker');
+faker.locale = 'pt_BR';
 import {
   Nicho, FaseFunil, Origem_lead, MotivoPerda, Membro,
   Vendedor, Empresa, Meta, Contato, Lead,
   HistoricoFaseLead, Interacao
 } from '../models/Comercial/Index.js';
 
-const MONGO_URI = 'mongodb://localhost:27017/citi_comercial';
-
-// Função auxiliar para escolher com pesos
 function weightedRandom(items) {
   const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
   let random = faker.datatype.number({ min: 0, max: totalWeight - 1 });
@@ -19,7 +15,7 @@ function weightedRandom(items) {
     }
     random -= item.weight;
   }
-  return items[items.length - 1].value; // fallback
+  return items[items.length - 1].value;
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -83,20 +79,20 @@ export const seedDb = async () => {
     
     for (let i = 0; i < 3; i++) {
       membrosPromises.push(new Membro({
-        nome: faker.person.fullName(),
+        nome: faker.name.findName(),
         email: faker.internet.email(),
         cargo: 'Vendedor',
-        telefone: faker.phone.number(),
+        telefone: faker.phone.phoneNumber(),
         data_entrada: faker.date.past(2)
       }).save());
     }
     
     for (let i = 0; i < 7; i++) {
       membrosPromises.push(new Membro({
-        nome: faker.person.fullName(),
+        nome: faker.name.findName(),
         email: faker.internet.email(),
-        cargo: faker.helpers.arrayElement(['Onda', 'Operacional', 'Diretoria']),
-        telefone: faker.phone.number(),
+        cargo: faker.random.arrayElement(['Onda', 'Operacional', 'Diretoria']),
+        telefone: faker.phone.phoneNumber(),
         data_entrada: faker.date.past(1)
       }).save());
     }
@@ -115,13 +111,13 @@ export const seedDb = async () => {
     const empresasPromises = [];
     for (let i = 0; i < 15; i++) {
       empresasPromises.push(new Empresa({
-        nome_empresa: faker.company.name(),
-        cnpj: faker.number.int({ min: 10000000000000, max: 99999999999999 }).toString(),
-        localizacao_estado: faker.location.state({ abbreviated: true }),
+        nome_empresa: faker.company.companyName(),
+        cnpj: faker.datatype.number({ min: 10000000000000, max: 99999999999999 }).toString(),
+        localizacao_estado: faker.address.state(true),
         localizacao_pais: 'BR',
         faturamento_anual: faker.finance.amount(100000, 5000000),
-        numero_funcionarios: faker.number.int({ min: 10, max: 500 }),
-        id_nicho: faker.helpers.arrayElement(nichosSalvos)._id
+        numero_funcionarios: faker.datatype.number({ min: 10, max: 500 }),
+        id_nicho: faker.random.arrayElement(nichosSalvos)._id
       }).save());
     }
     
@@ -131,7 +127,7 @@ export const seedDb = async () => {
         id_vendedor: vendedor._id,
         periodo: 'Q4 2025',
         tipo_meta: 'Receita',
-        valor_objetivo: faker.number.int({ min: 50000, max: 100000 })
+        valor_objetivo: faker.datatype.number({ min: 50000, max: 100000 })
       }).save());
     }
     
@@ -144,13 +140,13 @@ export const seedDb = async () => {
     console.log('Criando Nível 4: Contatos...');
     const contatosPromises = [];
     for (const empresa of empresasSalvas) {
-      for (let i = 0; i < faker.number.int({ min: 1, max: 2 }); i++) {
+      for (let i = 0; i < faker.datatype.number({ min: 1, max: 2 }); i++) {
         contatosPromises.push(new Contato({
           id_empresa: empresa._id,
-          nome: faker.person.fullName(),
+          nome: faker.name.findName(),
           email: faker.internet.email(),
-          telefone: faker.phone.number(),
-          cargo: faker.person.jobTitle()
+          telefone: faker.phone.phoneNumber(),
+          cargo: faker.name.jobTitle()
         }).save());
       }
     }
@@ -162,22 +158,22 @@ export const seedDb = async () => {
     const faseFechamento = fasesSalvas.find(f => f.nome_fase === 'Fechamento');
 
     for (let i = 0; i < 50; i++) {
-      const contato = faker.helpers.arrayElement(contatosSalvos);
-      const membroIndicador = faker.helpers.arrayElement(membrosSalvos);
-      const origem = faker.helpers.arrayElement(origensSalvas);
-      const status = faker.helpers.arrayElement(['Aberto', 'Ganha', 'Perdida']);
+      const contato = faker.random.arrayElement(contatosSalvos); // <-- CORRIGIDO AQUI
+      const membroIndicador = faker.random.arrayElement(membrosSalvos); // <-- CORRIGIDO AQUI
+      const origem = faker.random.arrayElement(origensSalvas); // <-- CORRIGIDO AQUI
+      const status = faker.random.arrayElement(['Aberto', 'Ganho', 'Perdido']); // <-- CORRIGIDO AQUI
       
       let faseAtual, dataGanho = null, dataPerda = null, motivoPerda = null;
 
       if (status === 'Aberto') {
-        faseAtual = faker.helpers.arrayElement(fasesSalvas.filter(f => f.nome_fase !== 'Fechamento'))._id;
-      } else if (status === 'Ganha') {
+        faseAtual = faker.random.arrayElement(fasesSalvas.filter(f => f.nome_fase !== 'Fechamento'))._id; // <-- CORRIGIDO AQUI
+      } else if (status === 'Ganho') {
         faseAtual = faseFechamento._id;
         dataGanho = faker.date.recent(30);
       } else {
-        faseAtual = faker.helpers.arrayElement(fasesSalvas)._id;
+        faseAtual = faker.random.arrayElement(fasesSalvas)._id; // <-- CORRIGIDO AQUI
         dataPerda = faker.date.recent(30);
-        motivoPerda = faker.helpers.arrayElement(motivosSalvos)._id;
+        motivoPerda = faker.random.arrayElement(motivosSalvos)._id; // <-- CORRIGIDO AQUI
       }
 
       leadsPromises.push(new Lead({
@@ -207,14 +203,14 @@ export const seedDb = async () => {
       }).save());
 
       if (vendedoresSalvos.length > 0) {
-        const vendedorResponsavel = faker.helpers.arrayElement(vendedoresSalvos);
-        for (let i = 0; i< faker.number.int({ min: 1, max: 5 }); i++) {
+        const vendedorResponsavel = faker.random.arrayElement(vendedoresSalvos); // <-- CORRIGIDO AQUI
+        for (let i = 0; i< faker.datatype.number({ min: 1, max: 5 }); i++) {
           finalPromises.push(new Interacao({
             id_lead: lead._id,
             id_contato: lead.id_contato,
             id_vendedor: vendedorResponsavel._id,
-            tipo_atividade: faker.helpers.arrayElement(['Email', 'Ligação', 'Reunião']),
-            data_realizacao: faker.date.between({ from: lead.createdAt, to: new Date() }),
+            tipo_atividade: faker.random.arrayElement(['Email', 'Ligação', 'Reunião']), // <-- CORRIGIDO AQUI
+            data_realizacao: faker.date.between(lead.createdAt, new Date()),
           }).save());
         }
       }
@@ -228,24 +224,6 @@ export const seedDb = async () => {
 
   } catch (error) {
     console.error('❌ Erro durante o seeding:', error);
+    throw error;
   }
 };
-
-const runSeed = async () => {
-  console.log('Conectando ao banco de dados...');
-  try {
-    await mongoose.connect(MONGO_URI);
-    console.log('Conectado ao MongoDB.');
-    
-    await seedDb();
-    
-    await mongoose.disconnect();
-    console.log('Desconectado do MongoDB.');
-  } catch (error) {
-    console.error('Erro ao conectar ou rodar o seed:', error);
-    await mongoose.disconnect();
-    process.exit(1);
-  }
-};
-
-runSeed();
