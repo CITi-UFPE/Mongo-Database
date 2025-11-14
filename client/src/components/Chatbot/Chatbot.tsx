@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { geminiService, ChatMessage } from '../../services/geminiService';
 import { Send, X, MessageSquare, Loader2, RotateCcw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/atom-one-dark.css';
 import './Chatbot.css';
 
 interface ChatbotProps {
@@ -149,13 +152,12 @@ export const Chatbot: React.FC<ChatbotProps> = ({
 
   if (!isOpen) {
     return (
-      <button 
-        className="chatbot-toggle-btn"
-        onClick={onToggle}
-        aria-label="Abrir chat assistente"
-      >
-        <MessageSquare size={24} />
-      </button>
+      <div className="chatbot-sidebar" onClick={onToggle}>
+        <div className="chatbot-sidebar-content">
+          <MessageSquare size={20} className="chatbot-sidebar-icon" />
+          <span className="chatbot-sidebar-text">Assistente</span>
+        </div>
+      </div>
     );
   }
 
@@ -205,12 +207,27 @@ export const Chatbot: React.FC<ChatbotProps> = ({
           {messages.map((msg, idx) => (
             <div key={idx} className={`chatbot-message ${msg.role}`}>
               <div className="message-content">
-                {msg.parts.split('\n').map((line, i) => (
-                  <React.Fragment key={i}>
-                    {line}
-                    {i < msg.parts.split('\n').length - 1 && <br />}
-                  </React.Fragment>
-                ))}
+                <ReactMarkdown
+                  rehypePlugins={[rehypeHighlight]}
+                  components={{
+                    code: ({node, className, children, ...props}: any) => {
+                      const isInline = !className;
+                      return isInline ? 
+                        <code className="inline-code" {...props}>{children}</code> :
+                        <code className={className} {...props}>{children}</code>;
+                    },
+                    pre: ({node, ...props}: any) => <pre className="code-block" {...props} />,
+                    p: ({node, ...props}: any) => <p className="markdown-p" {...props} />,
+                    ul: ({node, ...props}: any) => <ul className="markdown-list" {...props} />,
+                    ol: ({node, ...props}: any) => <ol className="markdown-list" {...props} />,
+                    li: ({node, ...props}: any) => <li className="markdown-li" {...props} />,
+                    strong: ({node, ...props}: any) => <strong className="markdown-strong" {...props} />,
+                    em: ({node, ...props}: any) => <em className="markdown-em" {...props} />,
+                    a: ({node, ...props}: any) => <a className="markdown-link" target="_blank" rel="noopener noreferrer" {...props} />,
+                  }}
+                >
+                  {msg.parts}
+                </ReactMarkdown>
               </div>
               <div className="message-timestamp">
                 {msg.timestamp.toLocaleTimeString('pt-BR', { 

@@ -48,7 +48,8 @@ class GeminiService {
 
     const context = this.formatDataForContext(spreadsheetData);
     
-    const systemPrompt = `Você é um assistente especializado em análise de dados de planilhas de vendas e relatórios comerciais.
+    const systemPrompt = `Você é um assistente especializado em análise de dados da empresa junior da UFPE o CITi (Centro integrado de tecnologia 
+    da informação), possuindo 30 anos de experiencia no mercado de tecnologia, software houses e projetos de dados.
 
 CONTEXTO DOS DADOS DISPONÍVEIS:
 ${context}
@@ -93,7 +94,7 @@ Está pronto para ajudar com análises desses dados!`;
     const totalRecords = data.length;
 
     // Amostra dos primeiros registros
-    const sampleSize = Math.min(5, data.length);
+    const sampleSize = Math.min(20, data.length);
     const sample = data.slice(0, sampleSize);
 
     // Cria resumo estatístico
