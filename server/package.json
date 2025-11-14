@@ -27,6 +27,7 @@
     "@babel/plugin-proposal-optional-chaining": "^7.21.0",
     "@babel/preset-env": "^7.28.3",
     "@babel/register": "^7.28.3",
+    "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^3.0.3",
     "concurrently": "^9.2.1",
     "config": "^4.1.1",

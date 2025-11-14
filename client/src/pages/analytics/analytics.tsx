@@ -10,6 +10,7 @@ import UserProfileDropdown from "@/components/ui/userProfileDropdown";
 import { UserProfile } from "@/components/ui/userProfileDropdown";
 import { DashboardOverview } from "@/components/ui/dashboard";
 import AnimatedLogo from "@/components/AnimatedLogo";
+import { Chatbot } from "@/components/Chatbot/Chatbot";
 import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight } from "lucide-react";
 
 const LOGO_GRADIENT_ID = "analytics-logo-gradient";
@@ -44,6 +45,7 @@ export default function DataVizDashboard() {
     mode: "planilha",
     key: 0,
   });
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     let canceled = false;
@@ -542,6 +544,13 @@ export default function DataVizDashboard() {
           </motion.aside>
         ) : null}
       </AnimatePresence>
+
+      {/* Chatbot com contexto dos dados da planilha */}
+      <Chatbot 
+        spreadsheetData={filteredRows}
+        isOpen={isChatOpen}
+        onToggle={() => setIsChatOpen(!isChatOpen)}
+      />
     </div>
   );
 }
