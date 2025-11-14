@@ -150,27 +150,78 @@ ${JSON.stringify(sample, null, 2)}
       const response = await result.response;
       return response.text();
     } catch (error: any) {
-      console.error('Erro completo ao enviar mensagem:', error);
-      console.error('Mensagem de erro:', error?.message);
-      console.error('Status:', error?.status);
+      // Log detalhado para debug
+      console.group('🔍 Erro Gemini API - Debug Completo');
+      console.error('Erro completo:', error);
+      console.error('Mensagem:', error?.message);
+      console.error('Status HTTP:', error?.status);
+      console.error('Código de erro:', error?.errorDetails?.[0]?.reason);
       console.error('Response:', error?.response);
+      console.groupEnd();
       
-      // Tratamento de erros específicos
-      if (error?.message?.includes('API key') || error?.message?.includes('API_KEY_INVALID')) {
-        throw new Error('API key inválida. Verifique se a VITE_GEMINI_API_KEY está correta.');
-      } else if (error?.message?.includes('quota') || error?.status === 429) {
-        throw new Error('Limite de uso da API Gemini excedido. Tente novamente mais tarde.');
-      } else if (error?.message?.includes('SAFETY')) {
-        throw new Error('Conteúdo bloqueado por filtros de segurança. Tente reformular sua pergunta.');
-      } else if (error?.status === 400) {
-        throw new Error('Requisição inválida. O prompt pode ser muito longo ou conter caracteres inválidos.');
-      } else if (error?.status === 500) {
-        throw new Error('Erro no servidor do Gemini. Tente novamente em alguns instantes.');
-      } else if (!navigator.onLine) {
+      // Verifica conexão primeiro
+      if (!navigator.onLine) {
         throw new Error('Sem conexão com a internet. Verifique sua conexão.');
       }
+
+      // Extrai código de erro e mensagem
+      const errorMessage = error?.message?.toLowerCase() || '';
+      const statusCode = error?.status;
+      const errorReason = error?.errorDetails?.[0]?.reason?.toLowerCase() || '';
+
+      // Tratamento específico por tipo de erro
       
-      throw new Error(`Erro ao processar: ${error?.message || 'Erro desconhecido'}`);
+      // 1. Erros de API Key
+      if (errorMessage.includes('api key') || 
+          errorMessage.includes('api_key_invalid') ||
+          errorMessage.includes('invalid_api_key') ||
+          statusCode === 401) {
+        throw new Error('🔑 API key inválida ou não autorizada. Verifique a VITE_GEMINI_API_KEY.');
+      }
+      
+      // 2. Erros de Rate Limit/Quota (429)
+      if (statusCode === 429) {
+        // Verifica se é limite de rate ou quota
+        if (errorMessage.includes('quota') || errorReason.includes('quota')) {
+          throw new Error('📊 Cota de uso da API excedida. Aguarde o reset ou aumente seu plano.');
+        } else {
+          throw new Error('⏱️ Muitas requisições em pouco tempo. Aguarde alguns segundos e tente novamente.');
+        }
+      }
+      
+      // 3. Erros de filtro de segurança
+      if (errorMessage.includes('safety') || 
+          errorMessage.includes('blocked') ||
+          errorReason.includes('safety')) {
+        throw new Error('🛡️ Conteúdo bloqueado por filtros de segurança. Tente reformular sua pergunta.');
+      }
+      
+      // 4. Erros de requisição inválida (400)
+      if (statusCode === 400) {
+        if (errorMessage.includes('model not found') || errorMessage.includes('invalid model')) {
+          throw new Error('🤖 Modelo Gemini não encontrado ou inválido. Verifique o nome do modelo.');
+        }
+        if (errorMessage.includes('token') || errorMessage.includes('length')) {
+          throw new Error('📝 Prompt muito longo. Tente uma pergunta mais concisa.');
+        }
+        throw new Error('❌ Requisição inválida. Verifique o formato da mensagem.');
+      }
+      
+      // 5. Erros do servidor (500+)
+      if (statusCode >= 500) {
+        throw new Error('🔧 Erro no servidor do Gemini. O serviço pode estar temporariamente indisponível. Tente em alguns instantes.');
+      }
+      
+      // 6. Erros de timeout/rede
+      if (errorMessage.includes('timeout') || 
+          errorMessage.includes('network') ||
+          errorMessage.includes('fetch')) {
+        throw new Error('🌐 Erro de conexão com a API. Verifique sua internet e tente novamente.');
+      }
+
+      // Erro genérico com informações úteis
+      const displayError = error?.message || 'Erro desconhecido';
+      throw new Error(`⚠️ Erro ao processar mensagem: ${displayError}${statusCode ? ` (HTTP ${statusCode})` : ''}`);
     }
   }
 
