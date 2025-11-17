@@ -1,9 +1,12 @@
 # both stages must use alpine
 FROM node:22 AS build
 
-# Accept build argument for Google Client ID
+# Accept build arguments
 ARG VITE_GOOGLE_CLIENT_ID
+ARG VITE_GEMINI_API_KEY
+
 ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+ENV VITE_GEMINI_API_KEY=$VITE_GEMINI_API_KEY
 
 WORKDIR /app
 

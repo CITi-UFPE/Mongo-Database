@@ -10,7 +10,8 @@ import UserProfileDropdown from "@/components/ui/userProfileDropdown";
 import { UserProfile } from "@/components/ui/userProfileDropdown";
 import { DashboardOverview } from "@/components/ui/dashboard";
 import AnimatedLogo from "@/components/AnimatedLogo";
-import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight } from "lucide-react";
+import { Chatbot } from "@/components/Chatbot/Chatbot";
+import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 const LOGO_GRADIENT_ID = "analytics-logo-gradient";
 const ROWS_PER_PAGE = 20;
@@ -44,6 +45,9 @@ export default function DataVizDashboard() {
     mode: "planilha",
     key: 0,
   });
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
 
   useEffect(() => {
     let canceled = false;
@@ -170,10 +174,101 @@ export default function DataVizDashboard() {
     return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [sheetData, selectedFilterColumn]);
 
+  // Verifica se uma coluna é numérica
+  const isNumericColumn = useCallback((column: string): boolean => {
+    if (!sheetData.length) return false;
+    const sampleValues = sheetData.slice(0, 10);
+    const numericCount = sampleValues.filter(row => {
+      const value = row[column];
+      if (value === null || value === undefined || value === '') return false;
+      return !isNaN(Number(value));
+    }).length;
+    return numericCount > sampleValues.length / 2;
+  }, [sheetData]);
+
+  // Verifica se uma coluna é de data
+  const isDateColumn = useCallback((column: string): boolean => {
+    if (!sheetData.length) return false;
+    const sampleValues = sheetData.slice(0, 10);
+    const dateCount = sampleValues.filter(row => {
+      const value = row[column];
+      if (value === null || value === undefined || value === '') return false;
+      
+      // Tenta fazer parse como data
+      const dateValue = new Date(String(value));
+      
+      // Verifica se é uma data válida e não é um número puro
+      return !isNaN(dateValue.getTime()) && isNaN(Number(value));
+    }).length;
+    return dateCount > sampleValues.length / 2;
+  }, [sheetData]);
+
+  // Verifica se coluna é ordenável (numérica ou data)
+  const isSortableColumn = useCallback((column: string): boolean => {
+    return isNumericColumn(column) || isDateColumn(column);
+  }, [isNumericColumn, isDateColumn]);
+
+  // Função para ordenar coluna
+  const handleSort = (column: string) => {
+    if (!isSortableColumn(column)) return;
+    
+    if (sortColumn === column) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortColumn(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
   const filteredRows = useMemo(() => {
-    if (!selectedFilterColumn || !selectedFilterValue) return sheetData;
-    return sheetData.filter((row) => String(row[selectedFilterColumn]) === selectedFilterValue);
-  }, [sheetData, selectedFilterColumn, selectedFilterValue]);
+    let rows = sheetData;
+    
+    // Aplica filtro
+    if (selectedFilterColumn && selectedFilterValue) {
+      rows = rows.filter((row) => String(row[selectedFilterColumn]) === selectedFilterValue);
+    }
+    
+    // Aplica ordenação
+    if (sortColumn && sortDirection) {
+      rows = [...rows].sort((a, b) => {
+        const aValue = a[sortColumn];
+        const bValue = b[sortColumn];
+        
+        // Trata valores nulos/undefined
+        if (aValue === null || aValue === undefined) return 1;
+        if (bValue === null || bValue === undefined) return -1;
+        
+        // Verifica se é coluna de data
+        if (isDateColumn(sortColumn)) {
+          const aDate = new Date(String(aValue)).getTime();
+          const bDate = new Date(String(bValue)).getTime();
+          
+          if (isNaN(aDate) || isNaN(bDate)) return 0;
+          
+          return sortDirection === 'asc' ? aDate - bDate : bDate - aDate;
+        }
+        
+        // Verifica se é coluna numérica
+        if (isNumericColumn(sortColumn)) {
+          const aNum = Number(aValue);
+          const bNum = Number(bValue);
+          
+          if (isNaN(aNum) || isNaN(bNum)) return 0;
+          
+          return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
+        }
+        
+        return 0;
+      });
+    }
+    
+    return rows;
+  }, [sheetData, selectedFilterColumn, selectedFilterValue, sortColumn, sortDirection, isDateColumn, isNumericColumn]);
 
   // Paginação
   const totalPages = Math.ceil(filteredRows.length / ROWS_PER_PAGE);
@@ -204,6 +299,12 @@ export default function DataVizDashboard() {
   useEffect(() => {
     setCurrentPage(0);
   }, [selectedFilterColumn, selectedFilterValue]);
+
+  // Reset sort when sheet changes
+  useEffect(() => {
+    setSortColumn(null);
+    setSortDirection(null);
+  }, [selectedSheet]);
 
   const tableHeaders = useMemo(() => {
     if (!filteredRows.length) return [] as string[];
@@ -463,11 +564,32 @@ export default function DataVizDashboard() {
             <table className="w-full text-sm text-left border-collapse">
               <thead className="sticky top-0 z-10 bg-slate-700/90 backdrop-blur-sm text-slate-200">
                 <tr>
-                  {tableHeaders.map((header) => (
-                    <th key={header} className="px-4 py-3 text-xs font-semibold tracking-wide uppercase border-b border-slate-600 whitespace-nowrap">
-                      {header}
-                    </th>
-                  ))}
+                  {tableHeaders.map((header) => {
+                    const isSortable = isSortableColumn(header);
+                    const isSorted = sortColumn === header;
+                    
+                    return (
+                      <th 
+                        key={header} 
+                        className={`px-4 py-3 text-xs font-semibold tracking-wide uppercase border-b border-slate-600 whitespace-nowrap ${
+                          isSortable ? 'cursor-pointer hover:bg-slate-600/50 transition-colors' : ''
+                        }`}
+                        onClick={() => isSortable && handleSort(header)}
+                        title={isSortable ? 'Clique para ordenar' : undefined}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>{header}</span>
+                          {isSortable && (
+                            <span className="text-slate-400">
+                              {!isSorted && <ArrowUpDown size={14} />}
+                              {isSorted && sortDirection === 'asc' && <ArrowUp size={14} className="text-teal-400" />}
+                              {isSorted && sortDirection === 'desc' && <ArrowDown size={14} className="text-teal-400" />}
+                            </span>
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -542,6 +664,13 @@ export default function DataVizDashboard() {
           </motion.aside>
         ) : null}
       </AnimatePresence>
+
+      {/* Chatbot com contexto dos dados da planilha */}
+      <Chatbot 
+        spreadsheetData={filteredRows}
+        isOpen={isChatOpen}
+        onToggle={() => setIsChatOpen(!isChatOpen)}
+      />
     </div>
   );
 }
