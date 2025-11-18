@@ -9,6 +9,7 @@ var _localAuth = _interopRequireDefault(require("./localAuth"));
 var _googleAuth = _interopRequireDefault(require("./googleAuth"));
 var _facebookAuth = _interopRequireDefault(require("./facebookAuth"));
 var _api = _interopRequireDefault(require("./api"));
+var _analyticsAuth = _interopRequireDefault(require("./analyticsAuth.js"));
 function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
 const router = (0, _express.Router)();
 
@@ -23,6 +24,7 @@ router.use('/auth', _localAuth.default);
 router.use('/auth', _googleAuth.default);
 router.use('/auth', _facebookAuth.default);
 router.use('/api', _api.default);
+router.use('/api', _analyticsAuth.default);
 // fallback 404
 router.use('/api', (req, res) => res.status(404).json('No route for this path'));
 var _default = exports.default = router;

@@ -16,7 +16,8 @@
     "server": "nodemon --exec babel-node src/index.js",
     "client": "npm start --prefix ../client",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "dev:server": "nodemon src/index.js"
+    "dev:server": "nodemon src/index.js",
+    "reseed": "babel-node src/utils/seed.js"
   },
   "author": "Nemanja Mitic (https://github.com/nemanjam)",
   "license": "ISC",

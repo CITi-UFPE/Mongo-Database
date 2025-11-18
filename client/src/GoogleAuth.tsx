@@ -1,41 +1,66 @@
-import { GoogleLogin } from "@react-oauth/google";
-import axios from "axios";
-import { useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  CardTitle,
+  CardDescription
+} from "@/components/ui/card"
+import Iridescence from "@/components/Iridescence"
+import AnimatedLogo from "@/components/AnimatedLogo"
+import axios from "axios"
+import { GoogleLogin } from "@react-oauth/google"
+import { useAuth } from "./context/AuthContext";
 
 export default function GoogleAuth() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const { login } = useAuth();
 
-  const handleSuccess = async (response: any) => {
+  const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
-      console.log("✅ 1. handleSuccess chamado");
-      console.log("✅ 2. Credential:", response.credential?.substring(0, 50));
+      console.log("✅ 1. Login Google iniciado");
       
-      const { data } = await axios.post("http://localhost:5000/auth/google", {
-        id_token: response.credential,
+      const res = await axios.post("http://localhost:5000/auth/google", {
+        id_token: credentialResponse.credential,
       });
-
-      console.log("✅ 3. Resposta:", data);
-      localStorage.setItem("authToken", data.token);
-      console.log("✅ 4. Redirecionando...");
+      
+      console.log("✅ 2. Resposta do servidor:", res.data);
+      
+      // Usa Context para fazer login
+      login(res.data.token, res.data.user);
+      
+      console.log("✅ 3. Redirecionando para /analytics");
       navigate("/analytics");
-    } catch (error: any) {
-      console.error("❌ Erro:", error.message);
+    } catch (err) {
+      console.error("❌ Erro no login:", err);
     }
   };
 
-  useEffect(() => {
-    const token = searchParams.get("token");
-    if (token) {
-      localStorage.setItem("authToken", token);
-      navigate("/analytics");
-    }
-  }, [searchParams, navigate]);
-
   return (
-    <div>
-      <GoogleLogin onSuccess={handleSuccess} />
+    <div className="relative w-full h-screen">
+      <Iridescence color={[0.5, 0.7, 0.6]} speed={1.2} amplitude={0.15} mouseReact={false} />
+      <Card className="absolute w-full max-w-md -translate-x-1/2 -translate-y-1/2 border opacity-100 border-slate-700 bg-slate-800/80 backdrop-blur-sm top-1/2 left-1/2">
+        <CardHeader className="space-y-3 text-center">
+          <AnimatedLogo className="w-20 mx-auto" />
+          <CardTitle className="text-2xl font-bold text-white">Data Lake</CardTitle>
+          <CardDescription className="text-slate-400">
+            Faça login para acessar sua conta
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* LOGIN COM GOOGLE 👇 */}
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={() => {
+              console.log("❌ Erro ao logar com Google");
+            }}
+          />
+
+          <div className="mt-6 text-sm text-center text-slate-400">
+            Caso não seja usuário no Data Lake, entre em contato com a área de dados.
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
