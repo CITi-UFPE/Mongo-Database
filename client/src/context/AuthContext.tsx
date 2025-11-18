@@ -24,26 +24,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setToken(savedToken);
       setUser(savedUser ? JSON.parse(savedUser) : null);
       setIsAuthenticated(true);
-      console.log('✅ Auth restaurado do localStorage');
+      console.log('🟢 [AuthContext] Auth restaurado do localStorage');
     }
   }, []);
 
   const login = (newToken: string, newUser: any) => {
+    console.log('🟢 [AuthContext.login] 1. Iniciando login...');
+    console.log('🟢 [AuthContext.login] 2. Token recebido:', newToken?.substring(0, 30));
+    console.log('🟢 [AuthContext.login] 3. User recebido:', newUser?.email);
+    
     setToken(newToken);
     setUser(newUser);
     setIsAuthenticated(true);
+    
+    console.log('🟢 [AuthContext.login] 4. Salvando no localStorage...');
     localStorage.setItem('authToken', newToken);
     localStorage.setItem('user', JSON.stringify(newUser));
-    console.log('✅ Usuário logado');
+    
+    console.log('🟢 [AuthContext.login] 5. Login completo!');
+    console.log('🟢 [AuthContext.login] 6. isAuthenticated agora é:', true);
   };
 
   const logout = () => {
+    console.log('🟢 [AuthContext.logout] Deslogando usuário');
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
-    console.log('✅ Usuário deslogado');
   };
 
   return (
