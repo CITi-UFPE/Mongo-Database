@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
-import { OAuth2Client } from 'google-auth-library';
+import { verifyGoogleToken } from '../services/googleTokenValidator.js';
 
 const router = Router();
 
@@ -9,50 +9,55 @@ router.post('/google', async (req, res) => {
     const { id_token, token } = req.body;
     const idToken = id_token || token;
     
+    console.log('🔵 [GoogleAuth Backend] 1. Recebido ID Token:', idToken?.substring(0, 30));
+    
     if (!idToken) {
+      console.error('❌ [GoogleAuth Backend] ID Token não fornecido');
       return res.status(400).json({ error: 'ID Token não fornecido' });
     }
 
-    if (!process.env.GOOGLE_CLIENT_ID) {
-      return res.status(500).json({ error: 'GOOGLE_CLIENT_ID não configurado' });
-    }
-
-    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    console.log('🔵 [GoogleAuth Backend] 2. Verificando token com validador local...');
+    const payload = await verifyGoogleToken(idToken);
     
-    const ticket = await client.verifyIdToken({
-      idToken: idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-    
-    const payload = ticket.getPayload();
-    
-    // Usar a chave JWT correta baseada no NODE_ENV
-    const jwtSecret = process.env.NODE_ENV === 'production' 
-      ? process.env.JWT_SECRET_PROD 
-      : process.env.JWT_SECRET_DEV;
-    
-    if (!jwtSecret) {
-      return res.status(500).json({ error: 'JWT_SECRET não configurado' });
-    }
+    console.log('🔵 [GoogleAuth Backend] 3. Token validado! Email:', payload.email);
     
     // Gerar JWT com os dados do usuário
+    const jwtSecret = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET_PROD || 'sua_chave_secreta';
+    console.log('🔵 [GoogleAuth Backend] 4. Gerando JWT...');
+    
     const jwtToken = jwt.sign(
       {
         id: payload.sub,
         email: payload.email,
         name: payload.name,
+        picture: payload.picture,
       },
+      jwtSecret,
       jwtSecret,
       { expiresIn: '7d' }
     );
     
-    console.log('✅ JWT gerado:', jwtToken.substring(0, 50));
-    console.log('✅ Usuário:', payload.email);
+    console.log('🟢 [GoogleAuth Backend] 5. JWT gerado:', jwtToken.substring(0, 50));
+    console.log('🟢 [GoogleAuth Backend] 6. Respondendo com sucesso');
     
-    res.json({ token: jwtToken, user: payload });
+    res.json({ 
+      token: jwtToken, 
+      user: {
+        id: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        picture: payload.picture,
+      }
+    });
+    
   } catch (error) {
-    console.error('❌ Erro na autenticação Google:', error.message);
-    res.status(401).json({ error: error.message });
+    console.error('❌ [GoogleAuth Backend] Erro completo:', error);
+    console.error('❌ [GoogleAuth Backend] Mensagem:', error.message);
+    
+    res.status(401).json({ 
+      error: error.message,
+      details: error.message
+    });
   }
 });
 

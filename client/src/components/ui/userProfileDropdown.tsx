@@ -1,18 +1,17 @@
 import { useState, useRef, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { extractNameFromEmail } from "@/lib/nameUtils";
 
 export default function UserProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null); // referência ao container
+  const { user, logout } = useAuth();
 
-  const user = {
-    name: "Dados TopSecret",
-    role: "Analista de Dados",
-    department: "Dados",
-    initials: "J",
-  };
+  const email: string | undefined = user?.email;
+  const { fullName, initials } = extractNameFromEmail(email);
 
   const toggleDropdown = () => setIsOpen((prev) => !prev);
-  const handleLogout = () => console.log("Saindo...");
+  const handleLogout = () => logout();
 
   // Fecha o dropdown ao clicar fora
   useEffect(() => {
@@ -36,7 +35,7 @@ export default function UserProfileDropdown() {
         onClick={toggleDropdown}
         className="flex items-center justify-center w-10 h-10 font-semibold text-white transition-transform rounded-full shadow-md bg-gradient-to-r from-blue-500 to-teal-500 hover:scale-105"
       >
-        {user.initials}
+        {initials}
       </button>
 
       {/* Dropdown */}
@@ -46,10 +45,8 @@ export default function UserProfileDropdown() {
         >
           {/* Cabeçalho */}
           <div className="p-4 border-b border-slate-700/50">
-            <p className="font-semibold text-slate-100">{user.name}</p>
-            <p className="text-sm text-slate-400">
-              {user.role} — {user.department}
-            </p>
+            <p className="font-semibold text-slate-100">{fullName}</p>
+            <p className="text-sm text-slate-400">Usuário</p>
           </div>
 
           {/* Ações */}

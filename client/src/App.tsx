@@ -1,6 +1,9 @@
 // src/App.tsx
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import DataVizDashboard from './pages/analytics/analytics';
+import GoogleAuth from './GoogleAuth';
 
 const Home = () => (
   <div style={{
@@ -18,26 +21,30 @@ const Home = () => (
   </div>
 );
 
-const Login = () => (
-  <div style={{
-    width: '100vw',
-    height: '100vh',
-    backgroundColor: '#3b82f6',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    color: 'white',
-    fontSize: '2rem'
-  }}>
-    🔑 Página de Login
-  </div>
-);
-
 const App = () => {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/login" element={<Login />} />
+      {/* Home protegida - redireciona para login se não autenticado */}
+      <Route 
+        path="/" 
+        element={
+          <ProtectedRoute>
+            <Home />
+          </ProtectedRoute>
+        } 
+      />
+      {/* Login - sem proteção */}
+      <Route path="/login" element={<GoogleAuth />} />
+      {/* Analytics protegido - redireciona para login se não autenticado */}
+      <Route 
+        path="/analytics" 
+        element={
+          <ProtectedRoute>
+            <DataVizDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      {/* 404 */}
       <Route
         path="*"
         element={

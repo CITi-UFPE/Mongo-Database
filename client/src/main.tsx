@@ -3,22 +3,19 @@
 // client/src/main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router } from 'react-router-dom';
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
-// Import the Auth page and global styles (Tailwind)
-import Auth from './pages/Auth/Auth';
-import Analytics from './pages/analytics/analytics';
+import App from './App';
+import { AuthProvider } from './context/AuthContext';
 import { config } from './config/env';
 import './index.css';
 
 const Root = () => (
   <Router>
-    <Routes>
-      <Route path="/" element={<Auth />} />
-      <Route path="/analytics" element={<Analytics />} />
-      {/* Add more routes here, e.g. <Route path="/profile" element={<Profile />} /> */}
-    </Routes>
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </Router>
 );
 

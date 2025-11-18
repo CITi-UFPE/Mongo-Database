@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import VisualToggle from "@/components/dashboard/VisualToggle";
 import UserProfileDropdown from "@/components/ui/userProfileDropdown";
-import { UserProfile } from "@/components/ui/userProfileDropdown";
+import { useAuth } from "@/context/AuthContext";
+import { extractNameFromEmail } from "@/lib/nameUtils";
 import { DashboardOverview } from "@/components/ui/dashboard";
 import AnimatedLogo from "@/components/AnimatedLogo";
 import { Chatbot } from "@/components/Chatbot/Chatbot";
@@ -39,7 +40,14 @@ export default function DataVizDashboard() {
   const sheetRequestRef = useRef(0);
   const popupTimeoutRef = useRef<number | null>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const user = UserProfile;
+  const { user: authUser } = useAuth();
+  const { fullName, initials } = extractNameFromEmail(authUser?.email);
+  const user = {
+    name: fullName,
+    role: authUser?.role || 'Usuário',
+    department: authUser?.department || 'Dados',
+    initials,
+  };
   const [togglePopup, setTogglePopup] = useState<TogglePopupState>({
     visible: false,
     mode: "planilha",
