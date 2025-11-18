@@ -14,7 +14,7 @@ router.post('/google', async (req, res) => {
     }
 
     if (!process.env.GOOGLE_CLIENT_ID) {
-      return res.status(400).json({ error: 'GOOGLE_CLIENT_ID não configurado' });
+      return res.status(500).json({ error: 'GOOGLE_CLIENT_ID não configurado' });
     }
 
     const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -26,6 +26,15 @@ router.post('/google', async (req, res) => {
     
     const payload = ticket.getPayload();
     
+    // Usar a chave JWT correta baseada no NODE_ENV
+    const jwtSecret = process.env.NODE_ENV === 'production' 
+      ? process.env.JWT_SECRET_PROD 
+      : process.env.JWT_SECRET_DEV;
+    
+    if (!jwtSecret) {
+      return res.status(500).json({ error: 'JWT_SECRET não configurado' });
+    }
+    
     // Gerar JWT com os dados do usuário
     const jwtToken = jwt.sign(
       {
@@ -33,15 +42,16 @@ router.post('/google', async (req, res) => {
         email: payload.email,
         name: payload.name,
       },
-      process.env.JWT_SECRET || 'sua_chave_secreta',
+      jwtSecret,
       { expiresIn: '7d' }
     );
     
     console.log('✅ JWT gerado:', jwtToken.substring(0, 50));
+    console.log('✅ Usuário:', payload.email);
     
     res.json({ token: jwtToken, user: payload });
   } catch (error) {
-    console.error('❌ Erro:', error.message);
+    console.error('❌ Erro na autenticação Google:', error.message);
     res.status(401).json({ error: error.message });
   }
 });
