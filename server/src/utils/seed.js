@@ -1,9 +1,20 @@
 const faker = require('faker');
 faker.locale = 'pt_BR';
+
+
 import {
-  Nicho, FaseFunil, Origem_lead, MotivoPerda, Membro,
-  Vendedor, Empresa, Meta, Contato, Lead,
-  HistoricoFaseLead, Interacao
+  Nicho, 
+  Fase_funil,          
+  Origem_lead, 
+  Motivo_perda,        
+  Membro,
+  Vendedor, 
+  Empresa, 
+  Meta, 
+  Contato, 
+  Lead,
+  Historico_fase_lead,
+  Interacao
 } from '../models/Comercial/Index.js';
 
 function weightedRandom(items) {
@@ -26,16 +37,16 @@ export const seedDb = async () => {
   try {
     console.log('Limpando banco de dados anterior...');
     await Interacao.deleteMany({});
-    await HistoricoFaseLead.deleteMany({});
+    await Historico_fase_lead.deleteMany({});
     await Lead.deleteMany({});
     await Contato.deleteMany({});
     await Meta.deleteMany({});
     await Empresa.deleteMany({});
     await Vendedor.deleteMany({});
     await Membro.deleteMany({});
-    await MotivoPerda.deleteMany({});
+    await Motivo_perda.deleteMany({});
     await Origem_lead.deleteMany({});
-    await FaseFunil.deleteMany({});
+    await Fase_funil.deleteMany({});
     await Nicho.deleteMany({});
     console.log('Banco de dados limpo.');
 
@@ -48,10 +59,10 @@ export const seedDb = async () => {
     ].map(n => n.save());
     
     const fasesPromises = [
-      new FaseFunil({ nome_fase: 'Qualificação', ordem: 1 }),
-      new FaseFunil({ nome_fase: 'Proposta', ordem: 2 }),
-      new FaseFunil({ nome_fase: 'Negociação', ordem: 3 }),
-      new FaseFunil({ nome_fase: 'Fechamento', ordem: 4 }),
+      new Fase_funil({ nome_fase: 'Qualificação', ordem: 1 }), 
+      new Fase_funil({ nome_fase: 'Proposta', ordem: 2 }),    
+      new Fase_funil({ nome_fase: 'Negociação', ordem: 3 }),   
+      new Fase_funil({ nome_fase: 'Fechamento', ordem: 4 }),   
     ].map(f => f.save());
     
     const origensPromises = [
@@ -61,9 +72,9 @@ export const seedDb = async () => {
     ].map(o => o.save());
     
     const motivosPromises = [
-      new MotivoPerda({ descricao: 'Preço' }),
-      new MotivoPerda({ descricao: 'Perdeu para concorrente' }),
-      new MotivoPerda({ descricao: 'Projeto pausado (sem budget)' }),
+      new Motivo_perda({ descricao: 'Preço' }),                       
+      new Motivo_perda({ descricao: 'Perdeu para concorrente' }),      
+      new Motivo_perda({ descricao: 'Projeto pausado (sem budget)' }), 
     ].map(m => m.save());
     
     const [nichosSalvos, fasesSalvas, origensSalvas, motivosSalvos] = await Promise.all([
@@ -158,22 +169,22 @@ export const seedDb = async () => {
     const faseFechamento = fasesSalvas.find(f => f.nome_fase === 'Fechamento');
 
     for (let i = 0; i < 50; i++) {
-      const contato = faker.random.arrayElement(contatosSalvos); // <-- CORRIGIDO AQUI
-      const membroIndicador = faker.random.arrayElement(membrosSalvos); // <-- CORRIGIDO AQUI
-      const origem = faker.random.arrayElement(origensSalvas); // <-- CORRIGIDO AQUI
-      const status = faker.random.arrayElement(['Aberto', 'Ganho', 'Perdido']); // <-- CORRIGIDO AQUI
+      const contato = faker.random.arrayElement(contatosSalvos);
+      const membroIndicador = faker.random.arrayElement(membrosSalvos);
+      const origem = faker.random.arrayElement(origensSalvas);
+      const status = faker.random.arrayElement(['Aberto', 'Ganho', 'Perdido']);
       
       let faseAtual, dataGanho = null, dataPerda = null, motivoPerda = null;
 
       if (status === 'Aberto') {
-        faseAtual = faker.random.arrayElement(fasesSalvas.filter(f => f.nome_fase !== 'Fechamento'))._id; // <-- CORRIGIDO AQUI
+        faseAtual = faker.random.arrayElement(fasesSalvas.filter(f => f.nome_fase !== 'Fechamento'))._id;
       } else if (status === 'Ganho') {
         faseAtual = faseFechamento._id;
         dataGanho = faker.date.recent(30);
       } else {
-        faseAtual = faker.random.arrayElement(fasesSalvas)._id; // <-- CORRIGIDO AQUI
+        faseAtual = faker.random.arrayElement(fasesSalvas)._id;
         dataPerda = faker.date.recent(30);
-        motivoPerda = faker.random.arrayElement(motivosSalvos)._id; // <-- CORRIGIDO AQUI
+        motivoPerda = faker.random.arrayElement(motivosSalvos)._id;
       }
 
       leadsPromises.push(new Lead({
@@ -195,7 +206,7 @@ export const seedDb = async () => {
     console.log('Criando Nível 6: Histórico de Fases e Interações...');
     const finalPromises = [];
     for (const lead of leadsSalvos) {
-      finalPromises.push(new HistoricoFaseLead({
+      finalPromises.push(new Historico_fase_lead({ 
         id_lead: lead._id,
         id_fase: lead.id_fase_atual,
         data_entrada: lead.createdAt,

@@ -1,17 +1,17 @@
-const Contato = require('./Contato');
-const Empresa = require('./Empresa');
-const Fase_funil = require('./Fase_funil');
-const Historico_fase_lead = require('./Historico_fase_lead');
-const Interacao = require('./Interacao');
-const Lead = require('./Lead');
-const Membro = require('./Membro');
-const Meta = require('./Meta');
-const Motivo_perda = require('./Motivo_perda');
-const Nicho = require('./Nicho');
-const Origem_lead = require('./Origem_lead');
-const Vendedor = require('./Vendedor');
+import Contato from './Contato';
+import Empresa from './Empresa';
+import Fase_funil from './Fase_funil';
+import Historico_fase_lead from './Historico_fase_lead';
+import Interacao from './Interacao';
+import Lead from './Lead';
+import Membro from './Membro';
+import Meta from './Meta';
+import Motivo_perda from './Motivo_perda';
+import Nicho from './Nicho';
+import Origem_lead from './Origem_lead';
+import Vendedor from './Vendedor';
 
-module.exports = {
+export {
   Contato,
   Empresa,
   Fase_funil,

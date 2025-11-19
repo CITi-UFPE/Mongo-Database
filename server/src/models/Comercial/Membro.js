@@ -23,7 +23,7 @@ const MembroSchema = new Schema(
       type: String,
       required: [true, 'O cargo do membro é obrigatório.'],
       trim: true,
-      enum: ['Vendedor', 'Desenvolvedor', 'Designer', 'Diretor', 'Analista de dados', 'Gerente']
+      enum: ['Diretoria', 'Operacional', 'Onda', 'Vendedor']
     },
     telefone: {
       type: String,
