@@ -1,4 +1,4 @@
-FROM node:16.19.0-alpine
+FROM node:18-alpine
 
 ENV USER=node
 
@@ -18,10 +18,13 @@ RUN chown -R node:node /home/node/.npm-global
 ENV PATH=/home/node/.npm-global/bin:$PATH
 ENV NPM_CONFIG_PREFIX=/home/node/.npm-global
 
-RUN npm --global config set user "${USER}"
-
 USER node
 RUN npm i --location=global pm2
+
+# Configure npm for better network reliability
+RUN npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-timeout 300000
 
 ENV NODE_ENV=production
 RUN npm install

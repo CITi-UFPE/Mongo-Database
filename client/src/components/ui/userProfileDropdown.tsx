@@ -46,7 +46,8 @@ export default function UserProfileDropdown() {
           {/* Cabeçalho */}
           <div className="p-4 border-b border-slate-700/50">
             <p className="font-semibold text-slate-100">{fullName}</p>
-            <p className="text-sm text-slate-400">Usuário</p>
+            <p className="text-xs text-slate-400">{email}</p>
+            <p className="text-xs text-slate-400 mt-1">{user?.role || 'Usuário'}</p>
           </div>
 
           {/* Ações */}
