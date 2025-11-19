@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/card"
 import Iridescence from "@/components/Iridescence"
 import AnimatedLogo from "@/components/AnimatedLogo"
-import axios from "axios"
+import { apiClient } from "@/services/api"
 import { GoogleLogin } from "@react-oauth/google"
 import { useAuth } from "./context/AuthContext";
 
@@ -21,7 +21,7 @@ export default function GoogleAuth() {
       console.log("🔵 [GoogleAuth] 1. Login Google iniciado");
       console.log("🔵 [GoogleAuth] 2. Credential recebido:", credentialResponse.credential?.substring(0, 30));
       
-      const res = await axios.post("http://localhost:5000/auth/google", {
+      const res = await apiClient.post("/auth/google", {
         id_token: credentialResponse.credential,
       });
       
