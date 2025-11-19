@@ -2,7 +2,7 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import DataVizDashboard from './pages/analytics/analytics';
+import DataVizDashboard from './pages/Analytics/analytics';
 import GoogleAuth from './GoogleAuth';
 
 const Home = () => (
@@ -17,7 +17,7 @@ const Home = () => (
     fontSize: '2rem',
     fontFamily: 'sans-serif'
   }}>
-    🏠 Página Inicial (Home)
+    Página Inicial (Home)
   </div>
 );
 
@@ -25,24 +25,24 @@ const App = () => {
   return (
     <Routes>
       {/* Home protegida - redireciona para login se não autenticado */}
-      <Route 
-        path="/" 
+      <Route
+        path="/"
         element={
           <ProtectedRoute>
             <Home />
           </ProtectedRoute>
-        } 
+        }
       />
       {/* Login - sem proteção */}
       <Route path="/login" element={<GoogleAuth />} />
       {/* Analytics protegido - redireciona para login se não autenticado */}
-      <Route 
-        path="/analytics" 
+      <Route
+        path="/analytics"
         element={
           <ProtectedRoute>
             <DataVizDashboard />
           </ProtectedRoute>
-        } 
+        }
       />
       {/* 404 */}
       <Route

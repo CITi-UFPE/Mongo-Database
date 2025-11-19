@@ -33,7 +33,6 @@ router.post('/google', async (req, res) => {
         picture: payload.picture,
       },
       jwtSecret,
-      jwtSecret,
       { expiresIn: '7d' }
     );
     
