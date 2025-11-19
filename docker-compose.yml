@@ -1,44 +1,27 @@
-version: '3.8'
-
-
 services:
   mdp-client:
     container_name: mdp-client
     restart: unless-stopped
     image: nemanjamitic/mern-boilerplate-client:latest
     build:
-      # src must be in context
       context: ./client
       dockerfile: docker/Dockerfile
       args:
-        - VITE_GOOGLE_CLIENT_ID=154331370847-dkmkdgprhjenmnhd4d7g33ui2jg5fk9u.apps.googleusercontent.com
-        - VITE_GEMINI_API_KEY=AIzaSyDusQEI9qjjHTGczrQrt-Yv88nptLxTdn0
+        - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
     depends_on:
       - mdp-server
     networks:
       - internal-client
-    environment:
-      - NODE_ENV=production
-      - REACT_APP_BASE_URL
-      - VITE_GOOGLE_CLIENT_ID=154331370847-dkmkdgprhjenmnhd4d7g33ui2jg5fk9u.apps.googleusercontent.com
+      - proxy 
     env_file:
       - ./client/.env
-    
-    # nginx ports
-    # either open port or route through traefik
-    # ports:
-    # - '3080:80'
-    # - '3443:443' # must edit nginx.conf
-
-    # handles everything except /api and /public/images
     labels:
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy'
-      - 'traefik.http.routers.mb-client-secure.rule=Host(`${SITE_HOSTNAME}`) && !(PathPrefix(`/api`) || PathPrefix(`/auth`) || PathPrefix(`/public/images`))'
+      - 'traefik.http.routers.mb-client-secure.rule=Host(${SITE_HOSTNAME}) && !(PathPrefix(/api) || PathPrefix(/auth) || PathPrefix(/public/images))'
       - 'traefik.http.routers.mb-client-secure.entrypoints=websecure'
       - 'traefik.http.routers.mb-client-secure.service=mb-client-svc'
       - 'traefik.http.services.mb-client-svc.loadbalancer.server.port=80'
-    
     ports:
       - '3080:80'
 
@@ -49,75 +32,27 @@ services:
     build:
       context: ./server
       dockerfile: docker/Dockerfile
-    depends_on:
-      - mdp-mongo
     env_file:
-      - ./server/.env
-    environment:
-      NODE_ENV: production
-      PORT: 80
+      - ./server/.env 
     volumes:
       - ./server/public/images:/home/node/app/server/public/images
     networks:
       - default
       - internal-client
-
-    # either open port or route through traefik
+      - proxy
     ports:
       - '5000:80'
-      
-    # must be exposed through traefik too
-    # handles /api and /public/images
     labels:
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy'
-      - 'traefik.http.routers.mb-server-secure.rule=Host(`${SITE_HOSTNAME}`) && (PathPrefix(`/api`) || PathPrefix(`/auth`) || PathPrefix(`/public/images`))'
+      - 'traefik.http.routers.mb-server-secure.rule=Host(${SITE_HOSTNAME}) && (PathPrefix(/api) || PathPrefix(/auth) || PathPrefix(/public/images))'
       - 'traefik.http.routers.mb-server-secure.entrypoints=websecure'
       - 'traefik.http.routers.mb-server-secure.service=mb-server-svc'
-      - 'traefik.http.services.mb-server-svc.loadbalancer.server.port=80'
-
-  mdp-mongo:
-    image: mongo:6.0.3
-    container_name: mdp-mongo
-    restart: unless-stopped
-    ports:
-      - '27017:27017'
-    environment:
-      # forwarded
-      - MONGO_INITDB_DATABASE
-      - MONGO_INITDB_ROOT_USERNAME
-      - MONGO_INITDB_ROOT_PASSWORD
-    env_file:
-       - ./server/.env
-    volumes:
-      - ./server/docker/mongo-data:/data/db
-    networks:
-      - default
-    
-  mongo-express:
-    image: mongo-express
-    restart: unless-stopped
-    container_name: mongo-express
-    ports:
-      - "8081:8081"
-    environment:
-      # direct full connection URL (includes creds + host)
-      - ME_CONFIG_MONGODB_URL=mongodb://admin:senhasegura123@mdp-mongo:27017/admin
-      - ME_CONFIG_BASICAUTH_USERNAME=admin
-      - ME_CONFIG_BASICAUTH_PASSWORD=admin
-      - ME_CONFIG_MONGODB_ADMINUSERNAME=admin
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=senhasegura123
-      - ME_CONFIG_MONGODB_SERVER=mdp-mongo
-      - ME_CONFIG_MONGODB_PORT=27017
-      - ME_CONFIG_MONGODB_AUTH_DATABASE=admin
-    depends_on:
-      - mdp-mongo
-    networks:
-      - default
-
-
+      - 'traefik.http.services.mb-server-svc.loadbalancer.server.port=80'    
 networks:
   default:
     name: mdp-default
   internal-client:
     name: mdp-client
+  proxy:
+    external: true

@@ -1,22 +1,11 @@
-import faker from 'faker';
-import { join } from 'path';
+const faker = require('faker');
+faker.locale = 'pt_BR';
+import {
+  Nicho, FaseFunil, Origem_lead, MotivoPerda, Membro,
+  Vendedor, Empresa, Meta, Contato, Lead,
+  HistoricoFaseLead, Interacao
+} from '../models/Comercial/Index.js';
 
-// Importar modelos Comercial
-import Lead from '../models/Comercial/Lead';
-import Membro from '../models/Comercial/Membro';
-import Vendedor from '../models/Comercial/Vendedor';
-import Empresa from '../models/Comercial/Empresa';
-import Contato from '../models/Comercial/Contato';
-import FaseFunil from '../models/Comercial/Fase_funil';
-import OrigemLead from '../models/Comercial/Origem_lead';
-import Nicho from '../models/Comercial/Nicho';
-import MotivoPerda from '../models/Comercial/Motivo_perda';
-import Interacao from '../models/Comercial/Interacao';
-
-import { deleteAllAvatars } from './utils';
-import { IMAGES_FOLDER_PATH } from './constants';
-
-// Função auxiliar para escolher com pesos
 function weightedRandom(items) {
   const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
   let random = faker.datatype.number({ min: 0, max: totalWeight - 1 });
@@ -26,250 +15,215 @@ function weightedRandom(items) {
     }
     random -= item.weight;
   }
-  return items[items.length - 1].value; // fallback
+  return items[items.length - 1].value;
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
 
 export const seedDb = async () => {
-  console.log('Seeding CRM database...');
+  console.log('Iniciando seeding do banco de dados Comercial...');
 
-  // Limpar todas as coleções
-  await Lead.deleteMany({});
-  await Interacao.deleteMany({});
-  await Contato.deleteMany({});
-  await Empresa.deleteMany({});
-  await Vendedor.deleteMany({});
-  await Membro.deleteMany({});
-  await FaseFunil.deleteMany({});
-  await OrigemLead.deleteMany({});
-  await Nicho.deleteMany({});
-  await MotivoPerda.deleteMany({});
-  await deleteAllAvatars(join(__dirname, '../..', IMAGES_FOLDER_PATH));
+  try {
+    console.log('Limpando banco de dados anterior...');
+    await Interacao.deleteMany({});
+    await HistoricoFaseLead.deleteMany({});
+    await Lead.deleteMany({});
+    await Contato.deleteMany({});
+    await Meta.deleteMany({});
+    await Empresa.deleteMany({});
+    await Vendedor.deleteMany({});
+    await Membro.deleteMany({});
+    await MotivoPerda.deleteMany({});
+    await Origem_lead.deleteMany({});
+    await FaseFunil.deleteMany({});
+    await Nicho.deleteMany({});
+    console.log('Banco de dados limpo.');
 
-  // 1. Criar Nichos (setores de mercado)
-  const nichos = [
-    'Tecnologia',
-    'Varejo',
-    'Educação',
-    'Saúde',
-    'Financeiro',
-    'Consultoria',
-    'Manufatura',
-    'Logística',
-    'Imobiliário',
-    'Alimentação',
-  ];
-  const nichosDocs = await Nicho.insertMany(
-    nichos.map(nome => ({ nome_nicho: nome }))
-  );
-  console.log(`✓ Created ${nichosDocs.length} nichos`);
+    console.log('Criando Nível 0: Nichos, Fases, Origens, Motivos...');
+    const nichosPromises = [
+      new Nicho({ nome_nicho: 'Tecnologia' }),
+      new Nicho({ nome_nicho: 'Saúde' }),
+      new Nicho({ nome_nicho: 'Varejo' }),
+      new Nicho({ nome_nicho: 'Educação' }),
+    ].map(n => n.save());
+    
+    const fasesPromises = [
+      new FaseFunil({ nome_fase: 'Qualificação', ordem: 1 }),
+      new FaseFunil({ nome_fase: 'Proposta', ordem: 2 }),
+      new FaseFunil({ nome_fase: 'Negociação', ordem: 3 }),
+      new FaseFunil({ nome_fase: 'Fechamento', ordem: 4 }),
+    ].map(f => f.save());
+    
+    const origensPromises = [
+      new Origem_lead({ canal: 'Google Ads', fonte: 'Mídia Paga' }),
+      new Origem_lead({ canal: 'Indicação (Membro CITI)', fonte: 'Networking' }),
+      new Origem_lead({ canal: 'LinkedIn (Prospecção)', fonte: 'Orgânico' }),
+    ].map(o => o.save());
+    
+    const motivosPromises = [
+      new MotivoPerda({ descricao: 'Preço' }),
+      new MotivoPerda({ descricao: 'Perdeu para concorrente' }),
+      new MotivoPerda({ descricao: 'Projeto pausado (sem budget)' }),
+    ].map(m => m.save());
+    
+    const [nichosSalvos, fasesSalvas, origensSalvas, motivosSalvos] = await Promise.all([
+      Promise.all(nichosPromises),
+      Promise.all(fasesPromises),
+      Promise.all(origensPromises),
+      Promise.all(motivosPromises),
+    ]);
+    console.log('Nível 0 criado.');
 
-  // 2. Criar Fases do Funil
-  const fases = [
-    { nome_fase: 'Prospecção', ordem: 1 },
-    { nome_fase: 'Qualificação', ordem: 2 },
-    { nome_fase: 'Proposta', ordem: 3 },
-    { nome_fase: 'Negociação', ordem: 4 },
-    { nome_fase: 'Fechado', ordem: 5 },
-  ];
-  const fasesDocs = await FaseFunil.insertMany(fases);
-  console.log(`✓ Created ${fasesDocs.length} fases do funil`);
-
-  // 3. Criar Origens de Lead
-  const origens = [
-    { canal: 'Website', fonte: 'Formulário de Contato' },
-    { canal: 'LinkedIn', fonte: 'InMail' },
-    { canal: 'Indicação', fonte: 'Cliente Existente' },
-    { canal: 'Email', fonte: 'Cold Email' },
-    { canal: 'Evento', fonte: 'Feira de Negócios' },
-    { canal: 'Google Ads', fonte: 'Campanha PPC' },
-    { canal: 'Telefone', fonte: 'Cold Call' },
-    { canal: 'Instagram', fonte: 'Direct Message' },
-  ];
-  const origensDocs = await OrigemLead.insertMany(origens);
-  console.log(`✓ Created ${origensDocs.length} origens de lead`);
-
-  // 4. Criar Motivos de Perda
-  const motivos = [
-    'Preço muito alto',
-    'Escolheu concorrente',
-    'Sem budget',
-    'Não respondeu',
-    'Timing inadequado',
-    'Não atende necessidades',
-    'Mudança de prioridades',
-  ];
-  const motivosDocs = await MotivoPerda.insertMany(
-    motivos.map(desc => ({ descricao: desc }))
-  );
-  console.log(`✓ Created ${motivosDocs.length} motivos de perda`);
-
-  // 5. Criar Membros (time da empresa)
-  const cargos = ['Vendedor', 'Desenvolvedor', 'Designer', 'Diretor', 'Analista de dados', 'Gerente'];
-  const membros = [];
-  for (let i = 0; i < 20; i++) {
-    membros.push({
-      nome: faker.name.findName(),
-      email: faker.internet.email().toLowerCase(),
-      cargo: faker.random.arrayElement(cargos),
-      telefone: faker.phone.phoneNumber('(##) #####-####'),
-      data_entrada: faker.date.between('2020-01-01', '2024-01-01'),
-    });
-  }
-  const membrosDocs = await Membro.insertMany(membros);
-  console.log(`✓ Created ${membrosDocs.length} membros`);
-
-  // 6. Criar Vendedores (subconjunto dos membros)
-  const vendedores = membrosDocs
-    .filter(m => m.cargo === 'Vendedor' || m.cargo === 'Gerente')
-    .map(m => ({ id_membro: m._id }));
-  
-  // Se não houver vendedores suficientes, adicionar alguns
-  if (vendedores.length < 5) {
-    for (let i = vendedores.length; i < 5; i++) {
-      const novoMembro = await Membro.create({
+    console.log('Criando Nível 1: Membros (Onda, Operacional, Diretoria, Vendedor)...');
+    const membrosPromises = [];
+    
+    for (let i = 0; i < 3; i++) {
+      membrosPromises.push(new Membro({
         nome: faker.name.findName(),
-        email: `vendedor${i}@${faker.internet.domainName()}`.toLowerCase(),
+        email: faker.internet.email(),
         cargo: 'Vendedor',
-        telefone: faker.phone.phoneNumber('(##) #####-####'),
-        data_entrada: faker.date.between('2020-01-01', '2024-01-01'),
-      });
-      vendedores.push({ id_membro: novoMembro._id });
+        telefone: faker.phone.phoneNumber(),
+        data_entrada: faker.date.past(2)
+      }).save());
     }
-  }
-
-  const vendedoresDocs = await Vendedor.insertMany(vendedores);
-  console.log(`✓ Created ${vendedoresDocs.length} vendedores`);
-
-  // 7. Criar Empresas
-  const estados = ['SP', 'RJ', 'MG', 'RS', 'SC', 'PR', 'BA', 'PE', 'CE', 'DF'];
-  const empresas = [];
-  for (let i = 0; i < 500; i++) {
-    empresas.push({
-      nome_empresa: faker.company.companyName(),
-      cnpj: `${faker.datatype.number({ min: 10000000, max: 99999999 })}${faker.datatype.number({ min: 1000, max: 9999 })}`,
-      localizacao_pais: 'Brasil',
-      localizacao_estado: faker.random.arrayElement(estados),
-      faturamento_anual: faker.datatype.number({ min: 100000, max: 50000000 }),
-      numero_funcionarios: faker.datatype.number({ min: 5, max: 500 }),
-      id_nicho: faker.random.arrayElement(nichosDocs)._id,
-    });
-  }
-  const empresasDocs = await Empresa.insertMany(empresas);
-  console.log(`✓ Created ${empresasDocs.length} empresas`);
-
-  // 8. Criar Contatos (1-3 contatos por empresa)
-  const contatos = [];
-  const cargosContato = ['CEO', 'CTO', 'Diretor', 'Gerente', 'Coordenador', 'Analista'];
-  
-  for (const empresa of empresasDocs) {
-    const numContatos = faker.datatype.number({ min: 1, max: 3 });
-    for (let i = 0; i < numContatos; i++) {
-      contatos.push({
-        id_empresa: empresa._id,
+    
+    for (let i = 0; i < 7; i++) {
+      membrosPromises.push(new Membro({
         nome: faker.name.findName(),
-        email: faker.internet.email().toLowerCase(),
-        telefone: faker.phone.phoneNumber('(##) #####-####'),
-        cargo: faker.random.arrayElement(cargosContato),
-      });
+        email: faker.internet.email(),
+        cargo: faker.random.arrayElement(['Onda', 'Operacional', 'Diretoria']),
+        telefone: faker.phone.phoneNumber(),
+        data_entrada: faker.date.past(1)
+      }).save());
     }
-  }
-  const contatosDocs = await Contato.insertMany(contatos);
-  console.log(`✓ Created ${contatosDocs.length} contatos`);
-
-  // 9. Criar 2000 Leads
-  const leads = [];
-  const statusOptions = ['Aberto', 'Ganho', 'Perdido'];
-  const statusWeights = [
-    { value: 'Aberto', weight: 50 },
-    { value: 'Ganho', weight: 30 },
-    { value: 'Perdido', weight: 20 },
-  ];
-
-  for (let i = 0; i < 2000; i++) {
-    const empresa = faker.random.arrayElement(empresasDocs);
-    const contato = faker.random.arrayElement(
-      contatosDocs.filter(c => c.id_empresa.toString() === empresa._id.toString())
+    const membrosSalvos = await Promise.all(membrosPromises);
+    
+    console.log('Criando Nível 2: Entidade Vendedor...');
+    const membrosVendedores = membrosSalvos.filter(m => m.cargo === 'Vendedor');
+    
+    const vendedoresPromises = membrosVendedores.map(membro => 
+      new Vendedor({ id_membro: membro._id }).save()
     );
-    
-    if (!contato) continue; // Skip se não houver contato para essa empresa
+    const vendedoresSalvos = await Promise.all(vendedoresPromises);
+    console.log(`${membrosSalvos.length} Membros criados, ${vendedoresSalvos.length} Vendedores ('Vendedor') criados.`);
 
-    const membro = faker.random.arrayElement(membrosDocs);
-    const fase = faker.random.arrayElement(fasesDocs);
-    const origem = faker.random.arrayElement(origensDocs);
-    const status = weightedRandom(statusWeights);
-    
-    const valorBase = faker.datatype.number({ min: 5000, max: 500000 });
-    const createdAt = faker.date.between('2023-01-01', '2025-11-01');
-    
-    const lead = {
-      id_fase_atual: fase._id,
-      id_empresa: empresa._id,
-      id_membro: membro._id,
-      id_contato: contato._id,
-      id_origem_lead: origem._id,
-      valor_estimado: Math.round(valorBase / 100) * 100,
-      status,
-      createdAt,
-    };
-
-    // Adicionar dados específicos baseado no status
-    if (status === 'Ganho') {
-      lead.data_ganho = faker.date.between(createdAt, new Date());
-      lead.id_fase_atual = fasesDocs.find(f => f.nome_fase === 'Fechado')._id;
-    } else if (status === 'Perdido') {
-      lead.data_perda = faker.date.between(createdAt, new Date());
-      lead.id_motivo_perda = faker.random.arrayElement(motivosDocs)._id;
+    console.log('Criando Nível 3: Empresas e Metas...');
+    const empresasPromises = [];
+    for (let i = 0; i < 15; i++) {
+      empresasPromises.push(new Empresa({
+        nome_empresa: faker.company.companyName(),
+        cnpj: faker.datatype.number({ min: 10000000000000, max: 99999999999999 }).toString(),
+        localizacao_estado: faker.address.state(true),
+        localizacao_pais: 'BR',
+        faturamento_anual: faker.finance.amount(100000, 5000000),
+        numero_funcionarios: faker.datatype.number({ min: 10, max: 500 }),
+        id_nicho: faker.random.arrayElement(nichosSalvos)._id
+      }).save());
     }
-
-    leads.push(lead);
-  }
-
-  const leadsDocs = await Lead.insertMany(leads);
-  console.log(`✓ Created ${leadsDocs.length} leads`);
-
-  // 10. Criar Interações (1-5 interações por lead)
-  const interacoes = [];
-  const tiposAtividade = [
-    'Ligação',
-    'Email',
-    'Reunião',
-    'Proposta Enviada',
-    'Follow-up',
-    'Demo',
-    'Negociação',
-  ];
-
-  for (const lead of leadsDocs) {
-    const numInteracoes = faker.datatype.number({ min: 1, max: 5 });
-    const vendedor = faker.random.arrayElement(vendedoresDocs);
     
-    for (let i = 0; i < numInteracoes; i++) {
-      interacoes.push({
-        id_lead: lead._id,
-        id_contato: lead.id_contato,
+    const metasPromises = [];
+    for (const vendedor of vendedoresSalvos) {
+      metasPromises.push(new Meta({
         id_vendedor: vendedor._id,
-        tipo_atividade: faker.random.arrayElement(tiposAtividade),
-        data_realizacao: faker.date.between(lead.createdAt, new Date()),
-      });
+        periodo: 'Q4 2025',
+        tipo_meta: 'Receita',
+        valor_objetivo: faker.datatype.number({ min: 50000, max: 100000 })
+      }).save());
     }
+    
+    const [empresasSalvas] = await Promise.all([
+      Promise.all(empresasPromises),
+      Promise.all(metasPromises)
+    ]);
+    console.log(`${empresasSalvas.length} Empresas e ${metasPromises.length} Metas criadas.`);
+
+    console.log('Criando Nível 4: Contatos...');
+    const contatosPromises = [];
+    for (const empresa of empresasSalvas) {
+      for (let i = 0; i < faker.datatype.number({ min: 1, max: 2 }); i++) {
+        contatosPromises.push(new Contato({
+          id_empresa: empresa._id,
+          nome: faker.name.findName(),
+          email: faker.internet.email(),
+          telefone: faker.phone.phoneNumber(),
+          cargo: faker.name.jobTitle()
+        }).save());
+      }
+    }
+    const contatosSalvos = await Promise.all(contatosPromises);
+    console.log(`${contatosSalvos.length} Contatos criados.`);
+
+    console.log('Criando Nível 5: Leads...');
+    const leadsPromises = [];
+    const faseFechamento = fasesSalvas.find(f => f.nome_fase === 'Fechamento');
+
+    for (let i = 0; i < 50; i++) {
+      const contato = faker.random.arrayElement(contatosSalvos); // <-- CORRIGIDO AQUI
+      const membroIndicador = faker.random.arrayElement(membrosSalvos); // <-- CORRIGIDO AQUI
+      const origem = faker.random.arrayElement(origensSalvas); // <-- CORRIGIDO AQUI
+      const status = faker.random.arrayElement(['Aberto', 'Ganho', 'Perdido']); // <-- CORRIGIDO AQUI
+      
+      let faseAtual, dataGanho = null, dataPerda = null, motivoPerda = null;
+
+      if (status === 'Aberto') {
+        faseAtual = faker.random.arrayElement(fasesSalvas.filter(f => f.nome_fase !== 'Fechamento'))._id; // <-- CORRIGIDO AQUI
+      } else if (status === 'Ganho') {
+        faseAtual = faseFechamento._id;
+        dataGanho = faker.date.recent(30);
+      } else {
+        faseAtual = faker.random.arrayElement(fasesSalvas)._id; // <-- CORRIGIDO AQUI
+        dataPerda = faker.date.recent(30);
+        motivoPerda = faker.random.arrayElement(motivosSalvos)._id; // <-- CORRIGIDO AQUI
+      }
+
+      leadsPromises.push(new Lead({
+        id_fase_atual: faseAtual,
+        id_empresa: contato.id_empresa,
+        id_membro: membroIndicador._id,
+        id_contato: contato._id,
+        id_origem_lead: origem._id,
+        id_motivo_perda: motivoPerda,
+        valor_estimado: faker.finance.amount(5000, 100000),
+        status: status,
+        data_ganho: dataGanho,
+        data_perda: dataPerda,
+      }).save());
+    }
+    const leadsSalvos = await Promise.all(leadsPromises);
+    console.log(`${leadsSalvos.length} Leads criados.`);
+
+    console.log('Criando Nível 6: Histórico de Fases e Interações...');
+    const finalPromises = [];
+    for (const lead of leadsSalvos) {
+      finalPromises.push(new HistoricoFaseLead({
+        id_lead: lead._id,
+        id_fase: lead.id_fase_atual,
+        data_entrada: lead.createdAt,
+        data_saida: lead.data_ganho || lead.data_perda,
+      }).save());
+
+      if (vendedoresSalvos.length > 0) {
+        const vendedorResponsavel = faker.random.arrayElement(vendedoresSalvos);
+        for (let i = 0; i< faker.datatype.number({ min: 1, max: 5 }); i++) {
+          finalPromises.push(new Interacao({
+            id_lead: lead._id,
+            id_contato: lead.id_contato,
+            id_vendedor: vendedorResponsavel._id,
+            tipo_atividade: faker.random.arrayElement(['Email', 'Ligação', 'Reunião']),
+            data_realizacao: faker.date.between(lead.createdAt, new Date()),
+          }).save());
+        }
+      }
+    }
+    await Promise.all(finalPromises);
+    console.log('Históricos e Interações criados.');
+
+    console.log('---------------------------------');
+    console.log('✅ Seeding do Comercial concluído!');
+    console.log('---------------------------------');
+
+  } catch (error) {
+    console.error('❌ Erro durante o seeding:', error);
+    throw error;
   }
-
-  const interacoesDocs = await Interacao.insertMany(interacoes);
-  console.log(`✓ Created ${interacoesDocs.length} interações`);
-
-  console.log('\n🎉 Seeding complete!');
-  console.log(`Summary:
-    - ${nichosDocs.length} nichos
-    - ${fasesDocs.length} fases do funil
-    - ${origensDocs.length} origens de lead
-    - ${motivosDocs.length} motivos de perda
-    - ${membrosDocs.length} membros
-    - ${vendedoresDocs.length} vendedores
-    - ${empresasDocs.length} empresas
-    - ${contatosDocs.length} contatos
-    - ${leadsDocs.length} leads
-    - ${interacoesDocs.length} interações
-  `);
 };

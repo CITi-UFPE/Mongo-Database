@@ -1,13 +1,6 @@
 # both stages must use alpine
 FROM node:22 AS build
 
-# Accept build arguments
-ARG VITE_GOOGLE_CLIENT_ID
-ARG VITE_GEMINI_API_KEY
-
-ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
-ENV VITE_GEMINI_API_KEY=$VITE_GEMINI_API_KEY
-
 WORKDIR /app
 
 COPY package*.json ./
@@ -20,6 +13,11 @@ RUN npm install --include=optional --legacy-peer-deps
 COPY . ./
 
 ENV NODE_ENV=production
+
+ARG VITE_GOOGLE_CLIENT_ID
+
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+
 RUN npm run build
 
 #-----------------------
