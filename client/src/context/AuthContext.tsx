@@ -6,6 +6,7 @@ interface AuthContextType {
   user: any;
   login: (token: string, user: any) => void;
   logout: () => void;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -14,18 +15,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Verifica token no localStorage ao montar
+    console.log('🔵 [AuthContext] Inicializando...');
     const savedToken = localStorage.getItem('authToken');
     const savedUser = localStorage.getItem('user');
     
-    if (savedToken) {
+    console.log('🔵 [AuthContext] Token salvo:', savedToken?.substring(0, 30));
+    console.log('🔵 [AuthContext] User salvo:', savedUser ? JSON.parse(savedUser).email : 'nenhum');
+    
+    if (savedToken && savedUser) {
       setToken(savedToken);
-      setUser(savedUser ? JSON.parse(savedUser) : null);
+      setUser(JSON.parse(savedUser));
       setIsAuthenticated(true);
-      console.log('🟢 [AuthContext] Auth restaurado do localStorage');
+      console.log('🟢 [AuthContext] Sessão restaurada do localStorage');
+    } else {
+      console.log('🟡 [AuthContext] Nenhuma sessão salva encontrada');
     }
+    
+    setIsLoading(false);
   }, []);
 
   const login = (newToken: string, newUser: any) => {
@@ -55,7 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, token, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, token, user, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
