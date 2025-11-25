@@ -1,6 +1,17 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 
+// Import models
+import Lead from '../../models/Comercial/Lead';
+import Membro from '../../models/Comercial/Membro';
+import Vendedor from '../../models/Comercial/Vendedor';
+import Empresa from '../../models/Comercial/Empresa';
+import Contato from '../../models/Comercial/Contato';
+import FaseFunil from '../../models/Comercial/Fase_funil';
+import OrigemLead from '../../models/Comercial/Origem_lead';
+import Nicho from '../../models/Comercial/Nicho';
+import MotivoPerda from '../../models/Comercial/Motivo_perda';
+
 const router = Router();
 const SHEET_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
 const isMongoReady = () => mongoose.connection.readyState === 1 && mongoose.connection.db;
@@ -11,6 +22,38 @@ const filterSpreadsheetCollections = (names) => {
     if (lowered.startsWith('system.')) return false;
     return lowered.includes('sheet');
   });
+};
+
+const MODEL_MAPPING = {
+  'leads_sheet': {
+    model: Lead,
+    populate: [
+      { path: 'id_fase_atual', select: 'nome_fase' },
+      { path: 'id_empresa', select: 'nome_empresa' },
+      { path: 'id_membro', select: 'nome' },
+      { path: 'id_contato', select: 'nome' },
+      { path: 'id_origem_lead', select: 'canal fonte' },
+      { path: 'id_motivo_perda', select: 'descricao' }
+    ]
+  },
+  'empresas_sheet': {
+    model: Empresa,
+    populate: [
+      { path: 'id_nicho', select: 'nome_nicho' }
+    ]
+  },
+  'contatos_sheet': {
+    model: Contato,
+    populate: [
+      { path: 'id_empresa', select: 'nome_empresa' }
+    ]
+  },
+  'vendedores_sheet': {
+    model: Vendedor,
+    populate: [
+      { path: 'id_membro', select: 'nome email' }
+    ]
+  }
 };
 
 router.get('/', async (_req, res) => {
@@ -45,7 +88,20 @@ router.get('/:sheetName', async (req, res) => {
       return res.status(404).json({ message: 'Spreadsheet not found.' });
     }
 
-    const documents = await mongoose.connection.db.collection(sheetName).find({}).toArray();
+    let documents;
+    if (MODEL_MAPPING[sheetName]) {
+      const { model, populate } = MODEL_MAPPING[sheetName];
+      let query = model.find({});
+      if (populate) {
+        populate.forEach(p => {
+          query = query.populate(p);
+        });
+      }
+      documents = await query.lean();
+    } else {
+      documents = await mongoose.connection.db.collection(sheetName).find({}).toArray();
+    }
+
     const formatted = documents.map((doc) => {
       const { _id, ...rest } = doc;
       return { id: _id?.toString?.() ?? undefined, ...rest };
@@ -53,6 +109,7 @@ router.get('/:sheetName', async (req, res) => {
 
     return res.json(formatted);
   } catch (error) {
+    console.error(error);
     return res.status(500).json({ message: 'Failed to retrieve spreadsheet.' });
   }
 });

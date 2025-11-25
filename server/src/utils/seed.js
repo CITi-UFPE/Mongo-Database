@@ -34,7 +34,8 @@ function generateCNPJ(index) {
 // Helper function to generate placeholder email
 function generateEmail(name, companyName, index) {
   const cleanName = sanitizeForEmail(name);
-  const cleanCompany = companyName ? sanitizeForEmail(companyName) : 'company';
+  let cleanCompany = companyName ? sanitizeForEmail(companyName) : 'company';
+  if (cleanCompany.length === 0) cleanCompany = 'company';
   return `${cleanName}${index}@${cleanCompany}.com.br`;
 }
 
@@ -51,17 +52,7 @@ function parseDate(dateStr) {
   return new Date(parts[2], parts[1] - 1, parts[0]);
 }
 
-// Helper function to generate placeholder CNPJ
-function generateCNPJ(index) {
-  return `${String(index).padStart(8, '0')}0001${String(index).padStart(2, '0')}`;
-}
 
-// Helper function to generate placeholder email
-function generateEmail(name, companyName, index) {
-  const cleanName = name.toLowerCase().replace(/\s+/g, '.');
-  const cleanCompany = companyName ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '') : 'company';
-  return `${cleanName}${index}@${cleanCompany}.com.br`;
-}
 
 export const seedDb = async () => {
   console.log('Seeding CRM database from CSV...');
@@ -134,7 +125,17 @@ export const seedDb = async () => {
         ? record.Empresa.trim()
         : null;
       const key = `${record['Nome do lead'].trim()}|${empresaName || 'N/A'}`;
-      uniqueContatos.set(key, empresaName);
+
+      const date = parseDate(record['Data de entrada no funil']) || new Date();
+
+      if (!uniqueContatos.has(key)) {
+        uniqueContatos.set(key, { empresaName, date });
+      } else {
+        const existing = uniqueContatos.get(key);
+        if (date < existing.date) {
+          uniqueContatos.set(key, { empresaName, date });
+        }
+      }
     }
   });
 
@@ -195,11 +196,11 @@ export const seedDb = async () => {
 
   // 5. Criar Membros (responsáveis)
   const membrosList = Array.from(uniqueResponsaveis);
-  const cargos = ['Vendedor', 'Gerente', 'Diretor Comercial', 'Analista de vendas'];
+  const cargos = ['Vendedor', 'Gerente', 'Diretor', 'Vendedor'];
   const membrosDocs = await Membro.insertMany(
     membrosList.map((nome, index) => ({
       nome: nome,
-      email: `${nome.toLowerCase().replace(/\s+/g, '.')}@empresa.com.br`,
+      email: `${sanitizeForEmail(nome)}@empresa.com.br`,
       cargo: cargos[index % cargos.length],
       telefone: `(81) 9${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
       data_entrada: new Date(2020 + Math.floor(index / 10), 0, 1),
@@ -257,7 +258,11 @@ export const seedDb = async () => {
   const contatosMap = new Map(); // Map "nome|empresa" -> contato doc
 
   for (let i = 0; i < contatosList.length; i++) {
-    const [key, empresaName] = contatosList[i];
+    const [key, val] = contatosList[i];
+    // Handle both old (string) and new (object) format if necessary, but here we know it's object
+    const empresaName = val.empresaName;
+    const date = val.date;
+
     const [contatoName, _] = key.split('|');
 
     const empresa = empresaName ? empresasMap.get(empresaName) : defaultEmpresa;
@@ -269,6 +274,7 @@ export const seedDb = async () => {
       email: generateEmail(contatoName, empresa.nome_empresa, i + 1),
       telefone: `(81) 9${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
       cargo: 'Contato',
+      createdAt: date,
     });
     contatosMap.set(key, contatoDoc);
   }
