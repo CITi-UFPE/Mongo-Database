@@ -79,11 +79,11 @@ router.get('/crm', async (_req, res) => {
         data_perda: lead.data_perda,
         createdAt: lead.createdAt,
         updatedAt: lead.updatedAt,
-        
+
         // Fase do funil
         fase_atual: lead.id_fase_atual?.nome_fase || 'N/A',
         fase_ordem: lead.id_fase_atual?.ordem || 0,
-        
+
         // Empresa
         empresa_nome: lead.id_empresa?.nome_empresa || 'N/A',
         empresa_cnpj: lead.id_empresa?.cnpj || 'N/A',
@@ -91,34 +91,34 @@ router.get('/crm', async (_req, res) => {
         empresa_localizacao_estado: lead.id_empresa?.localizacao_estado || 'N/A',
         empresa_faturamento: lead.id_empresa?.faturamento_anual || 0,
         empresa_funcionarios: lead.id_empresa?.numero_funcionarios || 0,
-        
+
         // Nicho da empresa
         nicho: lead.id_empresa?.id_nicho?.nome_nicho || 'N/A',
-        
+
         // Membro responsável
         membro_nome: lead.id_membro?.nome || 'N/A',
         membro_email: lead.id_membro?.email || 'N/A',
         membro_cargo: lead.id_membro?.cargo || 'N/A',
-        
+
         // Contato
         contato_nome: lead.id_contato?.nome || 'N/A',
         contato_email: lead.id_contato?.email || 'N/A',
         contato_telefone: lead.id_contato?.telefone || 'N/A',
         contato_cargo: lead.id_contato?.cargo || 'N/A',
-        
+
         // Origem do lead
         origem_canal: lead.id_origem_lead?.canal || 'N/A',
         origem_fonte: lead.id_origem_lead?.fonte || 'N/A',
-        
+
         // Motivo de perda (se aplicável)
         motivo_perda: lead.id_motivo_perda?.descricao || null,
-        
+
         // Estatísticas de interações
         total_interacoes: leadInteractions.length,
         ultima_interacao: leadInteractions.length > 0
-          ? leadInteractions.sort((a, b) => 
-              new Date(b.data_realizacao).getTime() - new Date(a.data_realizacao).getTime()
-            )[0].data_realizacao
+          ? leadInteractions.sort((a, b) =>
+            new Date(b.data_realizacao).getTime() - new Date(a.data_realizacao).getTime()
+          )[0].data_realizacao
           : null,
       };
     });
@@ -352,4 +352,32 @@ router.get('/kpis', async (_req, res) => {
   }
 });
 
+
+import { performClustering } from '../../services/clusteringService.js';
+
+/**
+ * GET /api/analytics/clustering
+ * Performs K-Means clustering on leads to find patterns.
+ */
+router.get('/clustering', async (req, res) => {
+  try {
+    if (!isMongoReady()) {
+      return res.status(503).json({ message: 'Database connection is not ready.' });
+    }
+
+    // Dynamic K from query param, default to 4
+    const k = parseInt(req.query.k) || 4;
+
+    console.log(`Received clustering request for k=${k}`);
+    const results = await performClustering(k);
+    console.log('Clustering completed successfully');
+
+    return res.json(results);
+  } catch (error) {
+    console.error('Error performing clustering:', error);
+    return res.status(500).json({ message: 'Failed to perform clustering analysis.', error: error.message });
+  }
+});
+
 export default router;
+
