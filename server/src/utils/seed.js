@@ -14,6 +14,30 @@ import Nicho from '../models/Comercial/Nicho';
 import MotivoPerda from '../models/Comercial/Motivo_perda';
 import Interacao from '../models/Comercial/Interacao';
 
+// Helper function to remove accents and special characters
+function sanitizeForEmail(str) {
+  return str
+    .normalize('NFD') // Decompose accented characters
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritical marks
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '') // Remove non-alphanumeric except spaces
+    .replace(/\s+/g, '.') // Replace spaces with dots
+    .replace(/\.+/g, '.') // Replace multiple dots with single dot
+    .replace(/^\.|\.$/g, ''); // Remove leading/trailing dots
+}
+
+// Helper function to generate placeholder CNPJ
+function generateCNPJ(index) {
+  return `${String(index).padStart(8, '0')}0001${String(index).padStart(2, '0')}`;
+}
+
+// Helper function to generate placeholder email
+function generateEmail(name, companyName, index) {
+  const cleanName = sanitizeForEmail(name);
+  const cleanCompany = companyName ? sanitizeForEmail(companyName) : 'company';
+  return `${cleanName}${index}@${cleanCompany}.com.br`;
+}
+
 import { deleteAllAvatars } from './utils';
 import { IMAGES_FOLDER_PATH } from './constants';
 
