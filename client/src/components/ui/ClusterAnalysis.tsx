@@ -112,7 +112,9 @@ export function ClusterAnalysis() {
                                         dataKey="y"
                                         name="Fase"
                                         stroke="#94a3b8"
-                                        label={{ value: 'Fase do Funil', angle: -90, position: 'insideLeft', fill: '#94a3b8' }}
+                                        domain={[0, 'auto']}
+                                        tick={false} // Hide ticks because of jitter
+                                        label={{ value: 'Fase do Funil (Agrupado)', angle: -90, position: 'insideLeft', fill: '#94a3b8' }}
                                     />
                                     <Tooltip
                                         cursor={{ strokeDasharray: '3 3' }}
@@ -120,10 +122,10 @@ export function ClusterAnalysis() {
                                             if (active && payload && payload.length) {
                                                 const d = payload[0].payload;
                                                 return (
-                                                    <div className="bg-slate-900 border border-slate-700 p-3 rounded shadow-lg text-slate-200">
+                                                    <div className="bg-slate-900 border border-slate-700 p-3 rounded shadow-lg text-slate-200 z-50">
                                                         <p className="font-bold mb-1">Cluster {d.cluster + 1}</p>
-                                                        <p className="text-sm">Valor: R$ {d.x.toLocaleString()}</p>
-                                                        <p className="text-sm">Fase: {d.y}</p>
+                                                        <p className="text-sm">Valor: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(d.x)}</p>
+                                                        <p className="text-sm">Fase: {Math.round(d.originalY || d.y)}</p>
                                                         <p className="text-sm">Status: <span className={d.status === 'Ganho' ? 'text-green-400' : d.status === 'Perdido' ? 'text-red-400' : 'text-blue-400'}>{d.status}</span></p>
                                                         <p className="text-xs text-slate-400 mt-1">{d.niche} | {d.origin}</p>
                                                     </div>

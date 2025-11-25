@@ -36,9 +36,8 @@ export const performClustering = async (k = 4) => {
     }
 
     // 2. Preprocessing & Feature Engineering
-    // We need to map categorical strings to numbers for K-Means.
 
-    // Get all unique Niches and Origins to create a consistent mapping
+    // Get all unique Niches and Origins
     const allNichos = [...new Set(leads.map(l => l.id_empresa?.id_nicho?.nome_nicho).filter(Boolean))].sort();
     const allOrigens = [...new Set(leads.map(l => l.id_origem_lead?.canal).filter(Boolean))].sort();
 
@@ -48,7 +47,8 @@ export const performClustering = async (k = 4) => {
     // Helper to normalize values (min-max scaling)
     const normalize = (val, min, max) => (max - min === 0 ? 0 : (val - min) / (max - min));
 
-    const values = leads.map(l => l.valor_estimado || 0);
+    // Log transform value to handle outliers better
+    const values = leads.map(l => Math.log1p(l.valor_estimado || 0));
     const minVal = Math.min(...values);
     const maxVal = Math.max(...values);
 
@@ -57,22 +57,21 @@ export const performClustering = async (k = 4) => {
     const maxPhase = Math.max(...phaseOrders);
 
     // Create Feature Vectors
-    // [Normalized Value, Normalized Phase, Encoded Niche, Encoded Origin]
-    // Note: K-Means works best with continuous variables. 
-    // Categorical encoding (0, 1, 2) implies order which might not exist, but for simple clustering it often yields "groupings".
-    // For better results, we might weight 'Value' higher if that's the primary interest.
+    // [Normalized LogValue, Normalized Phase, Encoded Niche, Encoded Origin]
     const data = leads.map(lead => {
-        const val = normalize(lead.valor_estimado || 0, minVal, maxVal);
+        const val = normalize(Math.log1p(lead.valor_estimado || 0), minVal, maxVal);
         const phase = normalize(lead.id_fase_atual?.ordem || 0, minPhase, maxPhase);
+
+        // Weight phase higher as it's a strong indicator of progress
+        const weightedPhase = phase * 1.5;
+
         const nichoIdx = nichoMap.get(lead.id_empresa?.id_nicho?.nome_nicho) || 0;
         const origemIdx = origemMap.get(lead.id_origem_lead?.canal) || 0;
 
-        // Normalize categorical indices too to keep them in 0-1 range roughly, 
-        // or else large index values will dominate the distance metric.
         const normNicho = normalize(nichoIdx, 0, Math.max(allNichos.length - 1, 1));
         const normOrigem = normalize(origemIdx, 0, Math.max(allOrigens.length - 1, 1));
 
-        return [val, phase, normNicho, normOrigem];
+        return [val, weightedPhase, normNicho, normOrigem];
     });
 
     // 3. Run K-Means
@@ -131,18 +130,23 @@ export const performClustering = async (k = 4) => {
     }
 
     // 5. Format Response for Visualization
-    // We return the raw points (projected to 2D or just the features) and the cluster info.
-    // For scatter plot, we might want to plot Value vs Win Probability (but we don't have probability per lead yet, just status).
-    // Or Value vs Phase.
-    const points = leads.map((lead, idx) => ({
-        id: lead._id,
-        x: lead.valor_estimado || 0, // Raw value for X axis
-        y: lead.id_fase_atual?.ordem || 0, // Phase order for Y axis (or we could use something else)
-        cluster: result.clusters[idx],
-        status: lead.status,
-        niche: lead.id_empresa?.id_nicho?.nome_nicho,
-        origin: lead.id_origem_lead?.canal
-    }));
+    const points = leads.map((lead, idx) => {
+        // Add jitter to Y (Phase) for better visualization
+        // Phase is usually integer 1-8. Jitter +/- 0.3
+        const phaseJitter = (Math.random() - 0.5) * 0.6;
+
+        return {
+            id: lead._id,
+            x: lead.valor_estimado || 0,
+            y: (lead.id_fase_atual?.ordem || 0) + phaseJitter, // Jittered Y
+            originalY: lead.id_fase_atual?.ordem || 0,
+            cluster: result.clusters[idx],
+            status: lead.status,
+            niche: lead.id_empresa?.id_nicho?.nome_nicho,
+            origin: lead.id_origem_lead?.canal
+        };
+    });
+
 
     return {
         clusters,
