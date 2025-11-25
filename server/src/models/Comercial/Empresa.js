@@ -10,9 +10,8 @@ const EmpresaSchema = new Schema(
     },
     cnpj: {
       type: String,
-      required: [true, 'O CNPJ é obrigatório.'],
+      required: false, // Optional since CSV data doesn't include CNPJ
       trim: true,
-      unique: true, 
     },
     localizacao_pais: {
       type: String,
@@ -24,9 +23,11 @@ const EmpresaSchema = new Schema(
     },
     faturamento_anual: {
       type: Number,
+      required: false, // Optional since CSV doesn't include this
     },
     numero_funcionarios: {
       type: Number,
+      required: false, // Optional since CSV doesn't include this
     },
     id_nicho: {
       type: Schema.Types.ObjectId,

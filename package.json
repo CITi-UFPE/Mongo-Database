@@ -1,6 +1,8 @@
 {
   "dependencies": {
-    "framer-motion": "^12.23.24"
+    "framer-motion": "^12.23.24",
+    "mongoose": "^9.0.0",
+    "mongosh": "^2.5.9"
   },
   "devDependencies": {
     "mkdirp": "^3.0.1",

@@ -7,11 +7,11 @@ const OrigemLeadSchema = new Schema(
             type: String,
             required: [true, 'O canal de origem é obrigatório.'],
             trim: true,
-            unique: true,
+            unique: true, // Keep unique to avoid duplicates
         },
         fonte: {
             type: String,
-            required: [true, 'A fonte é obrigatória.'],
+            required: false, // Optional since CSV has single origin value
             trim: true,
         },
     },

@@ -15,7 +15,7 @@ const ContatoSchema = new Schema(
     },
     email: {
       type: String,
-      required: [true, 'O email do contato é obrigatório.'],
+      required: false, // Optional since CSV only has contact names
       trim: true,
       lowercase: true,
       match: [
@@ -25,6 +25,7 @@ const ContatoSchema = new Schema(
     },
     telefone: {
       type: String,
+      required: false, // Optional
       trim: true,
     },
     cargo: {
@@ -38,6 +39,7 @@ const ContatoSchema = new Schema(
   },
 );
 
-ContatoSchema.index({ id_empresa: 1, email: 1 }, { unique: true });
+// Removed unique index on email since we'll generate placeholder emails
+// ContatoSchema.index({ id_empresa: 1, email: 1 }, { unique: true });
 
 export default mongoose.model('Contato', ContatoSchema);
