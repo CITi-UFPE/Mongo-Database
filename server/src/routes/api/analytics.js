@@ -379,5 +379,32 @@ router.get('/clustering', async (req, res) => {
   }
 });
 
+
+import { performPrediction } from '../../services/predictionService.js';
+
+/**
+ * GET /api/analytics/prediction
+ * Predicts win probability for open leads.
+ */
+router.get('/prediction', async (req, res) => {
+  try {
+    if (!isMongoReady()) {
+      return res.status(503).json({ message: 'Database connection is not ready.' });
+    }
+
+    console.log('Received prediction request');
+    const year = req.query.year ? parseInt(req.query.year) : undefined;
+    const results = await performPrediction(year);
+    console.log('Prediction completed successfully');
+
+
+    return res.json(results);
+  } catch (error) {
+    console.error('Error performing prediction:', error);
+    return res.status(500).json({ message: 'Failed to perform prediction analysis.', error: error.message });
+  }
+});
+
 export default router;
+
 

@@ -95,11 +95,13 @@ const FASE_COLORS: Record<string, string> = {
   'Aberto': '#3b82f6'
 };
 
+import { PredictionAnalysis } from './PredictionAnalysis';
 import { ClusterAnalysis } from './ClusterAnalysis';
+
 
 export function DashboardOverview() {
   const [chartPage, setChartPage] = useState(0);
-  const [viewMode, setViewMode] = useState<'overview' | 'clustering'>('overview');
+  const [viewMode, setViewMode] = useState<'overview' | 'clustering' | 'prediction'>('overview');
   const [kpiData, setKpiData] = useState<KPIData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -239,6 +241,25 @@ export function DashboardOverview() {
     );
   }
 
+  if (viewMode === 'prediction') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-slate-100">Previsão de Vendas (IA)</h2>
+          <Button
+            variant="outline"
+            onClick={() => setViewMode('overview')}
+            className="bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
+          >
+            <ChevronLeft className="w-4 h-4 mr-2" />
+            Voltar ao Dashboard
+          </Button>
+        </div>
+        <PredictionAnalysis />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -281,7 +302,7 @@ export function DashboardOverview() {
 
   return (
     <div className="space-y-6 text-slate-200">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
         <Button
           onClick={() => setViewMode('clustering')}
           className="bg-teal-600 hover:bg-teal-700 text-white"
@@ -289,9 +310,17 @@ export function DashboardOverview() {
           <Activity className="w-4 h-4 mr-2" />
           Análise de Clusters (IA)
         </Button>
+        <Button
+          onClick={() => setViewMode('prediction')}
+          className="bg-purple-600 hover:bg-purple-700 text-white"
+        >
+          <TrendingUp className="w-4 h-4 mr-2" />
+          Previsão de Vendas (IA)
+        </Button>
       </div>
 
       {/* KPI Cards */}
+
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
