@@ -4,6 +4,7 @@ import googleAuthRoutes from './googleAuth';
 import facebookAuthRoutes from './facebookAuth';
 import apiRoutes from './api';
 import analyticsAuthRoutes from './analyticsAuth.js';
+import geminiRoutes from './gemini.js';
 const router = Router();
 
 // rota raiz
@@ -16,6 +17,7 @@ router.use('/auth', googleAuthRoutes);
 router.use('/auth', facebookAuthRoutes);
 router.use('/api', apiRoutes);
 router.use('/api', analyticsAuthRoutes);
+router.use('/api/gemini', geminiRoutes);
 // fallback 404
 router.use('/api', (req, res) => res.status(404).json('No route for this path'));
 
