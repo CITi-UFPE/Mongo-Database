@@ -2,7 +2,7 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import DataVizDashboard from './pages/Analytics/analytics';
+import DataVizDashboard from './pages/analytics/analytics';
 import GoogleAuth from './GoogleAuth';
 
 const Home = () => (

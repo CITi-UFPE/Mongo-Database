@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  TrendingUp, 
+import {
+  TrendingUp,
   TrendingDown,
-  DollarSign, 
-  Target, 
-  Users, 
+  DollarSign,
+  Target,
+  Users,
   Activity,
   Award,
   AlertCircle,
@@ -95,8 +95,13 @@ const FASE_COLORS: Record<string, string> = {
   'Aberto': '#3b82f6'
 };
 
+import { PredictionAnalysis } from './PredictionAnalysis';
+import { ClusterAnalysis } from './ClusterAnalysis';
+
+
 export function DashboardOverview() {
   const [chartPage, setChartPage] = useState(0);
+  const [viewMode, setViewMode] = useState<'overview' | 'clustering' | 'prediction'>('overview');
   const [kpiData, setKpiData] = useState<KPIData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,12 +142,39 @@ export function DashboardOverview() {
     }));
 
     // Prepare lead sources data
-    const sourcesData = lead_sources.map((s, idx) => ({
-      name: s.canal,
-      value: s.count,
-      valor: s.valor,
-      fill: COLORS[idx % COLORS.length]
-    }));
+    const sortedSources = [...lead_sources].sort((a, b) => b.count - a.count);
+    let sourcesData;
+
+    if (sortedSources.length > 8) {
+      const top8 = sortedSources.slice(0, 8);
+      const others = sortedSources.slice(8);
+
+      const othersCount = others.reduce((sum, s) => sum + s.count, 0);
+      const othersValue = others.reduce((sum, s) => sum + s.valor, 0);
+
+      sourcesData = [
+        ...top8.map((s, idx) => ({
+          name: s.canal,
+          value: s.count,
+          valor: s.valor,
+          fill: COLORS[idx % COLORS.length]
+        })),
+        {
+          name: 'Outros',
+          value: othersCount,
+          valor: othersValue,
+          fill: '#64748b', // Slate-500 for others
+          details: others.map(s => ({ name: s.canal, value: s.count }))
+        }
+      ];
+    } else {
+      sourcesData = sortedSources.map((s, idx) => ({
+        name: s.canal,
+        value: s.count,
+        valor: s.valor,
+        fill: COLORS[idx % COLORS.length]
+      }));
+    }
 
     // Prepare loss reasons data
     const lossData = loss_reasons.map(r => ({
@@ -190,6 +222,44 @@ export function DashboardOverview() {
     };
   }, [kpiData]);
 
+  if (viewMode === 'clustering') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-slate-100">Análise de Clusters (IA)</h2>
+          <Button
+            variant="outline"
+            onClick={() => setViewMode('overview')}
+            className="bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
+          >
+            <ChevronLeft className="w-4 h-4 mr-2" />
+            Voltar ao Dashboard
+          </Button>
+        </div>
+        <ClusterAnalysis />
+      </div>
+    );
+  }
+
+  if (viewMode === 'prediction') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-slate-100">Previsão de Vendas (IA)</h2>
+          <Button
+            variant="outline"
+            onClick={() => setViewMode('overview')}
+            className="bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
+          >
+            <ChevronLeft className="w-4 h-4 mr-2" />
+            Voltar ao Dashboard
+          </Button>
+        </div>
+        <PredictionAnalysis />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -232,16 +302,35 @@ export function DashboardOverview() {
 
   return (
     <div className="space-y-6 text-slate-200">
+      <div className="flex justify-end gap-2">
+        <Button
+          onClick={() => setViewMode('clustering')}
+          className="bg-teal-600 hover:bg-teal-700 text-white"
+        >
+          <Activity className="w-4 h-4 mr-2" />
+          Análise de Clusters (IA)
+        </Button>
+        <Button
+          onClick={() => setViewMode('prediction')}
+          className="bg-purple-600 hover:bg-purple-700 text-white"
+        >
+          <TrendingUp className="w-4 h-4 mr-2" />
+          Previsão de Vendas (IA)
+        </Button>
+      </div>
+
       {/* KPI Cards */}
+
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KPICard 
+        <KPICard
           icon={<Target className="w-6 h-6" />}
           label="Total de Leads"
           value={kpis.totalLeads}
           subtitle={`${kpis.leadsAbertos} ativos`}
           color="blue"
         />
-        <KPICard 
+        <KPICard
           icon={<TrendingUp className="w-6 h-6" />}
           label="Taxa de Conversão"
           value={`${kpis.taxaConversao.toFixed(1)}%`}
@@ -249,14 +338,14 @@ export function DashboardOverview() {
           color="teal"
           trend="up"
         />
-        <KPICard 
+        <KPICard
           icon={<DollarSign className="w-6 h-6" />}
           label="Valor Pipeline"
           value={`R$ ${(kpis.valorPipeline / 1000).toFixed(0)}K`}
           subtitle={`R$ ${(kpis.valorGanho / 1000).toFixed(0)}K ganho`}
           color="green"
         />
-        <KPICard 
+        <KPICard
           icon={<Activity className="w-6 h-6" />}
           label="Ticket Médio"
           value={`R$ ${kpis.ticketMedio.toFixed(0)}`}
@@ -331,9 +420,9 @@ export function DashboardOverview() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="name" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
                       <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#1e293b', 
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
                           border: '1px solid #475569',
                           borderRadius: '0.5rem',
                           color: '#e2e8f0'
@@ -352,26 +441,18 @@ export function DashboardOverview() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={(entry: any) => 
+                        label={(entry: any) =>
                           `${entry.name}: ${((entry.value / sourcesData.reduce((sum, s) => sum + s.value, 0)) * 100).toFixed(0)}%`
                         }
                         outerRadius={100}
                         dataKey="value"
                         isAnimationActive={false}
                       >
-                        {sourcesData.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        {sourcesData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill || COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#1e293b', 
-                          border: '1px solid #475569',
-                          borderRadius: '0.5rem',
-                          color: '#e2e8f0'
-                        }}
-                        itemStyle={{ color: '#e2e8f0' }}
-                      />
+                      <Tooltip content={<CustomPieTooltip />} />
                     </PieChart>
                   </ResponsiveContainer>
                 )}
@@ -381,9 +462,9 @@ export function DashboardOverview() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis type="number" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
                       <YAxis type="category" dataKey="name" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} width={100} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#1e293b', 
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
                           border: '1px solid #475569',
                           borderRadius: '0.5rem',
                           color: '#e2e8f0'
@@ -400,9 +481,9 @@ export function DashboardOverview() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="mes" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
                       <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#1e293b', 
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
                           border: '1px solid #475569',
                           borderRadius: '0.5rem',
                           color: '#e2e8f0'
@@ -410,26 +491,26 @@ export function DashboardOverview() {
                         itemStyle={{ color: '#e2e8f0' }}
                       />
                       <Legend />
-                      <Line 
-                        type="monotone" 
-                        dataKey="total" 
-                        stroke="#3b82f6" 
+                      <Line
+                        type="monotone"
+                        dataKey="total"
+                        stroke="#3b82f6"
                         strokeWidth={2}
                         dot={{ r: 4 }}
                         name="Total Leads"
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="ganhos" 
-                        stroke="#10b981" 
+                      <Line
+                        type="monotone"
+                        dataKey="ganhos"
+                        stroke="#10b981"
                         strokeWidth={2}
                         dot={{ r: 4 }}
                         name="Leads Ganhos"
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="perdidos" 
-                        stroke="#ef4444" 
+                      <Line
+                        type="monotone"
+                        dataKey="perdidos"
+                        stroke="#ef4444"
                         strokeWidth={2}
                         dot={{ r: 4 }}
                         name="Leads Perdidos"
@@ -476,17 +557,17 @@ export function DashboardOverview() {
   );
 }
 
-function KPICard({ 
-  icon, 
-  label, 
-  value, 
+function KPICard({
+  icon,
+  label,
+  value,
   subtitle,
   color,
-  trend 
-}: { 
-  icon: React.ReactNode; 
-  label: string; 
-  value: string | number; 
+  trend
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
   subtitle?: string;
   color: 'blue' | 'teal' | 'green' | 'purple';
   trend?: 'up' | 'down';
@@ -535,4 +616,34 @@ function KPICard({
       </CardContent>
     </Card>
   );
+}
+
+function CustomPieTooltip({ active, payload }: any) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-slate-800 border border-slate-700 p-3 rounded-lg shadow-lg text-slate-200 z-50">
+        <p className="font-semibold mb-1">{data.name}</p>
+        <p className="text-sm">Leads: {data.value}</p>
+        {data.valor !== undefined && (
+          <p className="text-sm">Valor: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.valor)}</p>
+        )}
+
+        {data.name === 'Outros' && data.details && (
+          <div className="mt-2 pt-2 border-t border-slate-700">
+            <p className="text-xs font-semibold text-slate-400 mb-1">Composição:</p>
+            <div className="max-h-32 overflow-y-auto custom-scrollbar pr-2">
+              {data.details.map((item: any, idx: number) => (
+                <div key={idx} className="flex justify-between text-xs text-slate-300 gap-4">
+                  <span>{item.name}</span>
+                  <span>{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return null;
 }

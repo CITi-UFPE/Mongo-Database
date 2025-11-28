@@ -1,4 +1,5 @@
-import faker from 'faker';
+import { parse } from 'csv-parse/sync';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 
 // Importar modelos Comercial
@@ -13,26 +14,48 @@ import Nicho from '../models/Comercial/Nicho';
 import MotivoPerda from '../models/Comercial/Motivo_perda';
 import Interacao from '../models/Comercial/Interacao';
 
+// Helper function to remove accents and special characters
+function sanitizeForEmail(str) {
+  return str
+    .normalize('NFD') // Decompose accented characters
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritical marks
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '') // Remove non-alphanumeric except spaces
+    .replace(/\s+/g, '.') // Replace spaces with dots
+    .replace(/\.+/g, '.') // Replace multiple dots with single dot
+    .replace(/^\.|\.$/g, ''); // Remove leading/trailing dots
+}
+
+// Helper function to generate placeholder CNPJ
+function generateCNPJ(index) {
+  return `${String(index).padStart(8, '0')}0001${String(index).padStart(2, '0')}`;
+}
+
+// Helper function to generate placeholder email
+function generateEmail(name, companyName, index) {
+  const cleanName = sanitizeForEmail(name);
+  let cleanCompany = companyName ? sanitizeForEmail(companyName) : 'company';
+  if (cleanCompany.length === 0) cleanCompany = 'company';
+  return `${cleanName}${index}@${cleanCompany}.com.br`;
+}
+
 import { deleteAllAvatars } from './utils';
 import { IMAGES_FOLDER_PATH } from './constants';
 
-// Função auxiliar para escolher com pesos
-function weightedRandom(items) {
-  const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-  let random = faker.datatype.number({ min: 0, max: totalWeight - 1 });
-  for (const item of items) {
-    if (random < item.weight) {
-      return item.value;
-    }
-    random -= item.weight;
-  }
-  return items[items.length - 1].value; // fallback
+
+// Helper function to parse DD/MM/YYYY dates
+function parseDate(dateStr) {
+  if (!dateStr || dateStr.trim() === '') return null;
+  const parts = dateStr.trim().split('/');
+  if (parts.length !== 3) return null;
+  // DD/MM/YYYY -> new Date(YYYY, MM-1, DD)
+  return new Date(parts[2], parts[1] - 1, parts[0]);
 }
 
-const CURRENT_YEAR = new Date().getFullYear();
+
 
 export const seedDb = async () => {
-  console.log('Seeding CRM database...');
+  console.log('Seeding CRM database from CSV...');
 
   // Limpar todas as coleções
   await Lead.deleteMany({});
@@ -47,50 +70,115 @@ export const seedDb = async () => {
   await MotivoPerda.deleteMany({});
   await deleteAllAvatars(join(__dirname, '../..', IMAGES_FOLDER_PATH));
 
-  // 1. Criar Nichos (setores de mercado)
-  const nichos = [
-    'Tecnologia',
-    'Varejo',
-    'Educação',
-    'Saúde',
-    'Financeiro',
-    'Consultoria',
-    'Manufatura',
-    'Logística',
-    'Imobiliário',
-    'Alimentação',
-  ];
+  // Ler e parsear CSV
+  const csvPath = join(__dirname, '../../data_csv/comercial_funil.csv');
+  const fileContent = readFileSync(csvPath, 'utf-8');
+
+  const records = parse(fileContent, {
+    columns: true,
+    skip_empty_lines: true,
+    trim: true,
+    bom: true, // Handle BOM in CSV
+  });
+
+  console.log(`✓ Read ${records.length} records from CSV`);
+
+  // Extract unique values for reference collections
+  const uniqueNichos = new Set();
+  const uniqueFases = new Set();
+  const uniqueOrigens = new Set();
+  const uniqueResponsaveis = new Set();
+  const uniqueEmpresas = new Map(); // Map empresa name -> nicho
+  const uniqueContatos = new Map(); // Map contato name -> empresa name
+
+  records.forEach(record => {
+    // Nichos
+    if (record.Setor && record.Setor !== 'Sem dado' && record.Setor.trim() !== '') {
+      uniqueNichos.add(record.Setor.trim());
+    }
+
+    // Fases do funil
+    if (record['Etapa do funil'] && record['Etapa do funil'].trim() !== '') {
+      uniqueFases.add(record['Etapa do funil'].trim());
+    }
+
+    // Origens
+    if (record['Origem do lead'] && record['Origem do lead'] !== 'Sem dado' && record['Origem do lead'].trim() !== '') {
+      uniqueOrigens.add(record['Origem do lead'].trim());
+    }
+
+    // Responsáveis (can be comma-separated)
+    if (record['Responsável'] && record['Responsável'].trim() !== '') {
+      const responsaveis = record['Responsável'].split(',').map(r => r.trim());
+      responsaveis.forEach(r => uniqueResponsaveis.add(r));
+    }
+
+    // Empresas with their sectors
+    if (record.Empresa && record.Empresa.trim() !== '' && record.Empresa !== 'Sem dado') {
+      const nicho = (record.Setor && record.Setor !== 'Sem dado') ? record.Setor.trim() : null;
+      uniqueEmpresas.set(record.Empresa.trim(), nicho);
+    }
+
+    // Contatos with their empresas
+    if (record['Nome do lead'] && record['Nome do lead'].trim() !== '') {
+      const empresaName = record.Empresa && record.Empresa.trim() !== '' && record.Empresa !== 'Sem dado'
+        ? record.Empresa.trim()
+        : null;
+      const key = `${record['Nome do lead'].trim()}|${empresaName || 'N/A'}`;
+
+      const date = parseDate(record['Data de entrada no funil']) || new Date();
+
+      if (!uniqueContatos.has(key)) {
+        uniqueContatos.set(key, { empresaName, date });
+      } else {
+        const existing = uniqueContatos.get(key);
+        if (date < existing.date) {
+          uniqueContatos.set(key, { empresaName, date });
+        }
+      }
+    }
+  });
+
+  // 1. Criar Nichos
+  const nichosList = Array.from(uniqueNichos);
+  if (nichosList.length === 0) {
+    nichosList.push('Geral'); // Default nicho
+  }
   const nichosDocs = await Nicho.insertMany(
-    nichos.map(nome => ({ nome_nicho: nome }))
+    nichosList.map(nome => ({ nome_nicho: nome }))
   );
   console.log(`✓ Created ${nichosDocs.length} nichos`);
 
-  // 2. Criar Fases do Funil
-  const fases = [
-    { nome_fase: 'Prospecção', ordem: 1 },
-    { nome_fase: 'Qualificação', ordem: 2 },
-    { nome_fase: 'Proposta', ordem: 3 },
-    { nome_fase: 'Negociação', ordem: 4 },
-    { nome_fase: 'Fechado', ordem: 5 },
-  ];
-  const fasesDocs = await FaseFunil.insertMany(fases);
+  // Create a default nicho for companies without sector
+  const defaultNicho = nichosDocs.find(n => n.nome_nicho === 'Geral') || nichosDocs[0];
+
+  // 2. Criar Fases do Funil com ordem
+  const fasesList = Array.from(uniqueFases);
+  const fasesDocs = await FaseFunil.insertMany(
+    fasesList.map((nome, index) => ({
+      nome_fase: nome,
+      ordem: index + 1
+    }))
+  );
   console.log(`✓ Created ${fasesDocs.length} fases do funil`);
 
   // 3. Criar Origens de Lead
-  const origens = [
-    { canal: 'Website', fonte: 'Formulário de Contato' },
-    { canal: 'LinkedIn', fonte: 'InMail' },
-    { canal: 'Indicação', fonte: 'Cliente Existente' },
-    { canal: 'Email', fonte: 'Cold Email' },
-    { canal: 'Evento', fonte: 'Feira de Negócios' },
-    { canal: 'Google Ads', fonte: 'Campanha PPC' },
-    { canal: 'Telefone', fonte: 'Cold Call' },
-    { canal: 'Instagram', fonte: 'Direct Message' },
-  ];
-  const origensDocs = await OrigemLead.insertMany(origens);
+  const origensList = Array.from(uniqueOrigens);
+  const origensDocs = await OrigemLead.insertMany(
+    origensList.map(canal => ({
+      canal: canal,
+      fonte: canal // Use same value for both
+    }))
+  );
   console.log(`✓ Created ${origensDocs.length} origens de lead`);
 
-  // 4. Criar Motivos de Perda
+  // Create default origem for leads without origin
+  const defaultOrigem = origensDocs[0] || await OrigemLead.create({
+    canal: 'Desconhecido',
+    fonte: 'Desconhecido'
+  });
+
+  // 4. Criar Motivos de Perda (mantém alguns padrões)
   const motivos = [
     'Preço muito alto',
     'Escolheu concorrente',
@@ -99,165 +187,213 @@ export const seedDb = async () => {
     'Timing inadequado',
     'Não atende necessidades',
     'Mudança de prioridades',
+    'Desqualificado',
   ];
   const motivosDocs = await MotivoPerda.insertMany(
     motivos.map(desc => ({ descricao: desc }))
   );
   console.log(`✓ Created ${motivosDocs.length} motivos de perda`);
 
-  // 5. Criar Membros (time da empresa)
-  const cargos = ['Vendedor', 'Desenvolvedor', 'Designer', 'Diretor', 'Analista de dados', 'Gerente'];
-  const membros = [];
-  for (let i = 0; i < 20; i++) {
-    membros.push({
-      nome: faker.name.findName(),
-      email: faker.internet.email().toLowerCase(),
-      cargo: faker.random.arrayElement(cargos),
-      telefone: faker.phone.phoneNumber('(##) #####-####'),
-      data_entrada: faker.date.between('2020-01-01', '2024-01-01'),
-    });
-  }
-  const membrosDocs = await Membro.insertMany(membros);
+  // 5. Criar Membros (responsáveis)
+  const membrosList = Array.from(uniqueResponsaveis);
+  const cargos = ['Vendedor', 'Gerente', 'Diretor', 'Vendedor'];
+  const membrosDocs = await Membro.insertMany(
+    membrosList.map((nome, index) => ({
+      nome: nome,
+      email: `${sanitizeForEmail(nome)}@empresa.com.br`,
+      cargo: cargos[index % cargos.length],
+      telefone: `(81) 9${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+      data_entrada: new Date(2020 + Math.floor(index / 10), 0, 1),
+    }))
+  );
   console.log(`✓ Created ${membrosDocs.length} membros`);
 
-  // 6. Criar Vendedores (subconjunto dos membros)
-  const vendedores = membrosDocs
-    .filter(m => m.cargo === 'Vendedor' || m.cargo === 'Gerente')
-    .map(m => ({ id_membro: m._id }));
-  
-  // Se não houver vendedores suficientes, adicionar alguns
-  if (vendedores.length < 5) {
-    for (let i = vendedores.length; i < 5; i++) {
-      const novoMembro = await Membro.create({
-        nome: faker.name.findName(),
-        email: `vendedor${i}@${faker.internet.domainName()}`.toLowerCase(),
-        cargo: 'Vendedor',
-        telefone: faker.phone.phoneNumber('(##) #####-####'),
-        data_entrada: faker.date.between('2020-01-01', '2024-01-01'),
-      });
-      vendedores.push({ id_membro: novoMembro._id });
-    }
-  }
+  // Create default membro for leads without responsible
+  const defaultMembro = membrosDocs[0] || await Membro.create({
+    nome: 'Sistema',
+    email: 'sistema@empresa.com.br',
+    cargo: 'Sistema',
+    telefone: '(00) 00000-0000',
+    data_entrada: new Date(),
+  });
 
-  const vendedoresDocs = await Vendedor.insertMany(vendedores);
+  // 6. Criar Vendedores (todos os membros são vendedores)
+  const vendedoresDocs = await Vendedor.insertMany(
+    membrosDocs.map(m => ({ id_membro: m._id }))
+  );
   console.log(`✓ Created ${vendedoresDocs.length} vendedores`);
 
   // 7. Criar Empresas
-  const estados = ['SP', 'RJ', 'MG', 'RS', 'SC', 'PR', 'BA', 'PE', 'CE', 'DF'];
-  const empresas = [];
-  for (let i = 0; i < 500; i++) {
-    empresas.push({
-      nome_empresa: faker.company.companyName(),
-      cnpj: `${faker.datatype.number({ min: 10000000, max: 99999999 })}${faker.datatype.number({ min: 1000, max: 9999 })}`,
+  const empresasList = Array.from(uniqueEmpresas.entries());
+  const empresasMap = new Map(); // Map empresa name -> empresa doc
+
+  for (let i = 0; i < empresasList.length; i++) {
+    const [empresaName, nichoName] = empresasList[i];
+    const nicho = nichoName
+      ? nichosDocs.find(n => n.nome_nicho === nichoName) || defaultNicho
+      : defaultNicho;
+
+    const empresaDoc = await Empresa.create({
+      nome_empresa: empresaName,
+      cnpj: generateCNPJ(i + 1),
       localizacao_pais: 'Brasil',
-      localizacao_estado: faker.random.arrayElement(estados),
-      faturamento_anual: faker.datatype.number({ min: 100000, max: 50000000 }),
-      numero_funcionarios: faker.datatype.number({ min: 5, max: 500 }),
-      id_nicho: faker.random.arrayElement(nichosDocs)._id,
+      localizacao_estado: 'PE',
+      id_nicho: nicho._id,
     });
+    empresasMap.set(empresaName, empresaDoc);
   }
-  const empresasDocs = await Empresa.insertMany(empresas);
-  console.log(`✓ Created ${empresasDocs.length} empresas`);
+  console.log(`✓ Created ${empresasMap.size} empresas`);
 
-  // 8. Criar Contatos (1-3 contatos por empresa)
-  const contatos = [];
-  const cargosContato = ['CEO', 'CTO', 'Diretor', 'Gerente', 'Coordenador', 'Analista'];
-  
-  for (const empresa of empresasDocs) {
-    const numContatos = faker.datatype.number({ min: 1, max: 3 });
-    for (let i = 0; i < numContatos; i++) {
-      contatos.push({
-        id_empresa: empresa._id,
-        nome: faker.name.findName(),
-        email: faker.internet.email().toLowerCase(),
-        telefone: faker.phone.phoneNumber('(##) #####-####'),
-        cargo: faker.random.arrayElement(cargosContato),
-      });
+  // Create default empresa for leads without company
+  const defaultEmpresa = await Empresa.create({
+    nome_empresa: 'Empresa não especificada',
+    cnpj: generateCNPJ(0),
+    localizacao_pais: 'Brasil',
+    localizacao_estado: 'PE',
+    id_nicho: defaultNicho._id,
+  });
+
+  // 8. Criar Contatos
+  const contatosList = Array.from(uniqueContatos.entries());
+  const contatosMap = new Map(); // Map "nome|empresa" -> contato doc
+
+  for (let i = 0; i < contatosList.length; i++) {
+    const [key, val] = contatosList[i];
+    // Handle both old (string) and new (object) format if necessary, but here we know it's object
+    const empresaName = val.empresaName;
+    const date = val.date;
+
+    const [contatoName, _] = key.split('|');
+
+    const empresa = empresaName ? empresasMap.get(empresaName) : defaultEmpresa;
+    if (!empresa) continue;
+
+    const contatoDoc = await Contato.create({
+      id_empresa: empresa._id,
+      nome: contatoName,
+      email: generateEmail(contatoName, empresa.nome_empresa, i + 1),
+      telefone: `(81) 9${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+      cargo: 'Contato',
+      createdAt: date,
+    });
+    contatosMap.set(key, contatoDoc);
+  }
+  console.log(`✓ Created ${contatosMap.size} contatos`);
+
+  // 9. Criar Leads a partir do CSV
+  const leadsToCreate = [];
+  let skipped = 0;
+
+  for (const record of records) {
+    // Get empresa
+    const empresaName = record.Empresa && record.Empresa.trim() !== '' && record.Empresa !== 'Sem dado'
+      ? record.Empresa.trim()
+      : null;
+    const empresa = empresaName ? empresasMap.get(empresaName) : defaultEmpresa;
+
+    if (!empresa) {
+      skipped++;
+      continue;
     }
-  }
-  const contatosDocs = await Contato.insertMany(contatos);
-  console.log(`✓ Created ${contatosDocs.length} contatos`);
 
-  // 9. Criar 2000 Leads
-  const leads = [];
-  const statusOptions = ['Aberto', 'Ganho', 'Perdido'];
-  const statusWeights = [
-    { value: 'Aberto', weight: 50 },
-    { value: 'Ganho', weight: 30 },
-    { value: 'Perdido', weight: 20 },
-  ];
+    // Get contato
+    const contatoName = record['Nome do lead'] && record['Nome do lead'].trim() !== ''
+      ? record['Nome do lead'].trim()
+      : null;
 
-  for (let i = 0; i < 2000; i++) {
-    const empresa = faker.random.arrayElement(empresasDocs);
-    const contato = faker.random.arrayElement(
-      contatosDocs.filter(c => c.id_empresa.toString() === empresa._id.toString())
-    );
-    
-    if (!contato) continue; // Skip se não houver contato para essa empresa
+    if (!contatoName) {
+      skipped++;
+      continue;
+    }
 
-    const membro = faker.random.arrayElement(membrosDocs);
-    const fase = faker.random.arrayElement(fasesDocs);
-    const origem = faker.random.arrayElement(origensDocs);
-    const status = weightedRandom(statusWeights);
-    
-    const valorBase = faker.datatype.number({ min: 5000, max: 500000 });
-    const createdAt = faker.date.between('2023-01-01', '2025-11-01');
-    
+    const contatoKey = `${contatoName}|${empresaName || 'N/A'}`;
+    const contato = contatosMap.get(contatoKey);
+
+    if (!contato) {
+      skipped++;
+      continue;
+    }
+
+    // Get fase
+    const faseNome = record['Etapa do funil'] && record['Etapa do funil'].trim() !== ''
+      ? record['Etapa do funil'].trim()
+      : null;
+    const fase = faseNome
+      ? fasesDocs.find(f => f.nome_fase === faseNome)
+      : fasesDocs[0];
+
+    // Get origem
+    const origemNome = record['Origem do lead'] && record['Origem do lead'] !== 'Sem dado' && record['Origem do lead'].trim() !== ''
+      ? record['Origem do lead'].trim()
+      : null;
+    const origem = origemNome
+      ? origensDocs.find(o => o.canal === origemNome) || defaultOrigem
+      : defaultOrigem;
+
+    // Get membro responsável
+    const responsavelNome = record['Responsável'] && record['Responsável'].trim() !== ''
+      ? record['Responsável'].split(',')[0].trim() // Take first if multiple
+      : null;
+    const membro = responsavelNome
+      ? membrosDocs.find(m => m.nome === responsavelNome) || defaultMembro
+      : defaultMembro;
+
+    // Parse dates
+    const dataEntrada = parseDate(record['Data de entrada no funil']) || new Date();
+    const dataEncerramento = parseDate(record['Data de encerramento']);
+
+    // Determine status
+    let status = 'Aberto';
+    const faseEncerramento = record['Fase de encerramento'] && record['Fase de encerramento'].trim() !== ''
+      ? record['Fase de encerramento'].trim()
+      : '';
+
+    const etapaFunil = record['Etapa do funil'] && record['Etapa do funil'].trim() !== ''
+      ? record['Etapa do funil'].trim()
+      : '';
+
+    if (etapaFunil === 'Ganho' || faseEncerramento.toLowerCase().includes('ganho')) {
+      status = 'Ganho';
+    } else if (etapaFunil === 'Perdido' || etapaFunil === 'Desqualificado' || faseEncerramento.toLowerCase().includes('perdido')) {
+      status = 'Perdido';
+    }
+
+    // Parse valor
+    const valorStr = record['Valor do projeto'] && record['Valor do projeto'].trim() !== ''
+      ? record['Valor do projeto'].trim()
+      : '0';
+    const valor = parseInt(valorStr) || 0;
+
+    // Create lead
     const lead = {
       id_fase_atual: fase._id,
       id_empresa: empresa._id,
       id_membro: membro._id,
       id_contato: contato._id,
       id_origem_lead: origem._id,
-      valor_estimado: Math.round(valorBase / 100) * 100,
-      status,
-      createdAt,
+      valor_estimado: valor,
+      status: status,
+      createdAt: dataEntrada,
     };
 
-    // Adicionar dados específicos baseado no status
-    if (status === 'Ganho') {
-      lead.data_ganho = faker.date.between(createdAt, new Date());
-      lead.id_fase_atual = fasesDocs.find(f => f.nome_fase === 'Fechado')._id;
-    } else if (status === 'Perdido') {
-      lead.data_perda = faker.date.between(createdAt, new Date());
-      lead.id_motivo_perda = faker.random.arrayElement(motivosDocs)._id;
+    // Add status-specific fields
+    if (status === 'Ganho' && dataEncerramento) {
+      lead.data_ganho = dataEncerramento;
+    } else if (status === 'Perdido' && dataEncerramento) {
+      lead.data_perda = dataEncerramento;
+      // Assign a motivo_perda
+      const motivoDesqualificado = motivosDocs.find(m => m.descricao === 'Desqualificado');
+      const motivoPadrao = motivosDocs.find(m => m.descricao === 'Não respondeu');
+      lead.id_motivo_perda = etapaFunil === 'Desqualificado'
+        ? (motivoDesqualificado || motivoPadrao)._id
+        : motivoPadrao._id;
     }
 
-    leads.push(lead);
+    leadsToCreate.push(lead);
   }
 
-  const leadsDocs = await Lead.insertMany(leads);
-  console.log(`✓ Created ${leadsDocs.length} leads`);
-
-  // 10. Criar Interações (1-5 interações por lead)
-  const interacoes = [];
-  const tiposAtividade = [
-    'Ligação',
-    'Email',
-    'Reunião',
-    'Proposta Enviada',
-    'Follow-up',
-    'Demo',
-    'Negociação',
-  ];
-
-  for (const lead of leadsDocs) {
-    const numInteracoes = faker.datatype.number({ min: 1, max: 5 });
-    const vendedor = faker.random.arrayElement(vendedoresDocs);
-    
-    for (let i = 0; i < numInteracoes; i++) {
-      interacoes.push({
-        id_lead: lead._id,
-        id_contato: lead.id_contato,
-        id_vendedor: vendedor._id,
-        tipo_atividade: faker.random.arrayElement(tiposAtividade),
-        data_realizacao: faker.date.between(lead.createdAt, new Date()),
-      });
-    }
-  }
-
-  const interacoesDocs = await Interacao.insertMany(interacoes);
-  console.log(`✓ Created ${interacoesDocs.length} interações`);
+  const leadsDocs = await Lead.insertMany(leadsToCreate);
+  console.log(`✓ Created ${leadsDocs.length} leads (skipped ${skipped} records)`);
 
   console.log('\n🎉 Seeding complete!');
   console.log(`Summary:
@@ -267,9 +403,38 @@ export const seedDb = async () => {
     - ${motivosDocs.length} motivos de perda
     - ${membrosDocs.length} membros
     - ${vendedoresDocs.length} vendedores
-    - ${empresasDocs.length} empresas
-    - ${contatosDocs.length} contatos
+    - ${empresasMap.size + 1} empresas
+    - ${contatosMap.size} contatos
     - ${leadsDocs.length} leads
-    - ${interacoesDocs.length} interações
+    - Years: 2023-2025
   `);
 };
+
+// If running directly (not imported), connect to MongoDB and run seed
+if (require.main === module) {
+  import('dotenv/config').then(() => {
+    const mongoose = require('mongoose');
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    const dbConnection = isProduction ? process.env.MONGO_URI_PROD : process.env.MONGO_URI_DEV;
+
+    console.log('Connecting to MongoDB...');
+    mongoose.connect(dbConnection)
+      .then(() => {
+        console.log('MongoDB Connected...');
+        return seedDb();
+      })
+      .then(() => {
+        console.log('\nClosing database connection...');
+        return mongoose.connection.close();
+      })
+      .then(() => {
+        console.log('Done!');
+        process.exit(0);
+      })
+      .catch(err => {
+        console.error('Error:', err);
+        process.exit(1);
+      });
+  });
+}

@@ -28,7 +28,7 @@ app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
+
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -50,9 +50,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
 
 // Load passport strategies
-require('./services/jwtStrategy');
-require('./services/googleStrategy');
-require('./services/localStrategy');
+// Load passport strategies
+import './services/jwtStrategy';
+import './services/googleStrategy';
+import './services/localStrategy';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const dbConnection = isProduction ? process.env.MONGO_URI_PROD : process.env.MONGO_URI_DEV;
@@ -60,7 +61,9 @@ const dbConnection = isProduction ? process.env.MONGO_URI_PROD : process.env.MON
 mongoose.connect(dbConnection)
   .then(() => {
     console.log('MongoDB Connected...');
-    seedDb();
+    if (!process.env.VERCEL) {
+      seedDb();
+    }
   })
   .catch(err => console.log(err));
 
@@ -74,7 +77,11 @@ app.get('/', (req, res) => {
 const port = process.env.PORT || 5000;
 const host = isProduction ? '0.0.0.0' : 'localhost';
 
-app.listen(port, host, () => {
-  console.log(`Server running at http://${host}:${port}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(port, host, () => {
+    console.log(`Server running at http://${host}:${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+}
+
+export default app;

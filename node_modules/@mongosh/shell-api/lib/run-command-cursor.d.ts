@@ -1,0 +1,6 @@
+import type Mongo from './mongo';
+import type { ServiceProviderRunCommandCursor } from '@mongosh/service-provider-core';
+import { AbstractFiniteCursor } from './abstract-cursor';
+export default class RunCommandCursor extends AbstractFiniteCursor<ServiceProviderRunCommandCursor> {
+    constructor(mongo: Mongo, cursor: ServiceProviderRunCommandCursor);
+}
