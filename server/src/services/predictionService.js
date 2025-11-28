@@ -8,8 +8,68 @@ console.log('Prediction Service Loaded');
  * @param {number} [year] - Optional year to filter the results.
  * @returns {Promise<Object>} - Predictions, feature weights, and summary.
  */
+/**
+ * Simple implementation of SMOTE (Synthetic Minority Over-sampling Technique)
+ * to balance the dataset.
+ */
+const applySMOTE = (data, labels) => {
+    const minorityClass = 1; // Assuming 'Won' (1) is usually the minority
+    const majorityClass = 0;
+
+    const minorityData = data.filter((_, i) => labels[i] === minorityClass);
+    const majorityData = data.filter((_, i) => labels[i] === majorityClass);
+
+    // If already balanced or minority is actually majority, do nothing (simplified)
+    if (minorityData.length >= majorityData.length) return { data, labels };
+
+    const syntheticData = [];
+    const syntheticLabels = [];
+    const k = 5; // k-nearest neighbors
+
+    const targetCount = majorityData.length - minorityData.length;
+
+    for (let i = 0; i < targetCount; i++) {
+        // 1. Select a random sample from minority class
+        const idx = Math.floor(Math.random() * minorityData.length);
+        const sample = minorityData[idx];
+
+        // 2. Find k nearest neighbors in minority class
+        // Simple Euclidean distance
+        const neighbors = minorityData
+            .map(other => ({
+                item: other,
+                dist: Math.sqrt(sample.reduce((sum, val, d) => sum + Math.pow(val - other[d], 2), 0))
+            }))
+            .sort((a, b) => a.dist - b.dist)
+            .slice(1, k + 1) // Exclude self (dist=0)
+            .map(n => n.item);
+
+        if (neighbors.length === 0) continue; // Should not happen if > 1 sample
+
+        // 3. Select a random neighbor
+        const neighbor = neighbors[Math.floor(Math.random() * neighbors.length)];
+
+        // 4. Create synthetic sample
+        const synthetic = sample.map((val, d) => val + Math.random() * (neighbor[d] - val));
+
+        syntheticData.push(synthetic);
+        syntheticLabels.push(minorityClass);
+    }
+
+    return {
+        data: [...data, ...syntheticData],
+        labels: [...labels, ...syntheticLabels]
+    };
+};
+
 export const performPrediction = async (year) => {
     console.log(`Starting prediction analysis${year ? ` for year ${year}` : ''}...`);
+
+    // ... (Fetch Data and Preprocessing remain the same) ...
+    // (I will rely on the existing code for lines 14-113)
+
+    // ... inside performPrediction, after filling trainingData ...
+
 
     // 1. Fetch Data
     // We need ALL leads to build the full feature set (to ensure one-hot encoding is consistent)
@@ -20,7 +80,7 @@ export const performPrediction = async (year) => {
         })
         .populate('id_origem_lead')
         .populate('id_fase_atual')
-        .populate('id_contato') // Fix: Populate contact for names
+        .populate('id_contato') // Populate contact for names
         .lean();
 
     // Calculate available years from data
@@ -37,8 +97,14 @@ export const performPrediction = async (year) => {
     const allNichos = [...new Set(leads.map(l => l.id_empresa?.id_nicho?.nome_nicho).filter(Boolean))].sort();
     const allOrigens = [...new Set(leads.map(l => l.id_origem_lead?.canal).filter(Boolean))].sort();
 
+    // Calculate Mean Value for Imputation (to avoid 0-value leads getting 100% prob)
+    const validValues = leads.map(l => l.valor_estimado).filter(v => v > 0);
+    const meanValue = validValues.length > 0
+        ? validValues.reduce((a, b) => a + b, 0) / validValues.length
+        : 1000; // Default fallback
+
     // Helper to normalize
-    const values = leads.map(l => Math.log1p(l.valor_estimado || 0));
+    const values = leads.map(l => Math.log1p((l.valor_estimado || meanValue)));
     const minVal = Math.min(...values);
     const maxVal = Math.max(...values);
     const normalizeVal = (v) => (maxVal - minVal === 0 ? 0 : (Math.log1p(v) - minVal) / (maxVal - minVal));
@@ -51,7 +117,7 @@ export const performPrediction = async (year) => {
     // New: Stale Lead Detection (Binary)
     // Instead of continuous time (which boosts new leads), we only penalize very old ones.
     const now = new Date();
-    const STALE_THRESHOLD_DAYS = 120; // 4 months
+    const STALE_THRESHOLD_DAYS = 150; // 5 months
 
     const isStale = (lead) => {
         const created = new Date(lead.createdAt);
@@ -74,8 +140,9 @@ export const performPrediction = async (year) => {
 
     leads.forEach((lead) => {
         // Build Feature Vector
+        const val = lead.valor_estimado || meanValue;
         const features = [
-            normalizeVal(lead.valor_estimado || 0),
+            normalizeVal(val),
             normalizePhase(lead.id_fase_atual?.ordem || 0),
             isStale(lead)
         ];
@@ -116,9 +183,20 @@ export const performPrediction = async (year) => {
     const LogisticRegressionModule = await (eval('import("ml-logistic-regression")'));
     const LogisticRegression = LogisticRegressionModule.default || LogisticRegressionModule;
 
+    let finalTrainingData = trainingData;
+    let finalTrainingLabels = trainingLabels;
 
-    const X = new Matrix(trainingData);
-    const Y = Matrix.columnVector(trainingLabels);
+    // Apply SMOTE if dataset is small (< 2000) to improve balance
+    if (trainingData.length < 2000) {
+        console.log(`Dataset size (${trainingData.length}) < 2000. Applying SMOTE...`);
+        const balanced = applySMOTE(trainingData, trainingLabels);
+        finalTrainingData = balanced.data;
+        finalTrainingLabels = balanced.labels;
+        console.log(`SMOTE applied. New dataset size: ${finalTrainingData.length}`);
+    }
+
+    const X = new Matrix(finalTrainingData);
+    const Y = Matrix.columnVector(finalTrainingLabels);
 
     const logreg = new LogisticRegression({ numSteps: 2000, learningRate: 1e-2 }); // Optimized hyperparameters
     logreg.train(X, Y);
@@ -133,15 +211,29 @@ export const performPrediction = async (year) => {
         const wonClassifier = logreg.classifiers[1];
         const weights = wonClassifier.weights;
 
+        console.log('--- Model Weights ---');
+        featureNames.forEach((name, idx) => {
+            console.log(`${name}: ${weights.get(0, idx)}`);
+        });
+        console.log('---------------------');
+
         predictionLeads.forEach((lead, idx) => {
             const features = predictionData[idx];
             // Manual calculation of probability using the weights for the "Won" class
             let z = 0;
+            let debugStr = `Lead: ${lead.id_contato?.nome || 'Unknown'} | `;
             for (let i = 0; i < features.length; i++) {
                 z += features[i] * weights.get(0, i);
+                if (Math.abs(features[i] * weights.get(0, i)) > 0.5) {
+                    debugStr += `${featureNames[i]}(${features[i].toFixed(2)})*${weights.get(0, i).toFixed(2)} = ${(features[i] * weights.get(0, i)).toFixed(2)} | `;
+                }
             }
 
             const prob = 1 / (1 + Math.exp(-z));
+
+            if (prob > 0.9 || lead.valor_estimado === 0) {
+                console.log(`[DEBUG] ${debugStr} => z=${z.toFixed(2)} prob=${prob.toFixed(4)}`);
+            }
 
             predictions.push({
                 id: lead._id,
@@ -190,7 +282,7 @@ export const performPrediction = async (year) => {
 
     // Enrich predictions with factors
     const enrichedPredictions = predictionsInYear.map((pred) => { // Removed idx as it's not reliable after filtering
-        // We need to find the original feature vector. 
+        // We need to find the original feature vector.
         // Since we filtered predictionsInYear, the index 'idx' no longer matches 'predictionData'.
         // We need to find the index in the original 'predictionLeads' array.
         const originalIdx = predictionLeads.findIndex(l => l._id.toString() === pred.id.toString());
@@ -226,6 +318,94 @@ export const performPrediction = async (year) => {
         };
     });
 
+    // 7. ICP Analysis (Ideal Customer Profile)
+    // We analyze ALL historical WON leads to find the "Perfect Lead" DNA
+    const allWonLeads = leads.filter(l => l.status === 'Ganho');
+
+    // Average Cycle Time (Days) - Calculated early for forecasting
+    const avgCycleTime = allWonLeads.length > 0
+        ? allWonLeads.reduce((sum, l) => {
+            const end = l.data_ganho ? new Date(l.data_ganho) : new Date();
+            const start = new Date(l.createdAt);
+            return sum + ((end - start) / (1000 * 60 * 60 * 24));
+        }, 0) / allWonLeads.length
+        : 30; // Default to 30 days if no history
+
+    // Helper to aggregate stats
+    const aggregateStats = (groupByFn) => {
+        const stats = {};
+        allWonLeads.forEach(l => {
+            const key = groupByFn(l);
+            if (!key) return;
+            if (!stats[key]) stats[key] = { count: 0, totalValue: 0, cycleTime: 0 };
+
+            stats[key].count++;
+            stats[key].totalValue += (l.valor_estimado || 0);
+
+            // Cycle time
+            if (l.data_ganho && l.createdAt) {
+                const days = (new Date(l.data_ganho) - new Date(l.createdAt)) / (1000 * 60 * 60 * 24);
+                stats[key].cycleTime += days;
+            }
+        });
+
+        return Object.entries(stats).map(([key, data]) => ({
+            name: key,
+            count: data.count,
+            avgValue: data.totalValue / data.count,
+            avgCycleTime: data.cycleTime / data.count,
+            totalValue: data.totalValue
+        })).sort((a, b) => b.totalValue - a.totalValue); // Sort by total revenue generated
+    };
+
+    const topNiches = aggregateStats(l => l.id_empresa?.id_nicho?.nome_nicho);
+    const topOrigins = aggregateStats(l => l.id_origem_lead?.canal);
+
+    // Average Deal Size of Won Leads
+    const avgDealSize = allWonLeads.length > 0
+        ? allWonLeads.reduce((sum, l) => sum + (l.valor_estimado || 0), 0) / allWonLeads.length
+        : 0;
+
+    const icpAnalysis = {
+        topNiches: topNiches.slice(0, 3),
+        topOrigins: topOrigins.slice(0, 3),
+        avgDealSize,
+        avgCycleTime
+    };
+
+    // 8. Monthly Forecast Calculation
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyData = months.map(m => ({ month: m, actual: 0, predicted: 0, cumulativeTotal: 0 }));
+
+    // Actual Revenue (Won Leads)
+    wonLeadsInYear.forEach(l => {
+        const date = l.data_ganho ? new Date(l.data_ganho) : new Date(l.createdAt);
+        const monthIdx = date.getMonth();
+        monthlyData[monthIdx].actual += (l.valor_estimado || 0);
+    });
+
+    // Predicted Revenue (Open Leads)
+    // We project the closing date based on creation date + average cycle time
+    predictionsInYear.forEach(p => {
+        const created = new Date(p.createdAt);
+        const expectedCloseDate = new Date(created.getTime() + (avgCycleTime * 24 * 60 * 60 * 1000));
+
+        // Only count if expected close date is within the target year
+        if (expectedCloseDate.getFullYear() === targetYear) {
+            const monthIdx = expectedCloseDate.getMonth();
+            // Expected Value = Value * Probability
+            const ev = (p.value || 0) * (p.probability / 100);
+            monthlyData[monthIdx].predicted += ev;
+        }
+    });
+
+    // Calculate Cumulative Total
+    let runningTotal = 0;
+    monthlyData.forEach(d => {
+        runningTotal += d.actual + d.predicted;
+        d.cumulativeTotal = runningTotal;
+    });
+
     return {
         availableYears,
         selectedYear: targetYear,
@@ -236,6 +416,8 @@ export const performPrediction = async (year) => {
             totalForecast: totalWonValue + expectedPipelineValue
         },
         predictions: enrichedPredictions.sort((a, b) => b.probability - a.probability),
-        featureWeights
+        monthlyForecast: monthlyData,
+        featureWeights,
+        icpAnalysis
     };
 };

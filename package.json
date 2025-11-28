@@ -1,4 +1,13 @@
 {
+  "name": "mongo-database-root",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "build": "cd client && npm run build"
+  },
   "dependencies": {
     "framer-motion": "^12.23.24",
     "mongoose": "^9.0.0",

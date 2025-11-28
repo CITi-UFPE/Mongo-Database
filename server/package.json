@@ -47,6 +47,7 @@
     "ml-kmeans": "^7.0.0",
     "ml-logistic-regression": "^2.0.0",
     "ml-matrix": "^6.12.1",
+    "ml-random-forest": "^2.1.0",
     "mongoose": "^8.19.3",
     "multer": "^2.0.2",
     "passport": "^0.7.0",
