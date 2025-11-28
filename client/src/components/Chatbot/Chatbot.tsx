@@ -12,12 +12,17 @@ interface ChatbotProps {
   onToggle?: () => void;
 }
 
-export const Chatbot: React.FC<ChatbotProps> = ({ 
-  spreadsheetData, 
-  isOpen = false, 
-  onToggle 
+// Interface local para mensagens na UI, estendendo a do serviço
+interface DisplayMessage extends ChatMessage {
+  timestamp: Date;
+}
+
+export const Chatbot: React.FC<ChatbotProps> = ({
+  spreadsheetData,
+  isOpen = false,
+  onToggle
 }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(false);
@@ -41,15 +46,15 @@ export const Chatbot: React.FC<ChatbotProps> = ({
           // Se não há dados, inicializa com array vazio
           const dataToUse = spreadsheetData && spreadsheetData.length > 0 ? spreadsheetData : [];
           await geminiService.initChat(dataToUse);
-          
+
           const welcomeMessage = dataToUse.length > 0
             ? 'Olá! Estou pronto para ajudar com análises sobre os dados disponíveis. Posso responder perguntas sobre vendas, produtos, clientes e métricas. Como posso ajudar?'
             : 'Olá! Selecione uma planilha primeiro para que eu possa ajudar com análises dos dados.';
-          
+
           setMessages([
             {
               role: 'model',
-              parts: welcomeMessage,
+              parts: [{ text: welcomeMessage }],
               timestamp: new Date(),
             },
           ]);
@@ -60,7 +65,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({
           setInitializing(false);
         }
       }
-      
+
       // Atualiza contexto se os dados mudarem após inicialização
       if (geminiService.isInitialized() && spreadsheetData && spreadsheetData.length > 0) {
         try {
@@ -89,9 +94,9 @@ export const Chatbot: React.FC<ChatbotProps> = ({
   const handleSend = async () => {
     if (!input.trim() || loading || initializing) return;
 
-    const userMessage: ChatMessage = {
+    const userMessage: DisplayMessage = {
       role: 'user',
-      parts: input.trim(),
+      parts: [{ text: input.trim() }],
       timestamp: new Date(),
     };
 
@@ -102,17 +107,17 @@ export const Chatbot: React.FC<ChatbotProps> = ({
 
     try {
       const response = await geminiService.sendMessage(input.trim());
-      const modelMessage: ChatMessage = {
+      const modelMessage: DisplayMessage = {
         role: 'model',
-        parts: response,
+        parts: [{ text: response }],
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, modelMessage]);
     } catch (err: any) {
       console.error('Erro ao enviar mensagem:', err);
-      const errorMessage: ChatMessage = {
+      const errorMessage: DisplayMessage = {
         role: 'model',
-        parts: `❌ ${err.message || 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.'}`,
+        parts: [{ text: `❌ ${err.message || 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.'}` }],
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -126,13 +131,13 @@ export const Chatbot: React.FC<ChatbotProps> = ({
     setMessages([]);
     setError(null);
     setInitializing(true);
-    
+
     try {
       await geminiService.initChat(spreadsheetData);
       setMessages([
         {
           role: 'model',
-          parts: 'Chat reiniciado! Como posso ajudar com a análise dos dados?',
+          parts: [{ text: 'Chat reiniciado! Como posso ajudar com a análise dos dados?' }],
           timestamp: new Date(),
         },
       ]);
@@ -171,16 +176,16 @@ export const Chatbot: React.FC<ChatbotProps> = ({
             <h3>Assistente de Dados</h3>
           </div>
           <div className="chatbot-header-actions">
-            <button 
-              className="chatbot-icon-btn" 
+            <button
+              className="chatbot-icon-btn"
               onClick={handleReset}
               title="Reiniciar chat"
               disabled={initializing || loading}
             >
               <RotateCcw size={18} />
             </button>
-            <button 
-              className="chatbot-icon-btn" 
+            <button
+              className="chatbot-icon-btn"
               onClick={onToggle}
               title="Fechar chat"
             >
@@ -210,29 +215,29 @@ export const Chatbot: React.FC<ChatbotProps> = ({
                 <ReactMarkdown
                   rehypePlugins={[rehypeHighlight]}
                   components={{
-                    code: ({node, className, children, ...props}: any) => {
+                    code: ({ node, className, children, ...props }: any) => {
                       const isInline = !className;
-                      return isInline ? 
+                      return isInline ?
                         <code className="inline-code" {...props}>{children}</code> :
                         <code className={className} {...props}>{children}</code>;
                     },
-                    pre: ({node, ...props}: any) => <pre className="code-block" {...props} />,
-                    p: ({node, ...props}: any) => <p className="markdown-p" {...props} />,
-                    ul: ({node, ...props}: any) => <ul className="markdown-list" {...props} />,
-                    ol: ({node, ...props}: any) => <ol className="markdown-list" {...props} />,
-                    li: ({node, ...props}: any) => <li className="markdown-li" {...props} />,
-                    strong: ({node, ...props}: any) => <strong className="markdown-strong" {...props} />,
-                    em: ({node, ...props}: any) => <em className="markdown-em" {...props} />,
-                    a: ({node, ...props}: any) => <a className="markdown-link" target="_blank" rel="noopener noreferrer" {...props} />,
+                    pre: ({ node, ...props }: any) => <pre className="code-block" {...props} />,
+                    p: ({ node, ...props }: any) => <p className="markdown-p" {...props} />,
+                    ul: ({ node, ...props }: any) => <ul className="markdown-list" {...props} />,
+                    ol: ({ node, ...props }: any) => <ol className="markdown-list" {...props} />,
+                    li: ({ node, ...props }: any) => <li className="markdown-li" {...props} />,
+                    strong: ({ node, ...props }: any) => <strong className="markdown-strong" {...props} />,
+                    em: ({ node, ...props }: any) => <em className="markdown-em" {...props} />,
+                    a: ({ node, ...props }: any) => <a className="markdown-link" target="_blank" rel="noopener noreferrer" {...props} />,
                   }}
                 >
-                  {msg.parts}
+                  {msg.parts[0].text}
                 </ReactMarkdown>
               </div>
               <div className="message-timestamp">
-                {msg.timestamp.toLocaleTimeString('pt-BR', { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
+                {msg.timestamp.toLocaleTimeString('pt-BR', {
+                  hour: '2-digit',
+                  minute: '2-digit'
                 })}
               </div>
             </div>
