@@ -67,6 +67,7 @@ mongoose.connect(dbConnection)
   })
   .catch(err => console.log(err));
 
+app.use('/api', routes);
 app.use('/', routes);
 app.use('/public/images', express.static(join(__dirname, '../public/images')));
 
