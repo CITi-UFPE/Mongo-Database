@@ -1,19 +1,5 @@
-import jwt from 'jsonwebtoken';
+import passport from 'passport';
 
-export const isAuthenticated = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+const requireJwtAuth = passport.authenticate('jwt', { session: false });
 
-  if (!authHeader) {
-    return res.status(401).json({ message: 'Unauthorized - No token' });
-  }
-
-  const token = authHeader.split(' ')[1];
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: 'Unauthorized - Invalid token' });
-  }
-};
+export default requireJwtAuth;
