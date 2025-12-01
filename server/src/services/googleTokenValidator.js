@@ -42,16 +42,20 @@ export const verifyGoogleToken = async (idToken) => {
     }
 
     // Verificar audience (GOOGLE_CLIENT_ID)
-    const expectedClientId = process.env.GOOGLE_CLIENT_ID;
+    const expectedClientId = process.env.GOOGLE_CLIENT_ID?.trim();
     if (!expectedClientId) {
       throw new Error('GOOGLE_CLIENT_ID não configurado no servidor');
     }
 
-    if (payload.aud && payload.aud !== expectedClientId) {
-      console.warn('🟡 [verifyGoogleToken] Audience não corresponde');
-      console.warn('   Esperado:', expectedClientId);
-      console.warn('   Recebido:', payload.aud);
-      throw new Error('Token não é para este aplicativo (audience inválido)');
+    if (payload.aud) {
+      const receivedAud = payload.aud.trim();
+      if (receivedAud !== expectedClientId) {
+        console.warn('🟡 [verifyGoogleToken] Audience não corresponde');
+        console.warn('   Esperado:', JSON.stringify(expectedClientId));
+        console.warn('   Recebido:', JSON.stringify(receivedAud));
+        console.warn('   Lengths:', expectedClientId.length, 'vs', receivedAud.length);
+        throw new Error('Token não é para este aplicativo (audience inválido)');
+      }
     }
 
     console.log('🟢 [verifyGoogleToken] Token validado com sucesso!');
