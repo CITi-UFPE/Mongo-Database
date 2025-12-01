@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", {
 exports.default = void 0;
 var _express = require("express");
 var _mongoose = _interopRequireDefault(require("mongoose"));
-var _Lead = _interopRequireDefault(require("../../models/Comercial/Lead.js"));
+var _authMiddleware = _interopRequireDefault(require("../../middleware/authMiddleware"));
 var _Membro = _interopRequireDefault(require("../../models/Comercial/Membro.js"));
 var _Vendedor = _interopRequireDefault(require("../../models/Comercial/Vendedor.js"));
 var _Empresa = _interopRequireDefault(require("../../models/Comercial/Empresa.js"));
@@ -19,6 +19,10 @@ var _Interacao = _interopRequireDefault(require("../../models/Comercial/Interaca
 var _clusteringService = require("../../services/clusteringService.js");
 var _predictionService = require("../../services/predictionService.js");
 function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+// Import middleware
+
+// Import models
+
 const router = (0, _express.Router)();
 const isMongoReady = () => _mongoose.default.connection.readyState === 1 && _mongoose.default.connection.db;
 
@@ -26,7 +30,7 @@ const isMongoReady = () => _mongoose.default.connection.readyState === 1 && _mon
  * GET /api/analytics/crm
  * Returns aggregated CRM data with all relationships populated
  */
-router.get('/crm', async (_req, res) => {
+router.get('/crm', _authMiddleware.default, async (_req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({
@@ -35,7 +39,7 @@ router.get('/crm', async (_req, res) => {
     }
 
     // Fetch all leads with populated relationships
-    const leads = await _Lead.default.find({}).populate('id_fase_atual').populate('id_empresa').populate('id_membro').populate('id_contato').populate('id_origem_lead').populate('id_motivo_perda').lean();
+    const leads = await Lead.find({}).populate('id_fase_atual').populate('id_empresa').populate('id_membro').populate('id_contato').populate('id_origem_lead').populate('id_motivo_perda').lean();
 
     // Fetch all interactions and populate their relationships
     const interactions = await _Interacao.default.find({}).populate('id_lead').populate('id_contato').populate({
@@ -144,7 +148,7 @@ router.get('/crm', async (_req, res) => {
  * GET /api/analytics/kpis
  * Returns key performance indicators for the CRM dashboard
  */
-router.get('/kpis', async (_req, res) => {
+router.get('/kpis', _authMiddleware.default, async (_req, res) => {
   try {
     var _pipelineValue$, _wonValue$;
     if (!isMongoReady()) {
@@ -152,16 +156,16 @@ router.get('/kpis', async (_req, res) => {
         message: 'Database connection is not ready.'
       });
     }
-    const [totalLeads, openLeads, wonLeads, lostLeads] = await Promise.all([_Lead.default.countDocuments({}), _Lead.default.countDocuments({
+    const [totalLeads, openLeads, wonLeads, lostLeads] = await Promise.all([Lead.countDocuments({}), Lead.countDocuments({
       status: 'Aberto'
-    }), _Lead.default.countDocuments({
+    }), Lead.countDocuments({
       status: 'Ganho'
-    }), _Lead.default.countDocuments({
+    }), Lead.countDocuments({
       status: 'Perdido'
     })]);
 
     // Calculate total pipeline value and won value
-    const [pipelineValue, wonValue] = await Promise.all([_Lead.default.aggregate([{
+    const [pipelineValue, wonValue] = await Promise.all([Lead.aggregate([{
       $match: {
         status: 'Aberto'
       }
@@ -172,7 +176,7 @@ router.get('/kpis', async (_req, res) => {
           $sum: '$valor_estimado'
         }
       }
-    }]), _Lead.default.aggregate([{
+    }]), Lead.aggregate([{
       $match: {
         status: 'Ganho'
       }
@@ -188,7 +192,7 @@ router.get('/kpis', async (_req, res) => {
     const lossRate = totalLeads > 0 ? lostLeads / totalLeads * 100 : 0;
 
     // Get funnel distribution
-    const funnelDistribution = await _Lead.default.aggregate([{
+    const funnelDistribution = await Lead.aggregate([{
       $lookup: {
         from: 'fases_funil_sheet',
         localField: 'id_fase_atual',
@@ -217,7 +221,7 @@ router.get('/kpis', async (_req, res) => {
     }]);
 
     // Get lead sources
-    const leadSources = await _Lead.default.aggregate([{
+    const leadSources = await Lead.aggregate([{
       $lookup: {
         from: 'origens_lead_sheet',
         localField: 'id_origem_lead',
@@ -243,7 +247,7 @@ router.get('/kpis', async (_req, res) => {
     }]);
 
     // Get loss reasons
-    const lossReasons = await _Lead.default.aggregate([{
+    const lossReasons = await Lead.aggregate([{
       $match: {
         status: 'Perdido',
         id_motivo_perda: {
@@ -273,7 +277,7 @@ router.get('/kpis', async (_req, res) => {
     }]);
 
     // Get seller performance
-    const sellerPerformance = await _Lead.default.aggregate([{
+    const sellerPerformance = await Lead.aggregate([{
       $lookup: {
         from: 'membros_sheet',
         localField: 'id_membro',
@@ -325,7 +329,7 @@ router.get('/kpis', async (_req, res) => {
     // Temporal evolution (last 12 months)
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-    const temporalEvolution = await _Lead.default.aggregate([{
+    const temporalEvolution = await Lead.aggregate([{
       $match: {
         createdAt: {
           $gte: twelveMonthsAgo
@@ -425,7 +429,7 @@ router.get('/kpis', async (_req, res) => {
  * GET /api/analytics/clustering
  * Performs K-Means clustering on leads to find patterns.
  */
-router.get('/clustering', async (req, res) => {
+router.get('/clustering', _authMiddleware.default, async (req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({
@@ -451,7 +455,7 @@ router.get('/clustering', async (req, res) => {
  * GET /api/analytics/prediction
  * Predicts win probability for open leads.
  */
-router.get('/prediction', async (req, res) => {
+router.get('/prediction', _authMiddleware.default, async (req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({

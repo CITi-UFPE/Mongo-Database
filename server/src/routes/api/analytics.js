@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import Lead from '../../models/Comercial/Lead.js';
+
+// Import middleware
+import requireJwtAuth from '../../middleware/authMiddleware';
+
+// Import models
 import Membro from '../../models/Comercial/Membro.js';
 import Vendedor from '../../models/Comercial/Vendedor.js';
 import Empresa from '../../models/Comercial/Empresa.js';
@@ -18,7 +22,7 @@ const isMongoReady = () => mongoose.connection.readyState === 1 && mongoose.conn
  * GET /api/analytics/crm
  * Returns aggregated CRM data with all relationships populated
  */
-router.get('/crm', async (_req, res) => {
+router.get('/crm', requireJwtAuth, async (_req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({ message: 'Database connection is not ready.' });
@@ -153,7 +157,7 @@ router.get('/crm', async (_req, res) => {
  * GET /api/analytics/kpis
  * Returns key performance indicators for the CRM dashboard
  */
-router.get('/kpis', async (_req, res) => {
+router.get('/kpis', requireJwtAuth, async (_req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({ message: 'Database connection is not ready.' });
@@ -359,7 +363,7 @@ import { performClustering } from '../../services/clusteringService.js';
  * GET /api/analytics/clustering
  * Performs K-Means clustering on leads to find patterns.
  */
-router.get('/clustering', async (req, res) => {
+router.get('/clustering', requireJwtAuth, async (req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({ message: 'Database connection is not ready.' });
@@ -386,7 +390,7 @@ import { performPrediction } from '../../services/predictionService.js';
  * GET /api/analytics/prediction
  * Predicts win probability for open leads.
  */
-router.get('/prediction', async (req, res) => {
+router.get('/prediction', requireJwtAuth, async (req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({ message: 'Database connection is not ready.' });

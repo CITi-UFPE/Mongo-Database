@@ -1,41 +1,68 @@
 "use strict";
 
-var _passport = _interopRequireDefault(require("passport"));
-var _passportGoogleOauth = require("passport-google-oauth2");
-var _User = _interopRequireDefault(require("../models/User"));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
-const serverUrl = process.env.NODE_ENV === 'production' ? process.env.SERVER_URL_PROD : process.env.SERVER_URL_DEV;
-
-// google strategy
-const googleLogin = new _passportGoogleOauth.Strategy({
-  clientID: process.env.GOOGLE_CLIENT_ID,
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: `${serverUrl}${process.env.GOOGLE_CALLBACK_URL}`,
-  proxy: true
-}, async (accessToken, refreshToken, profile, done) => {
-  // console.log(profile);
-  try {
-    const oldUser = await _User.default.findOne({
-      email: profile.email
-    });
-    if (oldUser) {
-      return done(null, oldUser);
-    }
-  } catch (err) {
-    console.log(err);
-  }
-  try {
-    const newUser = await new _User.default({
-      provider: 'google',
-      googleId: profile.id,
-      username: `user${profile.id}`,
-      email: profile.email,
-      name: profile.displayName,
-      avatar: profile.picture
-    }).save();
-    done(null, newUser);
-  } catch (err) {
-    console.log(err);
-  }
+Object.defineProperty(exports, "__esModule", {
+  value: true
 });
-_passport.default.use(googleLogin);
+exports.loginWithGoogle = void 0;
+var _googleAuthLibrary = require("google-auth-library");
+var _User = _interopRequireDefault(require("../models/User.js"));
+var _jsonwebtoken = _interopRequireDefault(require("jsonwebtoken"));
+function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+const client = new _googleAuthLibrary.OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const loginWithGoogle = async (req, res) => {
+  try {
+    const {
+      credential
+    } = req.body;
+    if (!credential) {
+      return res.status(400).json({
+        error: "Missing Google credential"
+      });
+    }
+
+    // Validar token enviado pelo frontend
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+    const payload = ticket.getPayload();
+    const email = payload.email;
+    const googleId = payload.sub;
+    const name = payload.name;
+    const avatar = payload.picture;
+
+    // Verificar se usuário já existe
+    let user = await _User.default.findOne({
+      email
+    });
+    if (!user) {
+      user = await _User.default.create({
+        provider: "google",
+        googleId,
+        email,
+        name,
+        avatar,
+        username: `user_${googleId}`
+      });
+    }
+
+    // Criar JWT da aplicação
+    const token = _jsonwebtoken.default.sign({
+      id: user._id,
+      email: user.email
+    }, process.env.JWT_SECRET_DEV || process.env.JWT_SECRET_PROD, {
+      expiresIn: "7d"
+    });
+    return res.json({
+      user,
+      token
+    });
+  } catch (error) {
+    console.error("❌ Google login error:", error);
+    return res.status(401).json({
+      error: "Token inválido ou expirado",
+      details: error.message
+    });
+  }
+};
+exports.loginWithGoogle = loginWithGoogle;
