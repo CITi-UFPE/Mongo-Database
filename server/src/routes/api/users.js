@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { resolve } from 'path';
 
-import requireJwtAuth from '../../middleware/requireJwtAuth';
+import requireJwtAuth from '../../middleware/authMiddleware';
 import User, { hashPassword, validateUser } from '../../models/User';
 import Message from '../../models/Message';
 import { seedDb } from '../../utils/seed';

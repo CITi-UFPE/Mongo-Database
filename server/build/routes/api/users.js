@@ -7,7 +7,7 @@ exports.default = void 0;
 var _express = require("express");
 var _multer = _interopRequireDefault(require("multer"));
 var _path = require("path");
-var _requireJwtAuth = _interopRequireDefault(require("../../middleware/requireJwtAuth"));
+var _authMiddleware = _interopRequireDefault(require("../../middleware/authMiddleware"));
 var _User = _interopRequireWildcard(require("../../models/User"));
 var _Message = _interopRequireDefault(require("../../models/Message"));
 var _seed = require("../../utils/seed");
@@ -37,7 +37,7 @@ const upload = (0, _multer.default)({
 
 //`checkit`, which is probably the option I'd suggest if  `validatem`
 
-router.put('/:id', [_requireJwtAuth.default, upload.single('avatar')], async (req, res, next) => {
+router.put('/:id', [_authMiddleware.default, upload.single('avatar')], async (req, res, next) => {
   try {
     const tempUser = await _User.default.findById(req.params.id);
     if (!tempUser) return res.status(404).json({
@@ -101,13 +101,13 @@ router.get('/reseed', async (req, res) => {
     message: 'Database reseeded successfully.'
   });
 });
-router.get('/me', _requireJwtAuth.default, (req, res) => {
+router.get('/me', _authMiddleware.default, (req, res) => {
   const me = req.user.toJSON();
   res.json({
     me
   });
 });
-router.get('/:username', _requireJwtAuth.default, async (req, res) => {
+router.get('/:username', _authMiddleware.default, async (req, res) => {
   try {
     const user = await _User.default.findOne({
       username: req.params.username
@@ -124,7 +124,7 @@ router.get('/:username', _requireJwtAuth.default, async (req, res) => {
     });
   }
 });
-router.get('/', _requireJwtAuth.default, async (req, res) => {
+router.get('/', _authMiddleware.default, async (req, res) => {
   try {
     const users = await _User.default.find().sort({
       createdAt: 'desc'
@@ -140,7 +140,7 @@ router.get('/', _requireJwtAuth.default, async (req, res) => {
     });
   }
 });
-router.delete('/:id', _requireJwtAuth.default, async (req, res) => {
+router.delete('/:id', _authMiddleware.default, async (req, res) => {
   try {
     const tempUser = await _User.default.findById(req.params.id);
     if (!tempUser) return res.status(404).json({

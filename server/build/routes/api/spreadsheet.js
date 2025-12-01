@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", {
 exports.default = void 0;
 var _express = require("express");
 var _mongoose = _interopRequireDefault(require("mongoose"));
+var _authMiddleware = _interopRequireDefault(require("../../middleware/authMiddleware"));
 var _Lead = _interopRequireDefault(require("../../models/Comercial/Lead"));
 var _Membro = _interopRequireDefault(require("../../models/Comercial/Membro"));
 var _Vendedor = _interopRequireDefault(require("../../models/Comercial/Vendedor"));
@@ -16,6 +17,8 @@ var _Origem_lead = _interopRequireDefault(require("../../models/Comercial/Origem
 var _Nicho = _interopRequireDefault(require("../../models/Comercial/Nicho"));
 var _Motivo_perda = _interopRequireDefault(require("../../models/Comercial/Motivo_perda"));
 function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+// Import middleware
+
 // Import models
 
 const router = (0, _express.Router)();
@@ -73,7 +76,7 @@ const MODEL_MAPPING = {
     }]
   }
 };
-router.get('/', async (_req, res) => {
+router.get('/', _authMiddleware.default, async (_req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({
@@ -90,7 +93,7 @@ router.get('/', async (_req, res) => {
     });
   }
 });
-router.get('/:sheetName', async (req, res) => {
+router.get('/:sheetName', _authMiddleware.default, async (req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({

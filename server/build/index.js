@@ -29,7 +29,8 @@ const allowedOrigins = ['http://localhost:5173',
 // React dev
 'http://localhost:3080',
 // Docker production
-clientUrlDev, clientUrlProd, 'https://mern-boilerplate.amd2.localhost3002.live', 'https://localhost3002.live'];
+clientUrlDev, clientUrlProd, 'https://mern-boilerplate.amd2.localhost3002.live', 'https://localhost3002.live', 'https://mongo-database-jshebbs-projects.vercel.app' // Vercel production
+];
 app.use((0, _cors.default)({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)

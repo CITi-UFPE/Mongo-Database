@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 
+// Import middleware
+import requireJwtAuth from '../../middleware/authMiddleware';
+
 // Import models
 import Lead from '../../models/Comercial/Lead';
 import Membro from '../../models/Comercial/Membro';
@@ -56,7 +59,7 @@ const MODEL_MAPPING = {
   }
 };
 
-router.get('/', async (_req, res) => {
+router.get('/', requireJwtAuth, async (_req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({ message: 'Database connection is not ready.' });
@@ -72,7 +75,7 @@ router.get('/', async (_req, res) => {
   }
 });
 
-router.get('/:sheetName', async (req, res) => {
+router.get('/:sheetName', requireJwtAuth, async (req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({ message: 'Database connection is not ready.' });

@@ -5,7 +5,7 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.default = void 0;
 var _express = require("express");
-var _requireJwtAuth = _interopRequireDefault(require("../../middleware/requireJwtAuth"));
+var _authMiddleware = _interopRequireDefault(require("../../middleware/authMiddleware"));
 var _Message = _interopRequireWildcard(require("../../models/Message"));
 function _interopRequireWildcard(e, t) { if ("function" == typeof WeakMap) var r = new WeakMap(), n = new WeakMap(); return (_interopRequireWildcard = function (e, t) { if (!t && e && e.__esModule) return e; var o, i, f = { __proto__: null, default: e }; if (null === e || "object" != typeof e && "function" != typeof e) return f; if (o = t ? n : r) { if (o.has(e)) return o.get(e); o.set(e, f); } for (const t in e) "default" !== t && {}.hasOwnProperty.call(e, t) && ((i = (o = Object.defineProperty) && Object.getOwnPropertyDescriptor(e, t)) && (i.get || i.set) ? o(f, t, i) : f[t] = e[t]); return f; })(e, t); }
 function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
@@ -41,7 +41,7 @@ router.get('/:id', async (req, res) => {
     });
   }
 });
-router.post('/', _requireJwtAuth.default, async (req, res) => {
+router.post('/', _authMiddleware.default, async (req, res) => {
   const {
     error
   } = (0, _Message.validateMessage)(req.body);
@@ -63,7 +63,7 @@ router.post('/', _requireJwtAuth.default, async (req, res) => {
     });
   }
 });
-router.delete('/:id', _requireJwtAuth.default, async (req, res) => {
+router.delete('/:id', _authMiddleware.default, async (req, res) => {
   try {
     const tempMessage = await _Message.default.findById(req.params.id).populate('user');
     if (!(tempMessage.user.id === req.user.id || req.user.role === 'ADMIN')) return res.status(400).json({
@@ -82,7 +82,7 @@ router.delete('/:id', _requireJwtAuth.default, async (req, res) => {
     });
   }
 });
-router.put('/:id', _requireJwtAuth.default, async (req, res) => {
+router.put('/:id', _authMiddleware.default, async (req, res) => {
   const {
     error
   } = (0, _Message.validateMessage)(req.body);
