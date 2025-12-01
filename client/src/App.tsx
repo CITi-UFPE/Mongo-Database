@@ -1,38 +1,29 @@
 // src/App.tsx
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { useAuth } from './context/AuthContext';
 import DataVizDashboard from './pages/analytics/analytics';
 import GoogleAuth from './GoogleAuth';
 
-const Home = () => (
-  <div style={{
-    width: '100vw',
-    height: '100vh',
-    backgroundColor: '#0ea5e9',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    color: 'white',
-    fontSize: '2rem',
-    fontFamily: 'sans-serif'
-  }}>
-    Página Inicial (Home)
-  </div>
-);
+const Home = () => {
+  const { isAuthenticated } = useAuth();
+
+  // Redireciona usuários autenticados para /analytics
+  if (isAuthenticated) {
+    return <Navigate to="/analytics" replace />;
+  }
+
+  // Redireciona usuários não autenticados para /login
+  return <Navigate to="/login" replace />;
+};
 
 const App = () => {
   return (
     <Routes>
-      {/* Home protegida - redireciona para login se não autenticado */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Home />
-          </ProtectedRoute>
-        }
-      />
+      {/* Root - redireciona para analytics (autenticado) ou login (não autenticado) */}
+      <Route path="/" element={<Home />} />
+
       {/* Login - sem proteção */}
       <Route path="/login" element={<GoogleAuth />} />
       {/* Analytics protegido - redireciona para login se não autenticado */}

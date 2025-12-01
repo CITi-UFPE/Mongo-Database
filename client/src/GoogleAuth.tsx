@@ -14,34 +14,40 @@ import { useAuth } from "./context/AuthContext";
 
 export default function GoogleAuth() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
+
+  // Redireciona usuários já autenticados
+  if (!isLoading && isAuthenticated) {
+    navigate("/analytics", { replace: true });
+    return null;
+  }
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
       console.log("🔵 [GoogleAuth] 1. Login Google iniciado");
       console.log("🔵 [GoogleAuth] 2. Credential recebido:", credentialResponse.credential?.substring(0, 30));
-      
+
       const res = await apiClient.post("/auth/google", {
         id_token: credentialResponse.credential,
       });
-      
+
       console.log("🔵 [GoogleAuth] 3. Resposta do servidor:", res.status);
       console.log("🔵 [GoogleAuth] 4. Token recebido:", res.data.token?.substring(0, 30));
       console.log("🔵 [GoogleAuth] 5. User recebido:", res.data.user?.email);
-      
+
       if (!res.data.token) {
         console.error("❌ [GoogleAuth] Sem token na resposta!");
         return;
       }
-      
+
       console.log("🔵 [GoogleAuth] 6. Iniciando login no Context...");
       login(res.data.token, res.data.user);
       console.log("🔵 [GoogleAuth] 7. Login no Context completado");
-      
+
       console.log("🔵 [GoogleAuth] 8. Redirecionando para /analytics...");
       navigate("/analytics");
       console.log("🔵 [GoogleAuth] 9. Navigate chamado");
-      
+
     } catch (err: any) {
       console.error("❌ [GoogleAuth] Erro no login:", err.message);
       console.error("❌ [GoogleAuth] Status:", err.response?.status);
