@@ -21,7 +21,8 @@ const allowedOrigins = [
   clientUrlDev,
   clientUrlProd,
   'https://mern-boilerplate.amd2.localhost3002.live',
-  'https://localhost3002.live'
+  'https://localhost3002.live',
+  'https://mongo-database-jshebbs-projects.vercel.app' // Vercel production
 ];
 
 app.use(cors({
