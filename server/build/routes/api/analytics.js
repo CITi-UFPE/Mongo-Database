@@ -16,6 +16,8 @@ var _Origem_lead = _interopRequireDefault(require("../../models/Comercial/Origem
 var _Nicho = _interopRequireDefault(require("../../models/Comercial/Nicho.js"));
 var _Motivo_perda = _interopRequireDefault(require("../../models/Comercial/Motivo_perda.js"));
 var _Interacao = _interopRequireDefault(require("../../models/Comercial/Interacao.js"));
+var _clusteringService = require("../../services/clusteringService.js");
+var _predictionService = require("../../services/predictionService.js");
 function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
 const router = (0, _express.Router)();
 const isMongoReady = () => _mongoose.default.connection.readyState === 1 && _mongoose.default.connection.db;
@@ -416,6 +418,56 @@ router.get('/kpis', async (_req, res) => {
     console.error('Error fetching KPIs:', error);
     return res.status(500).json({
       message: 'Failed to retrieve KPIs.'
+    });
+  }
+});
+/**
+ * GET /api/analytics/clustering
+ * Performs K-Means clustering on leads to find patterns.
+ */
+router.get('/clustering', async (req, res) => {
+  try {
+    if (!isMongoReady()) {
+      return res.status(503).json({
+        message: 'Database connection is not ready.'
+      });
+    }
+
+    // Dynamic K from query param, default to 4
+    const k = parseInt(req.query.k) || 4;
+    console.log(`Received clustering request for k=${k}`);
+    const results = await (0, _clusteringService.performClustering)(k);
+    console.log('Clustering completed successfully');
+    return res.json(results);
+  } catch (error) {
+    console.error('Error performing clustering:', error);
+    return res.status(500).json({
+      message: 'Failed to perform clustering analysis.',
+      error: error.message
+    });
+  }
+});
+/**
+ * GET /api/analytics/prediction
+ * Predicts win probability for open leads.
+ */
+router.get('/prediction', async (req, res) => {
+  try {
+    if (!isMongoReady()) {
+      return res.status(503).json({
+        message: 'Database connection is not ready.'
+      });
+    }
+    console.log('Received prediction request');
+    const year = req.query.year ? parseInt(req.query.year) : undefined;
+    const results = await (0, _predictionService.performPrediction)(year);
+    console.log('Prediction completed successfully');
+    return res.json(results);
+  } catch (error) {
+    console.error('Error performing prediction:', error);
+    return res.status(500).json({
+      message: 'Failed to perform prediction analysis.',
+      error: error.message
     });
   }
 });

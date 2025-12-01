@@ -11,6 +11,23 @@ function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e
 const router = (0, _express.Router)();
 router.post('/google', async (req, res) => {
   try {
+    // Validate environment variables first
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    const jwtSecret = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET_PROD || process.env.JWT_SECRET;
+    if (!googleClientId) {
+      console.error('❌ [GoogleAuth Backend] GOOGLE_CLIENT_ID não configurado');
+      return res.status(500).json({
+        error: 'Configuração do servidor incompleta',
+        details: 'GOOGLE_CLIENT_ID não configurado'
+      });
+    }
+    if (!jwtSecret) {
+      console.error('❌ [GoogleAuth Backend] JWT_SECRET não configurado');
+      return res.status(500).json({
+        error: 'Configuração do servidor incompleta',
+        details: 'JWT_SECRET não configurado'
+      });
+    }
     const {
       id_token,
       token
@@ -28,7 +45,6 @@ router.post('/google', async (req, res) => {
     console.log('🔵 [GoogleAuth Backend] 3. Token validado! Email:', payload.email);
 
     // Gerar JWT com os dados do usuário
-    const jwtSecret = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET_PROD || 'sua_chave_secreta';
     console.log('🔵 [GoogleAuth Backend] 4. Gerando JWT...');
     const jwtToken = _jsonwebtoken.default.sign({
       id: payload.sub,
@@ -52,6 +68,7 @@ router.post('/google', async (req, res) => {
   } catch (error) {
     console.error('❌ [GoogleAuth Backend] Erro completo:', error);
     console.error('❌ [GoogleAuth Backend] Mensagem:', error.message);
+    console.error('❌ [GoogleAuth Backend] Stack:', error.stack);
     res.status(401).json({
       error: error.message,
       details: error.message

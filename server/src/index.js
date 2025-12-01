@@ -67,12 +67,51 @@ mongoose.connect(dbConnection)
   })
   .catch(err => console.log(err));
 
+// Validate critical environment variables at startup
+const validateEnvVars = () => {
+  const requiredVars = ['GOOGLE_CLIENT_ID'];
+  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+
+  if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables:', missingVars.join(', '));
+  }
+
+  // Check JWT secret
+  const jwtSecret = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET_PROD;
+  if (!jwtSecret) {
+    console.error('❌ Missing JWT_SECRET (JWT_SECRET_DEV or JWT_SECRET_PROD)');
+  }
+
+  // Log validation results (without exposing secrets)
+  console.log('🔍 Environment validation:');
+  console.log('  - GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '✓ Set' : '✗ Missing');
+  console.log('  - JWT_SECRET:', jwtSecret ? '✓ Set' : '✗ Missing');
+  console.log('  - NODE_ENV:', process.env.NODE_ENV || 'development');
+};
+
+// Run validation
+validateEnvVars();
+
 app.use('/api', routes);
 app.use('/', routes);
 app.use('/public/images', express.static(join(__dirname, '../public/images')));
 
 app.get('/', (req, res) => {
   res.json({ message: 'Server is running' });
+});
+
+// Global error handler - must be after all routes
+app.use((err, req, res, next) => {
+  console.error('❌ [Global Error Handler] Unhandled error:');
+  console.error('  Path:', req.method, req.path);
+  console.error('  Error:', err.message);
+  console.error('  Stack:', err.stack);
+
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    path: req.path,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
 });
 
 const port = process.env.PORT || 5000;
