@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import requireJwtAuth from '../../middleware/authMiddleware';
 
 // Import models
+import Lead from '../../models/Comercial/Lead.js';
 import Membro from '../../models/Comercial/Membro.js';
 import Vendedor from '../../models/Comercial/Vendedor.js';
 import Empresa from '../../models/Comercial/Empresa.js';

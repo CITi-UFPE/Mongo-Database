@@ -7,6 +7,7 @@ exports.default = void 0;
 var _express = require("express");
 var _mongoose = _interopRequireDefault(require("mongoose"));
 var _authMiddleware = _interopRequireDefault(require("../../middleware/authMiddleware"));
+var _Lead = _interopRequireDefault(require("../../models/Comercial/Lead.js"));
 var _Membro = _interopRequireDefault(require("../../models/Comercial/Membro.js"));
 var _Vendedor = _interopRequireDefault(require("../../models/Comercial/Vendedor.js"));
 var _Empresa = _interopRequireDefault(require("../../models/Comercial/Empresa.js"));
@@ -39,7 +40,7 @@ router.get('/crm', _authMiddleware.default, async (_req, res) => {
     }
 
     // Fetch all leads with populated relationships
-    const leads = await Lead.find({}).populate('id_fase_atual').populate('id_empresa').populate('id_membro').populate('id_contato').populate('id_origem_lead').populate('id_motivo_perda').lean();
+    const leads = await _Lead.default.find({}).populate('id_fase_atual').populate('id_empresa').populate('id_membro').populate('id_contato').populate('id_origem_lead').populate('id_motivo_perda').lean();
 
     // Fetch all interactions and populate their relationships
     const interactions = await _Interacao.default.find({}).populate('id_lead').populate('id_contato').populate({
@@ -156,16 +157,16 @@ router.get('/kpis', _authMiddleware.default, async (_req, res) => {
         message: 'Database connection is not ready.'
       });
     }
-    const [totalLeads, openLeads, wonLeads, lostLeads] = await Promise.all([Lead.countDocuments({}), Lead.countDocuments({
+    const [totalLeads, openLeads, wonLeads, lostLeads] = await Promise.all([_Lead.default.countDocuments({}), _Lead.default.countDocuments({
       status: 'Aberto'
-    }), Lead.countDocuments({
+    }), _Lead.default.countDocuments({
       status: 'Ganho'
-    }), Lead.countDocuments({
+    }), _Lead.default.countDocuments({
       status: 'Perdido'
     })]);
 
     // Calculate total pipeline value and won value
-    const [pipelineValue, wonValue] = await Promise.all([Lead.aggregate([{
+    const [pipelineValue, wonValue] = await Promise.all([_Lead.default.aggregate([{
       $match: {
         status: 'Aberto'
       }
@@ -176,7 +177,7 @@ router.get('/kpis', _authMiddleware.default, async (_req, res) => {
           $sum: '$valor_estimado'
         }
       }
-    }]), Lead.aggregate([{
+    }]), _Lead.default.aggregate([{
       $match: {
         status: 'Ganho'
       }
@@ -192,7 +193,7 @@ router.get('/kpis', _authMiddleware.default, async (_req, res) => {
     const lossRate = totalLeads > 0 ? lostLeads / totalLeads * 100 : 0;
 
     // Get funnel distribution
-    const funnelDistribution = await Lead.aggregate([{
+    const funnelDistribution = await _Lead.default.aggregate([{
       $lookup: {
         from: 'fases_funil_sheet',
         localField: 'id_fase_atual',
@@ -221,7 +222,7 @@ router.get('/kpis', _authMiddleware.default, async (_req, res) => {
     }]);
 
     // Get lead sources
-    const leadSources = await Lead.aggregate([{
+    const leadSources = await _Lead.default.aggregate([{
       $lookup: {
         from: 'origens_lead_sheet',
         localField: 'id_origem_lead',
@@ -247,7 +248,7 @@ router.get('/kpis', _authMiddleware.default, async (_req, res) => {
     }]);
 
     // Get loss reasons
-    const lossReasons = await Lead.aggregate([{
+    const lossReasons = await _Lead.default.aggregate([{
       $match: {
         status: 'Perdido',
         id_motivo_perda: {
@@ -277,7 +278,7 @@ router.get('/kpis', _authMiddleware.default, async (_req, res) => {
     }]);
 
     // Get seller performance
-    const sellerPerformance = await Lead.aggregate([{
+    const sellerPerformance = await _Lead.default.aggregate([{
       $lookup: {
         from: 'membros_sheet',
         localField: 'id_membro',
@@ -329,7 +330,7 @@ router.get('/kpis', _authMiddleware.default, async (_req, res) => {
     // Temporal evolution (last 12 months)
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-    const temporalEvolution = await Lead.aggregate([{
+    const temporalEvolution = await _Lead.default.aggregate([{
       $match: {
         createdAt: {
           $gte: twelveMonthsAgo
