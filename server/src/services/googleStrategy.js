@@ -1,44 +1,64 @@
-import passport from 'passport';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth2';
+import { OAuth2Client } from "google-auth-library";
+import User from "../models/User.js";
+import jwt from "jsonwebtoken";
 
-import User from '../models/User';
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const serverUrl = process.env.NODE_ENV === 'production' ? process.env.SERVER_URL_PROD : process.env.SERVER_URL_DEV;
+export const loginWithGoogle = async (req, res) => {
+  try {
+    const { credential } = req.body;
 
-// google strategy
-const googleLogin = new GoogleStrategy(
-  {
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `${serverUrl}${process.env.GOOGLE_CALLBACK_URL}`,
-    proxy: true,
-  },
-  async (accessToken, refreshToken, profile, done) => {
-    // console.log(profile);
-    try {
-      const oldUser = await User.findOne({ email: profile.email });
-
-      if (oldUser) {
-        return done(null, oldUser);
-      }
-    } catch (err) {
-      console.log(err);
+    if (!credential) {
+      return res.status(400).json({ error: "Missing Google credential" });
     }
 
-    try {
-      const newUser = await new User({
-        provider: 'google',
-        googleId: profile.id,
-        username: `user${profile.id}`,
-        email: profile.email,
-        name: profile.displayName,
-        avatar: profile.picture,
-      }).save();
-      done(null, newUser);
-    } catch (err) {
-      console.log(err);
-    }
-  },
-);
+    // Validar token enviado pelo frontend
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
 
-passport.use(googleLogin);
+    const payload = ticket.getPayload();
+
+    const email = payload.email;
+    const googleId = payload.sub;
+    const name = payload.name;
+    const avatar = payload.picture;
+
+    // Verificar se usuário já existe
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({
+        provider: "google",
+        googleId,
+        email,
+        name,
+        avatar,
+        username: `user_${googleId}`,
+      });
+    }
+
+    // Criar JWT da aplicação
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+      },
+      process.env.JWT_SECRET_DEV || process.env.JWT_SECRET_PROD,
+      { expiresIn: "7d" }
+    );
+
+    return res.json({
+      user,
+      token,
+    });
+
+  } catch (error) {
+    console.error("❌ Google login error:", error);
+    return res.status(401).json({
+      error: "Token inválido ou expirado",
+      details: error.message,
+    });
+  }
+};
