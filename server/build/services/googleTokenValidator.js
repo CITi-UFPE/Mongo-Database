@@ -1,74 +1,42 @@
-"use strict";
+import { OAuth2Client } from "google-auth-library";
 
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.verifyGoogleToken = void 0;
-var _jsonwebtoken = _interopRequireDefault(require("jsonwebtoken"));
-function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
 /**
- * Valida um Google ID Token sem fazer requisições HTTP
- * Usa apenas validação local de assinatura JWT
+ * Valida um Google ID Token de forma segura usando as chaves públicas
+ * do Google automaticamente (via google-auth-library).
  */
-const verifyGoogleToken = async idToken => {
+export const verifyGoogleToken = async (idToken) => {
   try {
-    console.log('🔵 [verifyGoogleToken] Decodificando token...');
+    console.log("🔵 [verifyGoogleToken] Validando token via Google...");
 
-    // Decodifica o token SEM verificar assinatura (para evitar buscar certificados)
-    const decoded = _jsonwebtoken.default.decode(idToken, {
-      complete: true
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      throw new Error("GOOGLE_CLIENT_ID não foi configurado.");
+    }
+
+    // Validação oficial
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
     });
-    if (!decoded) {
-      throw new Error('Token inválido - não foi possível decodificar');
-    }
-    console.log('🔵 [verifyGoogleToken] Header:', decoded.header);
-    console.log('🔵 [verifyGoogleToken] Payload:', decoded.payload);
-    const {
-      payload
-    } = decoded;
 
-    // Validações básicas
-    if (!payload.sub) {
-      throw new Error('Token inválido - campo "sub" não encontrado');
-    }
-    if (!payload.email) {
-      throw new Error('Token inválido - campo "email" não encontrado');
-    }
+    const payload = ticket.getPayload();
 
-    // Verificar expiration
-    const now = Math.floor(Date.now() / 1000);
-    if (payload.exp && payload.exp < now) {
-      throw new Error('Token expirado');
-    }
+    console.log("🟢 [verifyGoogleToken] Token validado com sucesso!");
+    console.log("Payload:", payload);
 
-    // Verificar issuer (Google)
-    if (payload.iss && !payload.iss.includes('google')) {
-      console.warn('🟡 [verifyGoogleToken] Issuer não é Google:', payload.iss);
-      throw new Error(`Token não é do Google (issuer: ${payload.iss})`);
-    }
-
-    // Verificar audience (GOOGLE_CLIENT_ID)
-    const expectedClientId = process.env.GOOGLE_CLIENT_ID;
-    if (!expectedClientId) {
-      throw new Error('GOOGLE_CLIENT_ID não configurado no servidor');
-    }
-    if (payload.aud && payload.aud !== expectedClientId) {
-      console.warn('🟡 [verifyGoogleToken] Audience não corresponde');
-      console.warn('   Esperado:', expectedClientId);
-      console.warn('   Recebido:', payload.aud);
-      throw new Error('Token não é para este aplicativo (audience inválido)');
-    }
-    console.log('🟢 [verifyGoogleToken] Token validado com sucesso!');
     return {
       sub: payload.sub,
       email: payload.email,
-      name: payload.name || 'Usuário',
+      name: payload.name,
       picture: payload.picture,
-      aud: payload.aud
+      aud: payload.aud,
+      iss: payload.iss,
+      exp: payload.exp,
     };
+
   } catch (error) {
-    console.error('❌ [verifyGoogleToken] Erro:', error.message);
-    throw error;
+    console.error("❌ [verifyGoogleToken] Erro ao validar:", error.message);
+    throw new Error("Token de autenticação inválido");
   }
 };
-exports.verifyGoogleToken = verifyGoogleToken;
