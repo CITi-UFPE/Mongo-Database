@@ -19,7 +19,7 @@ const verifyGoogleToken = async idToken => {
       complete: true
     });
     if (!decoded) {
-      throw new Error('Token inválido');
+      throw new Error('Token inválido - não foi possível decodificar');
     }
     console.log('🔵 [verifyGoogleToken] Header:', decoded.header);
     console.log('🔵 [verifyGoogleToken] Payload:', decoded.payload);
@@ -29,10 +29,10 @@ const verifyGoogleToken = async idToken => {
 
     // Validações básicas
     if (!payload.sub) {
-      throw new Error('sub não encontrado no token');
+      throw new Error('Token inválido - campo "sub" não encontrado');
     }
     if (!payload.email) {
-      throw new Error('email não encontrado no token');
+      throw new Error('Token inválido - campo "email" não encontrado');
     }
 
     // Verificar expiration
@@ -44,14 +44,19 @@ const verifyGoogleToken = async idToken => {
     // Verificar issuer (Google)
     if (payload.iss && !payload.iss.includes('google')) {
       console.warn('🟡 [verifyGoogleToken] Issuer não é Google:', payload.iss);
+      throw new Error(`Token não é do Google (issuer: ${payload.iss})`);
     }
 
     // Verificar audience (GOOGLE_CLIENT_ID)
     const expectedClientId = process.env.GOOGLE_CLIENT_ID;
+    if (!expectedClientId) {
+      throw new Error('GOOGLE_CLIENT_ID não configurado no servidor');
+    }
     if (payload.aud && payload.aud !== expectedClientId) {
       console.warn('🟡 [verifyGoogleToken] Audience não corresponde');
       console.warn('   Esperado:', expectedClientId);
       console.warn('   Recebido:', payload.aud);
+      throw new Error('Token não é para este aplicativo (audience inválido)');
     }
     console.log('🟢 [verifyGoogleToken] Token validado com sucesso!');
     return {
