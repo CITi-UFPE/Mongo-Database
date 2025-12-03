@@ -68,12 +68,18 @@ export default function GoogleAuth() {
         </CardHeader>
         <CardContent>
           {/* LOGIN COM GOOGLE 👇 */}
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={() => {
-              console.log("❌ [GoogleAuth] Erro no popup de Google");
-            }}
-          />
+          <div className="flex justify-center items-center w-full min-h-[44px]">
+            <div className="w-full max-w-[400px]">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => {
+                  console.log("❌ [GoogleAuth] Erro no popup de Google");
+                }}
+                size="large"
+                width="100%"
+              />
+            </div>
+          </div>
 
           <div className="mt-6 text-sm text-center text-slate-400">
             Caso não seja usuário no Data Lake, entre em contato com a área de dados.
