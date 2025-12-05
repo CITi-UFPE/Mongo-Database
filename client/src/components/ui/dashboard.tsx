@@ -99,6 +99,8 @@ import { PredictionAnalysis } from './PredictionAnalysis';
 import { ClusterAnalysis } from './ClusterAnalysis';
 
 
+import { apiClient } from '@/services/api';
+
 export function DashboardOverview() {
   const [chartPage, setChartPage] = useState(0);
   const [viewMode, setViewMode] = useState<'overview' | 'clustering' | 'prediction'>('overview');
@@ -111,12 +113,8 @@ export function DashboardOverview() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch('/api/analytics/kpis');
-        if (!response.ok) {
-          throw new Error('Failed to fetch analytics data');
-        }
-        const data = await response.json();
-        setKpiData(data);
+        const response = await apiClient.get('/analytics/kpis');
+        setKpiData(response.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load analytics');
         console.error('Error fetching KPIs:', err);
