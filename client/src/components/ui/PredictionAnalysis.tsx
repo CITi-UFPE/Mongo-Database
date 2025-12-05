@@ -178,27 +178,133 @@ export function PredictionAnalysis() {
                 <>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {data.modelMetrics && (
-                            <Card className="bg-slate-800 border-slate-700 col-span-full">
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-sm font-medium text-slate-400">Performance do Modelo (Teste 30%)</CardTitle>
+                            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 col-span-full overflow-hidden relative">
+                                {/* Background decoration */}
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                                
+                                <CardHeader className="pb-2 relative">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-2 bg-indigo-500/20 rounded-lg">
+                                            <TrendingUp className="w-4 h-4 text-indigo-400" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-sm font-medium text-slate-200">Performance do Modelo</CardTitle>
+                                            <p className="text-xs text-slate-500">Avaliado em 30% dos dados de teste</p>
+                                        </div>
+                                    </div>
                                 </CardHeader>
-                                <CardContent>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div>
-                                            <p className="text-xs text-slate-500">Acurácia</p>
-                                            <p className={`text-xl font-bold ${data.modelMetrics.accuracy > 70 ? 'text-green-400' : 'text-yellow-400'}`}>{data.modelMetrics.accuracy}%</p>
+                                <CardContent className="relative">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                        {/* Accuracy */}
+                                        <div className="flex flex-col items-center group">
+                                            <div className="relative w-20 h-20 mb-2">
+                                                <svg className="w-full h-full transform -rotate-90">
+                                                    <circle cx="40" cy="40" r="36" fill="none" stroke="currentColor" strokeWidth="6" className="text-slate-700" />
+                                                    <circle 
+                                                        cx="40" cy="40" r="36" fill="none" strokeWidth="6" strokeLinecap="round"
+                                                        className={data.modelMetrics.accuracy >= 80 ? 'text-emerald-400' : data.modelMetrics.accuracy >= 60 ? 'text-yellow-400' : 'text-red-400'}
+                                                        strokeDasharray={`${data.modelMetrics.accuracy * 2.26} 226`}
+                                                        style={{ transition: 'stroke-dasharray 1s ease-out' }}
+                                                    />
+                                                </svg>
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <span className={`text-lg font-bold ${data.modelMetrics.accuracy >= 80 ? 'text-emerald-400' : data.modelMetrics.accuracy >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                        {data.modelMetrics.accuracy}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm font-medium text-slate-300">Acurácia</p>
+                                            <p className="text-xs text-slate-500 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Previsões corretas
+                                            </p>
                                         </div>
-                                        <div>
-                                            <p className="text-xs text-slate-500">Precisão</p>
-                                            <p className="text-xl font-bold text-slate-200">{data.modelMetrics.precision}%</p>
+
+                                        {/* Precision */}
+                                        <div className="flex flex-col items-center group">
+                                            <div className="relative w-20 h-20 mb-2">
+                                                <svg className="w-full h-full transform -rotate-90">
+                                                    <circle cx="40" cy="40" r="36" fill="none" stroke="currentColor" strokeWidth="6" className="text-slate-700" />
+                                                    <circle 
+                                                        cx="40" cy="40" r="36" fill="none" strokeWidth="6" strokeLinecap="round"
+                                                        className={data.modelMetrics.precision >= 80 ? 'text-blue-400' : data.modelMetrics.precision >= 60 ? 'text-yellow-400' : 'text-red-400'}
+                                                        strokeDasharray={`${data.modelMetrics.precision * 2.26} 226`}
+                                                        style={{ transition: 'stroke-dasharray 1s ease-out' }}
+                                                    />
+                                                </svg>
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <span className={`text-lg font-bold ${data.modelMetrics.precision >= 80 ? 'text-blue-400' : data.modelMetrics.precision >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                        {data.modelMetrics.precision}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm font-medium text-slate-300">Precisão</p>
+                                            <p className="text-xs text-slate-500 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Quando diz "ganho", acerta
+                                            </p>
                                         </div>
-                                        <div>
-                                            <p className="text-xs text-slate-500">Recall</p>
-                                            <p className="text-xl font-bold text-slate-200">{data.modelMetrics.recall}%</p>
+
+                                        {/* Recall */}
+                                        <div className="flex flex-col items-center group">
+                                            <div className="relative w-20 h-20 mb-2">
+                                                <svg className="w-full h-full transform -rotate-90">
+                                                    <circle cx="40" cy="40" r="36" fill="none" stroke="currentColor" strokeWidth="6" className="text-slate-700" />
+                                                    <circle 
+                                                        cx="40" cy="40" r="36" fill="none" strokeWidth="6" strokeLinecap="round"
+                                                        className={data.modelMetrics.recall >= 80 ? 'text-purple-400' : data.modelMetrics.recall >= 60 ? 'text-yellow-400' : 'text-red-400'}
+                                                        strokeDasharray={`${data.modelMetrics.recall * 2.26} 226`}
+                                                        style={{ transition: 'stroke-dasharray 1s ease-out' }}
+                                                    />
+                                                </svg>
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <span className={`text-lg font-bold ${data.modelMetrics.recall >= 80 ? 'text-purple-400' : data.modelMetrics.recall >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                        {data.modelMetrics.recall}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm font-medium text-slate-300">Recall</p>
+                                            <p className="text-xs text-slate-500 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Ganhos encontrados
+                                            </p>
                                         </div>
-                                        <div>
-                                            <p className="text-xs text-slate-500">F1-Score</p>
-                                            <p className="text-xl font-bold text-slate-200">{data.modelMetrics.f1Score}%</p>
+
+                                        {/* F1-Score */}
+                                        <div className="flex flex-col items-center group">
+                                            <div className="relative w-20 h-20 mb-2">
+                                                <svg className="w-full h-full transform -rotate-90">
+                                                    <circle cx="40" cy="40" r="36" fill="none" stroke="currentColor" strokeWidth="6" className="text-slate-700" />
+                                                    <circle 
+                                                        cx="40" cy="40" r="36" fill="none" strokeWidth="6" strokeLinecap="round"
+                                                        className={data.modelMetrics.f1Score >= 80 ? 'text-cyan-400' : data.modelMetrics.f1Score >= 60 ? 'text-yellow-400' : 'text-red-400'}
+                                                        strokeDasharray={`${data.modelMetrics.f1Score * 2.26} 226`}
+                                                        style={{ transition: 'stroke-dasharray 1s ease-out' }}
+                                                    />
+                                                </svg>
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <span className={`text-lg font-bold ${data.modelMetrics.f1Score >= 80 ? 'text-cyan-400' : data.modelMetrics.f1Score >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                        {data.modelMetrics.f1Score}%
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm font-medium text-slate-300">F1-Score</p>
+                                            <p className="text-xs text-slate-500 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Equilíbrio geral
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Performance indicator bar */}
+                                    <div className="mt-6 pt-4 border-t border-slate-700/50">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="text-slate-500">Qualidade do Modelo:</span>
+                                            <span className={`font-medium px-2 py-0.5 rounded-full ${
+                                                data.modelMetrics.f1Score >= 80 ? 'bg-emerald-500/20 text-emerald-400' :
+                                                data.modelMetrics.f1Score >= 60 ? 'bg-yellow-500/20 text-yellow-400' :
+                                                'bg-red-500/20 text-red-400'
+                                            }`}>
+                                                {data.modelMetrics.f1Score >= 80 ? '🎯 Excelente' : 
+                                                 data.modelMetrics.f1Score >= 60 ? '👍 Bom' : 
+                                                 '⚠️ Precisa Melhorar'}
+                                            </span>
                                         </div>
                                     </div>
                                 </CardContent>

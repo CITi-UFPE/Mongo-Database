@@ -251,41 +251,47 @@ export const performPrediction = async (year) => {
         throw new Error('Not enough historical data (Won/Lost) to train model. Need at least 10 records.');
     }
 
-    // 3. Train Model
-    // Dynamic import removed (using static import)
-    // const { Matrix } = await (eval('import("ml-matrix")'));
-    // const LogisticRegressionModule = await (eval('import("ml-logistic-regression")'));
-    // const LogisticRegression = LogisticRegressionModule.default || LogisticRegressionModule;
+    // 3. Train Model & Calculate Metrics
+    // IMPORTANT: Split BEFORE SMOTE to avoid data leakage
 
-    let finalTrainingData = trainingData;
-    let finalTrainingLabels = trainingLabels;
+    // Shuffle the data first (to avoid temporal bias)
+    const shuffledIndices = trainingData.map((_, i) => i).sort(() => Math.random() - 0.5);
+    const shuffledData = shuffledIndices.map(i => trainingData[i]);
+    const shuffledLabels = shuffledIndices.map(i => trainingLabels[i]);
 
-    // Apply SMOTE if dataset is small (< 2000) to improve balance
-    if (trainingData.length < 2000) {
-        console.log(`Dataset size (${trainingData.length}) < 2000. Applying SMOTE...`);
-        const balanced = applySMOTE(trainingData, trainingLabels);
-        finalTrainingData = balanced.data;
-        finalTrainingLabels = balanced.labels;
-        console.log(`SMOTE applied. New dataset size: ${finalTrainingData.length}`);
+    // 70/30 split on ORIGINAL data (before SMOTE)
+    const splitIdx = Math.floor(shuffledData.length * 0.7);
+    const trainData = shuffledData.slice(0, splitIdx);
+    const trainLabels = shuffledLabels.slice(0, splitIdx);
+    const testData = shuffledData.slice(splitIdx);
+    const testLabels = shuffledLabels.slice(splitIdx);
+
+    // Apply SMOTE only to TRAINING data
+    let finalTrainData = trainData;
+    let finalTrainLabels = trainLabels;
+
+    if (trainData.length < 2000) {
+        console.log(`Training set size (${trainData.length}) < 2000. Applying SMOTE to training set only...`);
+        const balanced = applySMOTE(trainData, trainLabels);
+        finalTrainData = balanced.data;
+        finalTrainLabels = balanced.labels;
+        console.log(`SMOTE applied. Training set size: ${finalTrainData.length}`);
     }
 
-    // ... (previous code)
-
-    // 3. Train Model & Calculate Metrics
-    // We'll do a 70/30 split to estimate model accuracy
-    const splitIdx = Math.floor(finalTrainingData.length * 0.7);
-    const trainX = new Matrix(finalTrainingData.slice(0, splitIdx));
-    const trainY = Matrix.columnVector(finalTrainingLabels.slice(0, splitIdx));
-    const testX = new Matrix(finalTrainingData.slice(splitIdx));
-    const testY = finalTrainingLabels.slice(splitIdx);
+    // Train model on SMOTE'd training data
+    const trainX = new Matrix(finalTrainData);
+    const trainY = Matrix.columnVector(finalTrainLabels);
 
     const testLogReg = new LogisticRegression({ numSteps: 1000, learningRate: 1e-2 });
     testLogReg.train(trainX, trainY);
+
+    // Test on ORIGINAL test data (no SMOTE)
+    const testX = new Matrix(testData);
     const testPredictions = testLogReg.predict(testX);
 
     let tp = 0, tn = 0, fp = 0, fn = 0;
     testPredictions.forEach((pred, i) => {
-        const actual = testY[i];
+        const actual = testLabels[i];
         if (pred === 1 && actual === 1) tp++;
         if (pred === 0 && actual === 0) tn++;
         if (pred === 1 && actual === 0) fp++;
@@ -304,11 +310,20 @@ export const performPrediction = async (year) => {
         f1Score: parseFloat((f1 * 100).toFixed(1))
     };
 
-    // Train final model on FULL dataset
-    const X = new Matrix(finalTrainingData);
-    const Y = Matrix.columnVector(finalTrainingLabels);
+    // Train final model on FULL dataset (with SMOTE) for best predictions
+    let fullTrainData = trainingData;
+    let fullTrainLabels = trainingLabels;
 
-    const logreg = new LogisticRegression({ numSteps: 2000, learningRate: 1e-2 }); // Optimized hyperparameters
+    if (trainingData.length < 2000) {
+        const balanced = applySMOTE(trainingData, trainingLabels);
+        fullTrainData = balanced.data;
+        fullTrainLabels = balanced.labels;
+    }
+
+    const X = new Matrix(fullTrainData);
+    const Y = Matrix.columnVector(fullTrainLabels);
+
+    const logreg = new LogisticRegression({ numSteps: 2000, learningRate: 1e-2 });
     logreg.train(X, Y);
 
     console.log('Model trained. Metrics:', modelMetrics);
