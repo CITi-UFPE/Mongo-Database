@@ -174,11 +174,13 @@ export const performPrediction = async (year) => {
     };
 
     // E. Feature Builder Function (reusable for train, test, and open leads)
-    const buildFeatures = (leadsArray, normalize, minLogVal, maxLogVal, minDays, maxDays, minPhase, maxPhase) => {
+    // IMPORTANT: Removed leaky features:
+    // - Phase: This is a CONSEQUENCE of the sales process, not a predictor
+    // - IsValueMissing: If salespeople fill value at the end, this leaks outcome
+    const buildFeatures = (leadsArray, normalize, minLogVal, maxLogVal, minDays, maxDays) => {
         return leadsArray.map(lead => {
-            // Value Imputation
+            // Value Imputation (always use imputed value)
             let val = lead.valor_estimado || 0;
-            const isValueMissing = val === 0 ? 1 : 0;
             if (val === 0) {
                 const niche = getGroupedNiche(lead.id_empresa?.id_nicho?.nome_nicho);
                 val = nicheAvgValues[niche] || globalMedian;
@@ -190,9 +192,6 @@ export const performPrediction = async (year) => {
             const end = lead.data_ganho ? new Date(lead.data_ganho) : (lead.data_perda ? new Date(lead.data_perda) : new Date());
             let days = Math.max(0, Math.min(1000, (end - created) / (1000 * 60 * 60 * 24)));
 
-            // Phase
-            const phase = lead.id_fase_atual?.ordem || 0;
-
             // Get Target Encoded features (from TRAINING stats only)
             const niche = getGroupedNiche(lead.id_empresa?.id_nicho?.nome_nicho);
             const origin = getGroupedOrigin(lead.id_origem_lead?.canal);
@@ -201,17 +200,14 @@ export const performPrediction = async (year) => {
 
             // Normalize
             const normVal = normalize(logVal, minLogVal, maxLogVal);
-            const normPhase = normalize(phase, minPhase, maxPhase);
             const normDays = normalize(days, minDays, maxDays);
             const normNicheVal = normalize(Math.log1p(nStats.avgValue), minLogVal, maxLogVal);
             const normOriginVal = normalize(Math.log1p(oStats.avgValue), minLogVal, maxLogVal);
 
-            // Feature Vector
+            // Feature Vector (CLEAN - no leaky features)
             const features = [
-                normVal * 2.0,          // Weighted Value
-                normPhase * 1.5,        // Weighted Phase
+                normVal * 2.0,          // Weighted Value (imputed)
                 normDays,               // Days in Pipeline
-                isValueMissing,         // Missing Value Flag
                 nStats.winRate,         // Niche Win Rate (from training only!)
                 normNicheVal,           // Niche Avg Value
                 oStats.winRate,         // Origin Win Rate (from training only!)
@@ -227,7 +223,6 @@ export const performPrediction = async (year) => {
 
     let minLogVal = Infinity, maxLogVal = -Infinity;
     let minDays = Infinity, maxDays = -Infinity;
-    let minPhase = Infinity, maxPhase = -Infinity;
 
     historicalLeads.forEach(lead => {
         const val = lead.valor_estimado || globalMedian;
@@ -240,16 +235,12 @@ export const performPrediction = async (year) => {
         const days = Math.max(0, Math.min(1000, (end - created) / (1000 * 60 * 60 * 24)));
         if (days < minDays) minDays = days;
         if (days > maxDays) maxDays = days;
-
-        const phase = lead.id_fase_atual?.ordem || 0;
-        if (phase < minPhase) minPhase = phase;
-        if (phase > maxPhase) maxPhase = phase;
     });
 
-    // G. Build feature vectors for each set
-    const trainBuilt = buildFeatures(trainLeads, normalize, minLogVal, maxLogVal, minDays, maxDays, minPhase, maxPhase);
-    const testBuilt = buildFeatures(testLeads, normalize, minLogVal, maxLogVal, minDays, maxDays, minPhase, maxPhase);
-    const openBuilt = buildFeatures(openLeads, normalize, minLogVal, maxLogVal, minDays, maxDays, minPhase, maxPhase);
+    // G. Build feature vectors for each set (no phase params - removed leaky feature)
+    const trainBuilt = buildFeatures(trainLeads, normalize, minLogVal, maxLogVal, minDays, maxDays);
+    const testBuilt = buildFeatures(testLeads, normalize, minLogVal, maxLogVal, minDays, maxDays);
+    const openBuilt = buildFeatures(openLeads, normalize, minLogVal, maxLogVal, minDays, maxDays);
 
     const trainingData = trainBuilt.map(b => b.features);
     const trainingLabels = trainLeads.map(l => l.status === 'Ganho' ? 1 : 0);
@@ -258,7 +249,8 @@ export const performPrediction = async (year) => {
     const predictionData = openBuilt.map(b => b.features);
     const predictionLeads = openBuilt.map(b => ({ ...b.lead, imputedValue: b.imputedValue }));
 
-    const featureNames = ['LogValue', 'Phase', 'Days', 'IsValueMissing', 'NicheWinRate', 'NicheAvgValue', 'OriginWinRate', 'OriginAvgValue'];
+    // Updated feature names (removed Phase and IsValueMissing)
+    const featureNames = ['LogValue', 'Days', 'NicheWinRate', 'NicheAvgValue', 'OriginWinRate', 'OriginAvgValue'];
 
     if (trainingData.length < 10) {
         throw new Error('Not enough historical data (Won/Lost) to train model. Need at least 10 records.');
