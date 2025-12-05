@@ -36,6 +36,10 @@ type PointData = {
 type ClusteringResponse = {
     clusters: ClusterData[];
     points: PointData[];
+    metrics?: {
+        silhouetteScore: number | null;
+        inertia: string;
+    };
 };
 
 const COLORS = ['#0ea5e9', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -85,6 +89,36 @@ export function ClusterAnalysis() {
 
     return (
         <div className="space-y-6">
+            {data.metrics?.silhouetteScore !== null && data.metrics?.silhouetteScore !== undefined && (
+                <Card className="bg-slate-800 border-slate-700">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-slate-400">Qualidade do Agrupamento</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+                            <div>
+                                <p className="text-xs text-slate-500">Silhouette Score</p>
+                                <p className={`text-3xl font-bold ${
+                                    data.metrics.silhouetteScore > 0.5 ? 'text-green-400' : 
+                                    data.metrics.silhouetteScore > 0.25 ? 'text-yellow-400' : 'text-rose-400'
+                                }`}>
+                                    {data.metrics.silhouetteScore}
+                                </p>
+                            </div>
+                            <div className="text-xs text-slate-400 sm:border-l border-slate-700 sm:pl-6">
+                                <p className="font-semibold mb-1">Interpretação:</p>
+                                <ul className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                    <li><span className="text-green-400">●</span> {'>'} 0.7: Forte</li>
+                                    <li><span className="text-green-400/70">●</span> 0.5 - 0.7: Razoável</li>
+                                    <li><span className="text-yellow-400">●</span> 0.25 - 0.5: Fraca</li>
+                                    <li><span className="text-rose-400">●</span> {'<'} 0.25: Ruim</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Chart Section */}
                 <Card className="lg:col-span-2 bg-slate-800 border-slate-700">
