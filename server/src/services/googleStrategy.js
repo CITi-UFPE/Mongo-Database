@@ -40,12 +40,15 @@ export const loginWithGoogle = async (req, res) => {
     }
 
     // Criar JWT da aplicação
+    const isProduction = process.env.NODE_ENV === 'production';
+    const secret = isProduction ? process.env.JWT_SECRET_PROD : process.env.JWT_SECRET_DEV;
+
     const token = jwt.sign(
       {
         id: user._id,
         email: user.email,
       },
-      process.env.JWT_SECRET_DEV || process.env.JWT_SECRET_PROD,
+      secret,
       { expiresIn: "7d" }
     );
 
