@@ -17,7 +17,7 @@ const OrigemLeadSchema = new Schema(
     },
     {
         timestamps: true,
-        collection: 'origens_lead_sheet',
+        collection: 'origem_leads',
     },
 );
 

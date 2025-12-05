@@ -63,7 +63,7 @@ const LeadSchema = new Schema(
   },
   {
     timestamps: true,
-    collection: 'leads_sheet',
+    collection: 'leads',
   },
 );
 

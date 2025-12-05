@@ -122,7 +122,7 @@ ${JSON.stringify(sample, null, 2)}
 
     try {
       // Send history + new message to backend
-      const response = await apiClient.post('/gemini/chat', {
+      const response = await apiClient.post('/api/gemini/chat', {
         history: this.history,
         message: message
       });

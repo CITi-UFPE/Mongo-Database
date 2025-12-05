@@ -36,7 +36,7 @@ const MembroSchema = new Schema(
   },
   {
     timestamps: true,
-    collection: 'membros_sheet',
+    collection: 'membros',
   },
 );
 
