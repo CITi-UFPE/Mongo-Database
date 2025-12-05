@@ -158,7 +158,43 @@ router.get('/crm', requireJwtAuth, async (_req, res) => {
  * GET /api/analytics/kpis
  * Returns key performance indicators for the CRM dashboard
  */
-router.get('/kpis', requireJwtAuth, async (_req, res) => {
+import jwt from 'jsonwebtoken';
+
+const debugAuth = (req, res, next) => {
+  console.log('--- Debug Auth Middleware ---');
+  const authHeader = req.headers.authorization;
+  console.log('Auth Header:', authHeader ? 'Present' : 'Missing');
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    console.log('Token (first 10 chars):', token.substring(0, 10) + '...');
+    
+    // Try verifying with PROD secret
+    try {
+      const prodSecret = process.env.JWT_SECRET_PROD;
+      jwt.verify(token, prodSecret);
+      console.log('✅ Token verified successfully with JWT_SECRET_PROD');
+    } catch (e) {
+      console.log('❌ Token failed verification with JWT_SECRET_PROD:', e.message);
+    }
+
+    // Try verifying with DEV secret
+    try {
+      const devSecret = process.env.JWT_SECRET_DEV;
+      if (devSecret) {
+        jwt.verify(token, devSecret);
+        console.log('✅ Token verified successfully with JWT_SECRET_DEV');
+      } else {
+        console.log('ℹ️ JWT_SECRET_DEV is not set');
+      }
+    } catch (e) {
+      console.log('❌ Token failed verification with JWT_SECRET_DEV:', e.message);
+    }
+  }
+  next();
+};
+
+router.get('/kpis', debugAuth, requireJwtAuth, async (_req, res) => {
   try {
     if (!isMongoReady()) {
       return res.status(503).json({ message: 'Database connection is not ready.' });
