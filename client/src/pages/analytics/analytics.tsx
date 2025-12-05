@@ -13,6 +13,7 @@ import { DashboardOverview } from "@/components/ui/dashboard";
 import AnimatedLogo from "@/components/AnimatedLogo";
 import { Chatbot } from "@/components/Chatbot/Chatbot";
 import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { apiClient } from "@/services/api";
 
 const LOGO_GRADIENT_ID = "analytics-logo-gradient";
 const ROWS_PER_PAGE = 20;
@@ -63,11 +64,8 @@ export default function DataVizDashboard() {
       setLoadingSheets(true);
       setSheetError(null);
       try {
-        const response = await fetch("/api/spreadsheet");
-        if (!response.ok) {
-          throw new Error("Resposta inválida do servidor");
-        }
-        const payload = await response.json();
+        const response = await apiClient.get("/api/spreadsheet");
+        const payload = response.data;
         if (!Array.isArray(payload)) {
           throw new Error("Formato inesperado de resposta");
         }
@@ -134,11 +132,8 @@ export default function DataVizDashboard() {
 
     const loadSheet = async () => {
       try {
-        const response = await fetch(`/api/spreadsheet/${encodeURIComponent(sheetName)}`);
-        if (!response.ok) {
-          throw new Error("Resposta inválida do servidor");
-        }
-        const payload = await response.json();
+        const response = await apiClient.get(`/api/spreadsheet/${encodeURIComponent(sheetName)}`);
+        const payload = response.data;
         if (!Array.isArray(payload)) {
           throw new Error("Formato inesperado de resposta");
         }
