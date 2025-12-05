@@ -59,14 +59,38 @@ import './services/localStrategy';
 const isProduction = process.env.NODE_ENV === 'production';
 const dbConnection = isProduction ? process.env.MONGO_URI_PROD : process.env.MONGO_URI_DEV;
 
-mongoose.connect(dbConnection)
-  .then(() => {
+const connectDB = async () => {
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
+  try {
+    await mongoose.connect(dbConnection);
     console.log('MongoDB Connected...');
     if (!process.env.VERCEL) {
       seedDb();
     }
-  })
-  .catch(err => console.log(err));
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    throw err;
+  }
+};
+
+// Middleware to ensure DB is connected before handling requests
+app.use(async (req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    try {
+      await connectDB();
+    } catch (err) {
+      return res.status(503).json({ message: 'Database connection failed', error: err.message });
+    }
+  }
+  next();
+});
+
+// Initial connection for local dev (optional but good for immediate feedback)
+if (!process.env.VERCEL) {
+  connectDB().catch(console.error);
+}
 
 // Validate critical environment variables at startup
 const validateEnvVars = () => {
