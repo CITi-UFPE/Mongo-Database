@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import Lead from '../models/Comercial/Lead.js';
 import Nicho from '../models/Comercial/Nicho.js';
 import OrigemLead from '../models/Comercial/Origem_lead.js';
-import { kmeans } from 'ml-kmeans';
+import kmeans from 'ml-kmeans';
 
 console.log('Clustering Service Loaded');
 

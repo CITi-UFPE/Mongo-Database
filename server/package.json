@@ -46,7 +46,7 @@
     "jsonwebtoken": "^9.0.2",
     "ml-kmeans": "^5.0.0",
     "ml-logistic-regression": "^1.0.0",
-    "ml-matrix": "^6.8.0",
+    "ml-matrix": "^5.0.0",
     "ml-random-forest": "^1.0.0",
     "mongoose": "^8.19.3",
     "multer": "^2.0.2",
