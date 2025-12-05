@@ -240,7 +240,171 @@ export const performPrediction = async (year) => {
 
     console.log('Model trained. Metrics:', modelMetrics);
 
-    // ... (rest of the code)
+    // 4. Predict
+    const predictions = [];
+    if (predictionData.length > 0) {
+        // We use the classifier for Class 1 (Won) to get the probability of winning
+        const wonClassifier = logreg.classifiers[1];
+        const weights = wonClassifier.weights;
+
+        predictionLeads.forEach((lead, idx) => {
+            const features = predictionData[idx];
+            let z = 0;
+            for (let i = 0; i < features.length; i++) {
+                z += features[i] * weights.get(0, i);
+            }
+
+            const prob = 1 / (1 + Math.exp(-z));
+
+            predictions.push({
+                id: lead._id,
+                leadName: lead.id_contato?.nome || 'Unknown',
+                companyName: lead.id_empresa?.nome_empresa || 'Unknown',
+                value: lead.valor_estimado,
+                probability: parseFloat((prob * 100).toFixed(1)),
+                factors: [],
+                createdAt: lead.createdAt
+            });
+        });
+    }
+
+    // 5. Extract Feature Importance
+    const wonClassifier = logreg.classifiers[1];
+    const weights = wonClassifier.weights;
+
+    const featureWeights = featureNames.map((name, idx) => ({
+        name,
+        weight: parseFloat(weights.get(0, idx).toFixed(4))
+    })).sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight));
+
+
+    // 6. Detailed Analysis & Forecast (Filtered by Year)
+    const targetYear = year ? parseInt(year) : (availableYears[0] || new Date().getFullYear());
+
+    // Filter leads for summary metrics
+    const wonLeadsInYear = leads.filter(l =>
+        l.status === 'Ganho' &&
+        (l.data_ganho ? new Date(l.data_ganho).getFullYear() === targetYear : new Date(l.createdAt).getFullYear() === targetYear)
+    );
+
+    // Filter predictions (Open leads) by creation year
+    const predictionsInYear = predictions.filter(p => new Date(p.createdAt).getFullYear() === targetYear);
+
+    const totalWonValue = wonLeadsInYear.reduce((sum, l) => sum + (l.valor_estimado || 0), 0);
+    const totalPipelineValue = predictionsInYear.reduce((sum, l) => sum + (l.value || 0), 0);
+
+    // Recalculate pipeline value from filtered predictions
+    const pipelineValue = predictionsInYear.reduce((sum, p) => sum + (p.value || 0), 0);
+
+    let expectedPipelineValue = 0;
+
+    // Enrich predictions with factors
+    const enrichedPredictions = predictionsInYear.map((pred) => {
+        const originalIdx = predictionLeads.findIndex(l => l._id.toString() === pred.id.toString());
+        const features = predictionData[originalIdx];
+
+        const leadFactors = [];
+
+        features.forEach((val, i) => {
+            if (val !== 0) {
+                const weight = weights.get(0, i);
+                const contribution = val * weight;
+                if (Math.abs(contribution) > 0.1) {
+                    leadFactors.push({
+                        name: featureNames[i],
+                        effect: contribution
+                    });
+                }
+            }
+        });
+
+        leadFactors.sort((a, b) => Math.abs(b.effect) - Math.abs(a.effect));
+
+        expectedPipelineValue += pred.value * (pred.probability / 100);
+
+        return {
+            ...pred,
+            expectedValue: pred.value * (pred.probability / 100),
+            factors: leadFactors.slice(0, 3)
+        };
+    });
+
+    // 7. ICP Analysis (Ideal Customer Profile)
+    const allWonLeads = leads.filter(l => l.status === 'Ganho');
+
+    const avgCycleTime = allWonLeads.length > 0
+        ? allWonLeads.reduce((sum, l) => {
+            const end = l.data_ganho ? new Date(l.data_ganho) : new Date();
+            const start = new Date(l.createdAt);
+            return sum + ((end - start) / (1000 * 60 * 60 * 24));
+        }, 0) / allWonLeads.length
+        : 30;
+
+    const aggregateStats = (groupByFn) => {
+        const stats = {};
+        allWonLeads.forEach(l => {
+            const key = groupByFn(l);
+            if (!key) return;
+            if (!stats[key]) stats[key] = { count: 0, totalValue: 0, cycleTime: 0 };
+
+            stats[key].count++;
+            stats[key].totalValue += (l.valor_estimado || 0);
+
+            if (l.data_ganho && l.createdAt) {
+                const days = (new Date(l.data_ganho) - new Date(l.createdAt)) / (1000 * 60 * 60 * 24);
+                stats[key].cycleTime += days;
+            }
+        });
+
+        return Object.entries(stats).map(([key, data]) => ({
+            name: key,
+            count: data.count,
+            avgValue: data.totalValue / data.count,
+            avgCycleTime: data.cycleTime / data.count,
+            totalValue: data.totalValue
+        })).sort((a, b) => b.totalValue - a.totalValue);
+    };
+
+    const topNiches = aggregateStats(l => l.id_empresa?.id_nicho?.nome_nicho);
+    const topOrigins = aggregateStats(l => l.id_origem_lead?.canal);
+
+    const avgDealSize = allWonLeads.length > 0
+        ? allWonLeads.reduce((sum, l) => sum + (l.valor_estimado || 0), 0) / allWonLeads.length
+        : 0;
+
+    const icpAnalysis = {
+        topNiches: topNiches.slice(0, 3),
+        topOrigins: topOrigins.slice(0, 3),
+        avgDealSize,
+        avgCycleTime
+    };
+
+    // 8. Monthly Forecast Calculation
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyData = months.map(m => ({ month: m, actual: 0, predicted: 0, cumulativeTotal: 0 }));
+
+    wonLeadsInYear.forEach(l => {
+        const date = l.data_ganho ? new Date(l.data_ganho) : new Date(l.createdAt);
+        const monthIdx = date.getMonth();
+        monthlyData[monthIdx].actual += (l.valor_estimado || 0);
+    });
+
+    predictionsInYear.forEach(p => {
+        const created = new Date(p.createdAt);
+        const expectedCloseDate = new Date(created.getTime() + (avgCycleTime * 24 * 60 * 60 * 1000));
+
+        if (expectedCloseDate.getFullYear() === targetYear) {
+            const monthIdx = expectedCloseDate.getMonth();
+            const ev = (p.value || 0) * (p.probability / 100);
+            monthlyData[monthIdx].predicted += ev;
+        }
+    });
+
+    let runningTotal = 0;
+    monthlyData.forEach(d => {
+        runningTotal += d.actual + d.predicted;
+        d.cumulativeTotal = runningTotal;
+    });
 
     return {
         availableYears,

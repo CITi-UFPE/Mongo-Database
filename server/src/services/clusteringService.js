@@ -37,12 +37,42 @@ export const performClustering = async (k = 4) => {
 
     // 2. Preprocessing & Feature Engineering
 
-    // Get all unique Niches and Origins
-    const allNichos = [...new Set(leads.map(l => l.id_empresa?.id_nicho?.nome_nicho).filter(Boolean))].sort();
-    const allOrigens = [...new Set(leads.map(l => l.id_origem_lead?.canal).filter(Boolean))].sort();
+    // 2. Preprocessing & Feature Engineering
 
-    const nichoMap = new Map(allNichos.map((n, i) => [n, i]));
-    const origemMap = new Map(allOrigens.map((o, i) => [o, i]));
+    // Target Encoding: Calculate Win Rate and Avg Value for each Niche and Origin
+    const nicheStats = {};
+    const originStats = {};
+
+    leads.forEach(l => {
+        const niche = l.id_empresa?.id_nicho?.nome_nicho;
+        const origin = l.id_origem_lead?.canal;
+        const isWon = l.status === 'Ganho';
+        const val = l.valor_estimado || 0;
+
+        if (niche) {
+            if (!nicheStats[niche]) nicheStats[niche] = { total: 0, won: 0, valueSum: 0 };
+            nicheStats[niche].total++;
+            if (isWon) nicheStats[niche].won++;
+            nicheStats[niche].valueSum += val;
+        }
+
+        if (origin) {
+            if (!originStats[origin]) originStats[origin] = { total: 0, won: 0, valueSum: 0 };
+            originStats[origin].total++;
+            if (isWon) originStats[origin].won++;
+            originStats[origin].valueSum += val;
+        }
+    });
+
+    // Helper to safely get stats
+    const getStats = (map, key) => {
+        const s = map[key];
+        if (!s || s.total === 0) return { winRate: 0, avgValue: 0 };
+        return {
+            winRate: s.won / s.total,
+            avgValue: s.valueSum / s.total
+        };
+    };
 
     // Helper to normalize values (min-max scaling)
     const normalize = (val, min, max) => (max - min === 0 ? 0 : (val - min) / (max - min));
@@ -57,21 +87,39 @@ export const performClustering = async (k = 4) => {
     const maxPhase = Math.max(...phaseOrders);
 
     // Create Feature Vectors
-    // [Normalized LogValue, Normalized Phase, Encoded Niche, Encoded Origin]
+    // [Normalized LogValue, Normalized Phase, NicheWinRate, NicheAvgValue, OriginWinRate, OriginAvgValue]
+    // Target Encoding allows us to group by "Performance" rather than just "Category Name"
     const data = leads.map(lead => {
         const val = normalize(Math.log1p(lead.valor_estimado || 0), minVal, maxVal);
         const phase = normalize(lead.id_fase_atual?.ordem || 0, minPhase, maxPhase);
 
         // Weight phase higher as it's a strong indicator of progress
         const weightedPhase = phase * 1.5;
+        
+        // Weight Value higher to separate "High Value" from "Low Value" clearly
+        const weightedValue = val * 2.0;
 
-        const nichoIdx = nichoMap.get(lead.id_empresa?.id_nicho?.nome_nicho) || 0;
-        const origemIdx = origemMap.get(lead.id_origem_lead?.canal) || 0;
+        const niche = lead.id_empresa?.id_nicho?.nome_nicho;
+        const origin = lead.id_origem_lead?.canal;
 
-        const normNicho = normalize(nichoIdx, 0, Math.max(allNichos.length - 1, 1));
-        const normOrigem = normalize(origemIdx, 0, Math.max(allOrigens.length - 1, 1));
+        const nStats = getStats(nicheStats, niche);
+        const oStats = getStats(originStats, origin);
 
-        return [val, weightedPhase, normNicho, normOrigem];
+        // Normalize these new features relative to the dataset? 
+        // WinRate is already 0-1. AvgValue needs normalization.
+        // For simplicity, we'll use the global min/max log value for normalization of avgValue too, 
+        // assuming similar range.
+        const normNicheVal = normalize(Math.log1p(nStats.avgValue), minVal, maxVal);
+        const normOriginVal = normalize(Math.log1p(oStats.avgValue), minVal, maxVal);
+
+        return [
+            weightedValue, 
+            weightedPhase, 
+            nStats.winRate * 1.5, // Weight Win Rate importance
+            normNicheVal, 
+            oStats.winRate * 1.5, // Weight Win Rate importance
+            normOriginVal
+        ];
     });
 
     // 3. Run K-Means
