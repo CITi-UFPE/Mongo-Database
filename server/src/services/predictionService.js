@@ -93,7 +93,7 @@ export const performPrediction = async (year) => {
     });
     const availableYears = Array.from(yearsSet).sort((a, b) => b - a);
 
-    // 2. Preprocessing & Feature Engineering
+    // 2. Preprocessing & Feature Engineering (LEAK-FREE)
 
     // A. Handle Categorical Dominance (Group rare categories)
     const groupCategories = (items, topN = 6) => {
@@ -110,37 +110,34 @@ export const performPrediction = async (year) => {
     const getGroupedNiche = groupCategories(allNicheNames, 6);
     const getGroupedOrigin = groupCategories(allOriginNames, 6);
 
-    // B. Smart Imputation for Value (using Niche averages)
+    // B. Separate historical (Won/Lost) vs open leads
+    const historicalLeads = leads.filter(l => l.status === 'Ganho' || l.status === 'Perdido');
+    const openLeads = leads.filter(l => l.status === 'Aberto');
+
+    // C. Shuffle and split historical data FIRST (before any feature engineering)
+    const shuffledIndices = historicalLeads.map((_, i) => i).sort(() => Math.random() - 0.5);
+    const splitIdx = Math.floor(shuffledIndices.length * 0.7);
+    const trainIndices = new Set(shuffledIndices.slice(0, splitIdx));
+    const testIndices = new Set(shuffledIndices.slice(splitIdx));
+
+    const trainLeads = shuffledIndices.slice(0, splitIdx).map(i => historicalLeads[i]);
+    const testLeads = shuffledIndices.slice(splitIdx).map(i => historicalLeads[i]);
+
+    console.log(`Split: ${trainLeads.length} train, ${testLeads.length} test, ${openLeads.length} open`);
+
+    // D. Calculate Target Encoding from TRAINING DATA ONLY (no leakage!)
+    const nicheStats = {};
+    const originStats = {};
     const nicheAvgValues = {};
     const nicheCounts = {};
 
-    leads.forEach(l => {
-        const val = l.valor_estimado || 0;
-        if (val > 0) {
-            const niche = getGroupedNiche(l.id_empresa?.id_nicho?.nome_nicho);
-            if (!nicheAvgValues[niche]) { nicheAvgValues[niche] = 0; nicheCounts[niche] = 0; }
-            nicheAvgValues[niche] += val;
-            nicheCounts[niche]++;
-        }
-    });
-
-    const validValues = leads.map(l => l.valor_estimado).filter(v => v > 0).sort((a, b) => a - b);
-    const globalMedian = validValues.length > 0 ? validValues[Math.floor(validValues.length / 2)] : 1000;
-
-    Object.keys(nicheAvgValues).forEach(k => {
-        nicheAvgValues[k] = nicheAvgValues[k] / nicheCounts[k];
-    });
-
-    // C. Target Encoding (Win Rate and Avg Value per Grouped Category)
-    const nicheStats = {};
-    const originStats = {};
-
-    leads.forEach(l => {
+    trainLeads.forEach(l => {
         const niche = getGroupedNiche(l.id_empresa?.id_nicho?.nome_nicho);
         const origin = getGroupedOrigin(l.id_origem_lead?.canal);
         const isWon = l.status === 'Ganho';
         const val = l.valor_estimado || 0;
 
+        // Target Encoding stats
         if (!nicheStats[niche]) nicheStats[niche] = { total: 0, won: 0, valueSum: 0, valCount: 0 };
         nicheStats[niche].total++;
         if (isWon) nicheStats[niche].won++;
@@ -150,129 +147,133 @@ export const performPrediction = async (year) => {
         originStats[origin].total++;
         if (isWon) originStats[origin].won++;
         if (val > 0) { originStats[origin].valueSum += val; originStats[origin].valCount++; }
+
+        // Value imputation stats
+        if (val > 0) {
+            if (!nicheAvgValues[niche]) { nicheAvgValues[niche] = 0; nicheCounts[niche] = 0; }
+            nicheAvgValues[niche] += val;
+            nicheCounts[niche]++;
+        }
     });
+
+    // Finalize averages
+    Object.keys(nicheAvgValues).forEach(k => {
+        nicheAvgValues[k] = nicheAvgValues[k] / nicheCounts[k];
+    });
+
+    const validValues = trainLeads.map(l => l.valor_estimado).filter(v => v > 0).sort((a, b) => a - b);
+    const globalMedian = validValues.length > 0 ? validValues[Math.floor(validValues.length / 2)] : 1000;
 
     const getStats = (map, key) => {
         const s = map[key];
-        if (!s || s.total === 0) return { winRate: 0, avgValue: 0 };
+        if (!s || s.total === 0) return { winRate: 0.22, avgValue: globalMedian }; // Use global average as fallback
         return {
             winRate: s.won / s.total,
-            avgValue: s.valCount > 0 ? s.valueSum / s.valCount : 0
+            avgValue: s.valCount > 0 ? s.valueSum / s.valCount : globalMedian
         };
     };
 
-    // D. Normalization Helpers
+    // E. Feature Builder Function (reusable for train, test, and open leads)
+    const buildFeatures = (leadsArray, normalize, minLogVal, maxLogVal, minDays, maxDays, minPhase, maxPhase) => {
+        return leadsArray.map(lead => {
+            // Value Imputation
+            let val = lead.valor_estimado || 0;
+            const isValueMissing = val === 0 ? 1 : 0;
+            if (val === 0) {
+                const niche = getGroupedNiche(lead.id_empresa?.id_nicho?.nome_nicho);
+                val = nicheAvgValues[niche] || globalMedian;
+            }
+            const logVal = Math.log1p(val);
+
+            // Days in Pipeline
+            const created = new Date(lead.createdAt);
+            const end = lead.data_ganho ? new Date(lead.data_ganho) : (lead.data_perda ? new Date(lead.data_perda) : new Date());
+            let days = Math.max(0, Math.min(1000, (end - created) / (1000 * 60 * 60 * 24)));
+
+            // Phase
+            const phase = lead.id_fase_atual?.ordem || 0;
+
+            // Get Target Encoded features (from TRAINING stats only)
+            const niche = getGroupedNiche(lead.id_empresa?.id_nicho?.nome_nicho);
+            const origin = getGroupedOrigin(lead.id_origem_lead?.canal);
+            const nStats = getStats(nicheStats, niche);
+            const oStats = getStats(originStats, origin);
+
+            // Normalize
+            const normVal = normalize(logVal, minLogVal, maxLogVal);
+            const normPhase = normalize(phase, minPhase, maxPhase);
+            const normDays = normalize(days, minDays, maxDays);
+            const normNicheVal = normalize(Math.log1p(nStats.avgValue), minLogVal, maxLogVal);
+            const normOriginVal = normalize(Math.log1p(oStats.avgValue), minLogVal, maxLogVal);
+
+            // Feature Vector
+            const features = [
+                normVal * 2.0,          // Weighted Value
+                normPhase * 1.5,        // Weighted Phase
+                normDays,               // Days in Pipeline
+                isValueMissing,         // Missing Value Flag
+                nStats.winRate,         // Niche Win Rate (from training only!)
+                normNicheVal,           // Niche Avg Value
+                oStats.winRate,         // Origin Win Rate (from training only!)
+                normOriginVal           // Origin Avg Value
+            ];
+
+            return { features, lead, imputedValue: val };
+        });
+    };
+
+    // F. Calculate normalization bounds from ALL historical data (this is OK, just scaling)
     const normalize = (val, min, max) => (max - min === 0 ? 0 : (val - min) / (max - min));
 
-    // Pre-calculate min/max for normalization
     let minLogVal = Infinity, maxLogVal = -Infinity;
     let minDays = Infinity, maxDays = -Infinity;
     let minPhase = Infinity, maxPhase = -Infinity;
 
-    const tempData = leads.map(lead => {
-        // Value Imputation
-        let val = lead.valor_estimado || 0;
-        const isValueMissing = val === 0 ? 1 : 0;
-        if (val === 0) {
-            const niche = getGroupedNiche(lead.id_empresa?.id_nicho?.nome_nicho);
-            val = nicheAvgValues[niche] || globalMedian;
-        }
+    historicalLeads.forEach(lead => {
+        const val = lead.valor_estimado || globalMedian;
         const logVal = Math.log1p(val);
         if (logVal < minLogVal) minLogVal = logVal;
         if (logVal > maxLogVal) maxLogVal = logVal;
 
-        // Days in Pipeline
         const created = new Date(lead.createdAt);
         const end = lead.data_ganho ? new Date(lead.data_ganho) : (lead.data_perda ? new Date(lead.data_perda) : new Date());
-        let days = Math.max(0, Math.min(1000, (end - created) / (1000 * 60 * 60 * 24)));
+        const days = Math.max(0, Math.min(1000, (end - created) / (1000 * 60 * 60 * 24)));
         if (days < minDays) minDays = days;
         if (days > maxDays) maxDays = days;
 
-        // Phase
         const phase = lead.id_fase_atual?.ordem || 0;
         if (phase < minPhase) minPhase = phase;
         if (phase > maxPhase) maxPhase = phase;
-
-        return { lead, val, logVal, days, phase, isValueMissing };
     });
 
-    // E. Build Feature Vectors
-    const trainingData = [];
-    const trainingLabels = [];
-    const predictionData = [];
-    const predictionLeads = [];
+    // G. Build feature vectors for each set
+    const trainBuilt = buildFeatures(trainLeads, normalize, minLogVal, maxLogVal, minDays, maxDays, minPhase, maxPhase);
+    const testBuilt = buildFeatures(testLeads, normalize, minLogVal, maxLogVal, minDays, maxDays, minPhase, maxPhase);
+    const openBuilt = buildFeatures(openLeads, normalize, minLogVal, maxLogVal, minDays, maxDays, minPhase, maxPhase);
+
+    const trainingData = trainBuilt.map(b => b.features);
+    const trainingLabels = trainLeads.map(l => l.status === 'Ganho' ? 1 : 0);
+    const testData = testBuilt.map(b => b.features);
+    const testLabels = testLeads.map(l => l.status === 'Ganho' ? 1 : 0);
+    const predictionData = openBuilt.map(b => b.features);
+    const predictionLeads = openBuilt.map(b => ({ ...b.lead, imputedValue: b.imputedValue }));
 
     const featureNames = ['LogValue', 'Phase', 'Days', 'IsValueMissing', 'NicheWinRate', 'NicheAvgValue', 'OriginWinRate', 'OriginAvgValue'];
-
-    tempData.forEach(item => {
-        const { lead, val, logVal, days, phase, isValueMissing } = item;
-
-        const niche = getGroupedNiche(lead.id_empresa?.id_nicho?.nome_nicho);
-        const origin = getGroupedOrigin(lead.id_origem_lead?.canal);
-
-        const nStats = getStats(nicheStats, niche);
-        const oStats = getStats(originStats, origin);
-
-        // Normalize
-        const normVal = normalize(logVal, minLogVal, maxLogVal);
-        const normPhase = normalize(phase, minPhase, maxPhase);
-        const normDays = normalize(days, minDays, maxDays);
-        const normNicheVal = normalize(Math.log1p(nStats.avgValue), minLogVal, maxLogVal);
-        const normOriginVal = normalize(Math.log1p(oStats.avgValue), minLogVal, maxLogVal);
-
-        // Feature Vector
-        const features = [
-            normVal * 2.0,          // Weighted Value
-            normPhase * 1.5,        // Weighted Phase
-            normDays,               // Days in Pipeline
-            isValueMissing,         // Missing Value Flag
-            nStats.winRate,         // Niche Win Rate
-            normNicheVal,           // Niche Avg Value
-            oStats.winRate,         // Origin Win Rate
-            normOriginVal           // Origin Avg Value
-        ];
-
-        // Split into Train/Predict
-        if (lead.status === 'Ganho') {
-            trainingData.push(features);
-            trainingLabels.push(1);
-        } else if (lead.status === 'Perdido') {
-            trainingData.push(features);
-            trainingLabels.push(0);
-        }
-
-        if (lead.status === 'Aberto') {
-            predictionData.push(features);
-            predictionLeads.push({ ...lead, imputedValue: val });
-        }
-    });
 
     if (trainingData.length < 10) {
         throw new Error('Not enough historical data (Won/Lost) to train model. Need at least 10 records.');
     }
 
     // 3. Train Model & Calculate Metrics
-    // IMPORTANT: Split BEFORE SMOTE to avoid data leakage
-
-    // Shuffle the data first (to avoid temporal bias)
-    const shuffledIndices = trainingData.map((_, i) => i).sort(() => Math.random() - 0.5);
-    const shuffledData = shuffledIndices.map(i => trainingData[i]);
-    const shuffledLabels = shuffledIndices.map(i => trainingLabels[i]);
-
-    // 70/30 split on ORIGINAL data (before SMOTE)
-    const splitIdx = Math.floor(shuffledData.length * 0.7);
-    const trainData = shuffledData.slice(0, splitIdx);
-    const trainLabels = shuffledLabels.slice(0, splitIdx);
-    const testData = shuffledData.slice(splitIdx);
-    const testLabels = shuffledLabels.slice(splitIdx);
+    // Note: Train/test split was already done in preprocessing (lines 117-123)
 
     // Apply SMOTE only to TRAINING data
-    let finalTrainData = trainData;
-    let finalTrainLabels = trainLabels;
+    let finalTrainData = trainingData;
+    let finalTrainLabels = trainingLabels;
 
-    if (trainData.length < 2000) {
-        console.log(`Training set size (${trainData.length}) < 2000. Applying SMOTE to training set only...`);
-        const balanced = applySMOTE(trainData, trainLabels);
+    if (trainingData.length < 2000) {
+        console.log(`Training set size (${trainingData.length}) < 2000. Applying SMOTE to training set only...`);
+        const balanced = applySMOTE(trainingData, trainingLabels);
         finalTrainData = balanced.data;
         finalTrainLabels = balanced.labels;
         console.log(`SMOTE applied. Training set size: ${finalTrainData.length}`);
@@ -285,7 +286,7 @@ export const performPrediction = async (year) => {
     const testLogReg = new LogisticRegression({ numSteps: 1000, learningRate: 1e-2 });
     testLogReg.train(trainX, trainY);
 
-    // Test on ORIGINAL test data (no SMOTE)
+    // Test on ORIGINAL test data (no SMOTE, features built with training-only stats)
     const testX = new Matrix(testData);
     const testPredictions = testLogReg.predict(testX);
 
