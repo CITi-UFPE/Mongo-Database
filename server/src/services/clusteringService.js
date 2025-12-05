@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Lead from '../models/Comercial/Lead.js';
 import Nicho from '../models/Comercial/Nicho.js';
 import OrigemLead from '../models/Comercial/Origem_lead.js';
+import { kmeans } from 'ml-kmeans';
 
 console.log('Clustering Service Loaded');
 
@@ -13,9 +14,8 @@ console.log('Clustering Service Loaded');
 export const performClustering = async (k = 4) => {
     console.log(`Starting clustering with k=${k}`);
 
-    // Dynamic import for ESM compatibility
-    // Using eval to bypass Babel transpilation which converts import() to require()
-    const { kmeans } = await (eval('import("ml-kmeans")'));
+    // Standard import used
+    // const { kmeans } = await (eval('import("ml-kmeans")'));
 
 
 
