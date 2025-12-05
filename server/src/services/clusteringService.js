@@ -129,7 +129,66 @@ export const performClustering = async (k = 4) => {
         });
     }
 
-    // 5. Format Response for Visualization
+    // 5. Calculate Silhouette Score (Quality Metric)
+    // Only run if dataset is small enough (< 2000 points) to avoid performance issues (O(N^2))
+    let silhouetteScore = null;
+    if (data.length <= 2000 && k > 1) {
+        const calculateSilhouetteScore = (points, assignments) => {
+            const dist = (a, b) => Math.sqrt(a.reduce((sum, val, i) => sum + Math.pow(val - b[i], 2), 0));
+            let totalS = 0;
+            const n = points.length;
+
+            for (let i = 0; i < n; i++) {
+                const p = points[i];
+                const c = assignments[i];
+
+                // a(i): Average distance to same cluster
+                let aSum = 0;
+                let aCount = 0;
+
+                // b(i): Min average distance to other clusters
+                const bSums = {};
+                const bCounts = {};
+
+                for (let j = 0; j < n; j++) {
+                    if (i === j) continue;
+                    const d = dist(p, points[j]);
+                    const otherC = assignments[j];
+
+                    if (otherC === c) {
+                        aSum += d;
+                        aCount++;
+                    } else {
+                        if (!bSums[otherC]) { bSums[otherC] = 0; bCounts[otherC] = 0; }
+                        bSums[otherC] += d;
+                        bCounts[otherC]++;
+                    }
+                }
+
+                const a = aCount > 0 ? aSum / aCount : 0;
+                let b = Infinity;
+                
+                for (const key in bSums) {
+                    const avg = bSums[key] / bCounts[key];
+                    if (avg < b) b = avg;
+                }
+                if (b === Infinity) b = 0;
+
+                const s = Math.max(a, b) === 0 ? 0 : (b - a) / Math.max(a, b);
+                totalS += s;
+            }
+            return totalS / n;
+        };
+        
+        try {
+            silhouetteScore = calculateSilhouetteScore(data, result.clusters);
+            console.log(`Silhouette Score: ${silhouetteScore}`);
+        } catch (err) {
+            console.error('Error calculating silhouette score:', err);
+        }
+    }
+
+    // 6. Format Response for Visualization
     const points = leads.map((lead, idx) => {
         // Add jitter to Y (Phase) for better visualization
         // Phase is usually integer 1-8. Jitter +/- 0.3
@@ -150,6 +209,10 @@ export const performClustering = async (k = 4) => {
 
     return {
         clusters,
-        points
+        points,
+        metrics: {
+            silhouetteScore: silhouetteScore ? parseFloat(silhouetteScore.toFixed(3)) : null,
+            inertia: result.centroids ? 'Calculated' : 'N/A' // ml-kmeans v5 might not return inertia directly
+        }
     };
 };
