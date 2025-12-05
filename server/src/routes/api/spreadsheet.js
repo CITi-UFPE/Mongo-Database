@@ -20,15 +20,21 @@ const SHEET_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
 const isMongoReady = () => mongoose.connection.readyState === 1 && mongoose.connection.db;
 
 const filterSpreadsheetCollections = (names) => {
+  const allowedCollections = [
+    'leads', 'empresas', 'contatos', 'vendedors', 
+    'membros', 'interacaos', 'fase_funils', 
+    'origem_leads', 'nichos', 'motivo_perdas'
+  ];
+  
   return names.filter((name) => {
     const lowered = name.toLowerCase();
     if (lowered.startsWith('system.')) return false;
-    return lowered.includes('sheet');
+    return allowedCollections.includes(lowered) || lowered.includes('sheet');
   });
 };
 
 const MODEL_MAPPING = {
-  'leads_sheet': {
+  'leads': {
     model: Lead,
     populate: [
       { path: 'id_fase_atual', select: 'nome_fase' },
@@ -39,19 +45,19 @@ const MODEL_MAPPING = {
       { path: 'id_motivo_perda', select: 'descricao' }
     ]
   },
-  'empresas_sheet': {
+  'empresas': {
     model: Empresa,
     populate: [
       { path: 'id_nicho', select: 'nome_nicho' }
     ]
   },
-  'contatos_sheet': {
+  'contatos': {
     model: Contato,
     populate: [
       { path: 'id_empresa', select: 'nome_empresa' }
     ]
   },
-  'vendedores_sheet': {
+  'vendedors': {
     model: Vendedor,
     populate: [
       { path: 'id_membro', select: 'nome email' }
