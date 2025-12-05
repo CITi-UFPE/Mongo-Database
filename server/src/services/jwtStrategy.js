@@ -27,8 +27,15 @@ const jwtLogin = new JwtStrategy(
     try {
       // For Google OAuth users, payload contains: { id, email, name, picture }
       // For local users, payload contains: { id }
-      const user = await User.findById(payload.id);
-      console.log('User found in DB:', !!user);
+      
+      let user = null;
+      // Only check DB if the ID looks like a MongoDB ObjectId
+      if (payload.id && /^[0-9a-fA-F]{24}$/.test(payload.id)) {
+        user = await User.findById(payload.id);
+        console.log('User found in DB:', !!user);
+      } else {
+        console.log('Payload ID is not a MongoDB ObjectId, skipping DB lookup');
+      }
 
       if (user) {
         done(null, user);
