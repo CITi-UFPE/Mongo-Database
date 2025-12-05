@@ -19,10 +19,16 @@ const jwtLogin = new JwtStrategy(
     secretOrKey,
   },
   async (payload, done) => {
+    console.log('JWT Strategy called');
+    console.log('Payload:', JSON.stringify(payload));
+    console.log('isProduction:', isProduction);
+    console.log('Using secret:', secretOrKey ? '***' : 'MISSING');
+    
     try {
       // For Google OAuth users, payload contains: { id, email, name, picture }
       // For local users, payload contains: { id }
       const user = await User.findById(payload.id);
+      console.log('User found in DB:', !!user);
 
       if (user) {
         done(null, user);
@@ -30,6 +36,7 @@ const jwtLogin = new JwtStrategy(
         // If user not found in DB, create a virtual user from JWT payload
         // This handles Google OAuth users who aren't in the User collection
         if (payload.email) {
+          console.log('Creating virtual user from payload');
           done(null, {
             id: payload.id,
             email: payload.email,
@@ -38,10 +45,12 @@ const jwtLogin = new JwtStrategy(
             provider: 'google',
           });
         } else {
+          console.log('No user found and no email in payload');
           done(null, false);
         }
       }
     } catch (err) {
+      console.error('JWT Strategy Error:', err);
       done(err, false);
     }
   },
