@@ -64,6 +64,8 @@ type PredictionResponse = {
     monthlyForecast: MonthlyForecast[];
 };
 
+import { apiClient } from '@/services/api';
+
 export function PredictionAnalysis() {
     const [data, setData] = useState<PredictionResponse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -76,9 +78,8 @@ export function PredictionAnalysis() {
             setLoading(true);
             try {
                 const query = selectedYear ? `?year=${selectedYear}` : '';
-                const response = await fetch(`/api/analytics/prediction${query}`);
-                if (!response.ok) throw new Error('Failed to fetch prediction data');
-                const result = await response.json();
+                const response = await apiClient.get(`/analytics/prediction${query}`);
+                const result = response.data;
                 setData(result);
                 if (!selectedYear && result.selectedYear) {
                     setSelectedYear(result.selectedYear.toString());

@@ -40,6 +40,8 @@ type ClusteringResponse = {
 
 const COLORS = ['#0ea5e9', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+import { apiClient } from '@/services/api';
+
 export function ClusterAnalysis() {
     const [data, setData] = useState<ClusteringResponse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -48,10 +50,8 @@ export function ClusterAnalysis() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await fetch('/api/analytics/clustering?k=4');
-                if (!response.ok) throw new Error('Failed to fetch clustering data');
-                const result = await response.json();
-                setData(result);
+                const response = await apiClient.get('/analytics/clustering?k=4');
+                setData(response.data);
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Unknown error');
             } finally {
