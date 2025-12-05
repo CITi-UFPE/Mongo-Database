@@ -95,70 +95,144 @@ export const performPrediction = async (year) => {
 
     // 2. Preprocessing & Feature Engineering
 
-    // Identify Categorical Values
-    const allNichos = [...new Set(leads.map(l => l.id_empresa?.id_nicho?.nome_nicho).filter(Boolean))].sort();
-    const allOrigens = [...new Set(leads.map(l => l.id_origem_lead?.canal).filter(Boolean))].sort();
-
-    // Calculate Mean Value for Imputation (to avoid 0-value leads getting 100% prob)
-    const validValues = leads.map(l => l.valor_estimado).filter(v => v > 0);
-    const meanValue = validValues.length > 0
-        ? validValues.reduce((a, b) => a + b, 0) / validValues.length
-        : 1000; // Default fallback
-
-    // Helper to normalize
-    const values = leads.map(l => Math.log1p((l.valor_estimado || meanValue)));
-    const minVal = Math.min(...values);
-    const maxVal = Math.max(...values);
-    const normalizeVal = (v) => (maxVal - minVal === 0 ? 0 : (Math.log1p(v) - minVal) / (maxVal - minVal));
-
-    const phases = leads.map(l => l.id_fase_atual?.ordem || 0);
-    const minPhase = Math.min(...phases);
-    const maxPhase = Math.max(...phases);
-    const normalizePhase = (p) => (maxPhase - minPhase === 0 ? 0 : (p - minPhase) / (maxPhase - minPhase));
-
-    // New: Stale Lead Detection (Binary)
-    // Instead of continuous time (which boosts new leads), we only penalize very old ones.
-    const now = new Date();
-    const STALE_THRESHOLD_DAYS = 150; // 5 months
-
-    const isStale = (lead) => {
-        const created = new Date(lead.createdAt);
-        const closed = lead.data_ganho || lead.data_perda;
-        const end = closed ? new Date(closed) : now;
-        const days = (end - created) / (1000 * 60 * 60 * 24);
-        return days > STALE_THRESHOLD_DAYS ? 1 : 0;
+    // A. Handle Categorical Dominance (Group rare categories)
+    const groupCategories = (items, topN = 6) => {
+        const counts = {};
+        items.forEach(i => { if (i) counts[i] = (counts[i] || 0) + 1; });
+        const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        const topKeys = new Set(sorted.slice(0, topN).map(s => s[0]));
+        return (item) => (item && topKeys.has(item) ? item : 'Outros');
     };
 
-    // Prepare Data Arrays
+    const allNicheNames = leads.map(l => l.id_empresa?.id_nicho?.nome_nicho);
+    const allOriginNames = leads.map(l => l.id_origem_lead?.canal);
+
+    const getGroupedNiche = groupCategories(allNicheNames, 6);
+    const getGroupedOrigin = groupCategories(allOriginNames, 6);
+
+    // B. Smart Imputation for Value (using Niche averages)
+    const nicheAvgValues = {};
+    const nicheCounts = {};
+
+    leads.forEach(l => {
+        const val = l.valor_estimado || 0;
+        if (val > 0) {
+            const niche = getGroupedNiche(l.id_empresa?.id_nicho?.nome_nicho);
+            if (!nicheAvgValues[niche]) { nicheAvgValues[niche] = 0; nicheCounts[niche] = 0; }
+            nicheAvgValues[niche] += val;
+            nicheCounts[niche]++;
+        }
+    });
+
+    const validValues = leads.map(l => l.valor_estimado).filter(v => v > 0).sort((a, b) => a - b);
+    const globalMedian = validValues.length > 0 ? validValues[Math.floor(validValues.length / 2)] : 1000;
+
+    Object.keys(nicheAvgValues).forEach(k => {
+        nicheAvgValues[k] = nicheAvgValues[k] / nicheCounts[k];
+    });
+
+    // C. Target Encoding (Win Rate and Avg Value per Grouped Category)
+    const nicheStats = {};
+    const originStats = {};
+
+    leads.forEach(l => {
+        const niche = getGroupedNiche(l.id_empresa?.id_nicho?.nome_nicho);
+        const origin = getGroupedOrigin(l.id_origem_lead?.canal);
+        const isWon = l.status === 'Ganho';
+        const val = l.valor_estimado || 0;
+
+        if (!nicheStats[niche]) nicheStats[niche] = { total: 0, won: 0, valueSum: 0, valCount: 0 };
+        nicheStats[niche].total++;
+        if (isWon) nicheStats[niche].won++;
+        if (val > 0) { nicheStats[niche].valueSum += val; nicheStats[niche].valCount++; }
+
+        if (!originStats[origin]) originStats[origin] = { total: 0, won: 0, valueSum: 0, valCount: 0 };
+        originStats[origin].total++;
+        if (isWon) originStats[origin].won++;
+        if (val > 0) { originStats[origin].valueSum += val; originStats[origin].valCount++; }
+    });
+
+    const getStats = (map, key) => {
+        const s = map[key];
+        if (!s || s.total === 0) return { winRate: 0, avgValue: 0 };
+        return {
+            winRate: s.won / s.total,
+            avgValue: s.valCount > 0 ? s.valueSum / s.valCount : 0
+        };
+    };
+
+    // D. Normalization Helpers
+    const normalize = (val, min, max) => (max - min === 0 ? 0 : (val - min) / (max - min));
+
+    // Pre-calculate min/max for normalization
+    let minLogVal = Infinity, maxLogVal = -Infinity;
+    let minDays = Infinity, maxDays = -Infinity;
+    let minPhase = Infinity, maxPhase = -Infinity;
+
+    const tempData = leads.map(lead => {
+        // Value Imputation
+        let val = lead.valor_estimado || 0;
+        const isValueMissing = val === 0 ? 1 : 0;
+        if (val === 0) {
+            const niche = getGroupedNiche(lead.id_empresa?.id_nicho?.nome_nicho);
+            val = nicheAvgValues[niche] || globalMedian;
+        }
+        const logVal = Math.log1p(val);
+        if (logVal < minLogVal) minLogVal = logVal;
+        if (logVal > maxLogVal) maxLogVal = logVal;
+
+        // Days in Pipeline
+        const created = new Date(lead.createdAt);
+        const end = lead.data_ganho ? new Date(lead.data_ganho) : (lead.data_perda ? new Date(lead.data_perda) : new Date());
+        let days = Math.max(0, Math.min(1000, (end - created) / (1000 * 60 * 60 * 24)));
+        if (days < minDays) minDays = days;
+        if (days > maxDays) maxDays = days;
+
+        // Phase
+        const phase = lead.id_fase_atual?.ordem || 0;
+        if (phase < minPhase) minPhase = phase;
+        if (phase > maxPhase) maxPhase = phase;
+
+        return { lead, val, logVal, days, phase, isValueMissing };
+    });
+
+    // E. Build Feature Vectors
     const trainingData = [];
     const trainingLabels = [];
     const predictionData = [];
     const predictionLeads = [];
 
-    // Feature Names for interpretation
-    const featureNames = ['LogValue', 'Phase', 'IsStale'];
-    allNichos.forEach(n => featureNames.push(`Niche_${n}`));
-    allOrigens.forEach(o => featureNames.push(`Origin_${o}`));
+    const featureNames = ['LogValue', 'Phase', 'Days', 'IsValueMissing', 'NicheWinRate', 'NicheAvgValue', 'OriginWinRate', 'OriginAvgValue'];
 
-    leads.forEach((lead) => {
-        // Build Feature Vector
-        const val = lead.valor_estimado || meanValue;
+    tempData.forEach(item => {
+        const { lead, val, logVal, days, phase, isValueMissing } = item;
+
+        const niche = getGroupedNiche(lead.id_empresa?.id_nicho?.nome_nicho);
+        const origin = getGroupedOrigin(lead.id_origem_lead?.canal);
+
+        const nStats = getStats(nicheStats, niche);
+        const oStats = getStats(originStats, origin);
+
+        // Normalize
+        const normVal = normalize(logVal, minLogVal, maxLogVal);
+        const normPhase = normalize(phase, minPhase, maxPhase);
+        const normDays = normalize(days, minDays, maxDays);
+        const normNicheVal = normalize(Math.log1p(nStats.avgValue), minLogVal, maxLogVal);
+        const normOriginVal = normalize(Math.log1p(oStats.avgValue), minLogVal, maxLogVal);
+
+        // Feature Vector
         const features = [
-            normalizeVal(val),
-            normalizePhase(lead.id_fase_atual?.ordem || 0),
-            isStale(lead)
+            normVal * 2.0,          // Weighted Value
+            normPhase * 1.5,        // Weighted Phase
+            normDays,               // Days in Pipeline
+            isValueMissing,         // Missing Value Flag
+            nStats.winRate,         // Niche Win Rate
+            normNicheVal,           // Niche Avg Value
+            oStats.winRate,         // Origin Win Rate
+            normOriginVal           // Origin Avg Value
         ];
 
-        // One-Hot Encode Niche
-        const leadNiche = lead.id_empresa?.id_nicho?.nome_nicho;
-        allNichos.forEach(n => features.push(n === leadNiche ? 1 : 0));
-
-        // One-Hot Encode Origin
-        const leadOrigin = lead.id_origem_lead?.canal;
-        allOrigens.forEach(o => features.push(o === leadOrigin ? 1 : 0));
-
         // Split into Train/Predict
-        // We TRAIN on all historical data to get the best model
         if (lead.status === 'Ganho') {
             trainingData.push(features);
             trainingLabels.push(1);
@@ -167,10 +241,9 @@ export const performPrediction = async (year) => {
             trainingLabels.push(0);
         }
 
-        // We PREDICT for Open leads (and we'll filter later for display)
         if (lead.status === 'Aberto') {
             predictionData.push(features);
-            predictionLeads.push(lead);
+            predictionLeads.push({ ...lead, imputedValue: val });
         }
     });
 

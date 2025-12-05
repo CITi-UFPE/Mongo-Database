@@ -39,97 +39,173 @@ export const performClustering = async (k = 4) => {
 
     // 2. Preprocessing & Feature Engineering
 
-    // Target Encoding: Calculate Win Rate and Avg Value for each Niche and Origin
+    // 2. Preprocessing & Feature Engineering
+
+    // A. Handle Categorical Dominance (Group rare categories)
+    const groupCategories = (items, topN = 5) => {
+        const counts = {};
+        items.forEach(i => { counts[i] = (counts[i] || 0) + 1; });
+        const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        const topKeys = new Set(sorted.slice(0, topN).map(s => s[0]));
+        return (item) => (topKeys.has(item) ? item : 'Outros');
+    };
+
+    const allNicheNames = leads.map(l => l.id_empresa?.id_nicho?.nome_nicho || 'Unknown');
+    const allOriginNames = leads.map(l => l.id_origem_lead?.canal || 'Unknown');
+
+    const getGroupedNiche = groupCategories(allNicheNames, 6); // Keep top 6 niches
+    const getGroupedOrigin = groupCategories(allOriginNames, 6); // Keep top 6 origins
+
+    // B. Smart Imputation for Value
+    // Calculate Avg Value per Grouped Niche to fill missings
+    const nicheAvgValues = {};
+    const nicheCounts = {};
+
+    leads.forEach(l => {
+        const val = l.valor_estimado || 0;
+        if (val > 0) {
+            const niche = getGroupedNiche(l.id_empresa?.id_nicho?.nome_nicho || 'Unknown');
+            if (!nicheAvgValues[niche]) { nicheAvgValues[niche] = 0; nicheCounts[niche] = 0; }
+            nicheAvgValues[niche] += val;
+            nicheCounts[niche]++;
+        }
+    });
+
+    // Calculate global median for fallback
+    const validValues = leads.map(l => l.valor_estimado).filter(v => v > 0).sort((a, b) => a - b);
+    const globalMedian = validValues.length > 0 ? validValues[Math.floor(validValues.length / 2)] : 0;
+
+    Object.keys(nicheAvgValues).forEach(k => {
+        nicheAvgValues[k] = nicheAvgValues[k] / nicheCounts[k];
+    });
+
+    // C. Target Encoding (on Grouped Categories)
     const nicheStats = {};
     const originStats = {};
 
     leads.forEach(l => {
-        const niche = l.id_empresa?.id_nicho?.nome_nicho;
-        const origin = l.id_origem_lead?.canal;
+        const niche = getGroupedNiche(l.id_empresa?.id_nicho?.nome_nicho || 'Unknown');
+        const origin = getGroupedOrigin(l.id_origem_lead?.canal || 'Unknown');
         const isWon = l.status === 'Ganho';
-        const val = l.valor_estimado || 0;
+        
+        // Use actual value for stats if available, else ignore for avg calculation to avoid skewing
+        const val = l.valor_estimado || 0; 
 
-        if (niche) {
-            if (!nicheStats[niche]) nicheStats[niche] = { total: 0, won: 0, valueSum: 0 };
-            nicheStats[niche].total++;
-            if (isWon) nicheStats[niche].won++;
+        if (!nicheStats[niche]) nicheStats[niche] = { total: 0, won: 0, valueSum: 0, valCount: 0 };
+        nicheStats[niche].total++;
+        if (isWon) nicheStats[niche].won++;
+        if (val > 0) {
             nicheStats[niche].valueSum += val;
+            nicheStats[niche].valCount++;
         }
 
-        if (origin) {
-            if (!originStats[origin]) originStats[origin] = { total: 0, won: 0, valueSum: 0 };
-            originStats[origin].total++;
-            if (isWon) originStats[origin].won++;
+        if (!originStats[origin]) originStats[origin] = { total: 0, won: 0, valueSum: 0, valCount: 0 };
+        originStats[origin].total++;
+        if (isWon) originStats[origin].won++;
+        if (val > 0) {
             originStats[origin].valueSum += val;
+            originStats[origin].valCount++;
         }
     });
 
-    // Helper to safely get stats
     const getStats = (map, key) => {
         const s = map[key];
         if (!s || s.total === 0) return { winRate: 0, avgValue: 0 };
         return {
             winRate: s.won / s.total,
-            avgValue: s.valueSum / s.total
+            avgValue: s.valCount > 0 ? s.valueSum / s.valCount : 0
         };
     };
 
-    // Helper to normalize values (min-max scaling)
+    // Helper to normalize
     const normalize = (val, min, max) => (max - min === 0 ? 0 : (val - min) / (max - min));
 
-    // Log transform value to handle outliers better
-    const values = leads.map(l => Math.log1p(l.valor_estimado || 0));
-    const minVal = Math.min(...values);
-    const maxVal = Math.max(...values);
+    // D. Build Feature Vectors
+    const data = [];
+    const processedLeads = []; // Store processed data for analysis later
 
-    const phaseOrders = leads.map(l => l.id_fase_atual?.ordem || 0);
-    const minPhase = Math.min(...phaseOrders);
-    const maxPhase = Math.max(...phaseOrders);
+    // Pre-calculate min/max for normalization
+    let minLogVal = Infinity, maxLogVal = -Infinity;
+    let minDays = Infinity, maxDays = -Infinity;
 
-    // Create Feature Vectors
-    // [Normalized LogValue, Normalized Phase, NicheWinRate, NicheAvgValue, OriginWinRate, OriginAvgValue]
-    // Target Encoding allows us to group by "Performance" rather than just "Category Name"
-    const data = leads.map(lead => {
-        const val = normalize(Math.log1p(lead.valor_estimado || 0), minVal, maxVal);
-        const phase = normalize(lead.id_fase_atual?.ordem || 0, minPhase, maxPhase);
-
-        // Weight phase higher as it's a strong indicator of progress
-        const weightedPhase = phase * 1.5;
+    const tempFeatures = leads.map(lead => {
+        // 1. Value Imputation
+        let val = lead.valor_estimado || 0;
+        const isValueMissing = val === 0 ? 1 : 0;
         
-        // Weight Value higher to separate "High Value" from "Low Value" clearly
-        const weightedValue = val * 2.0;
+        if (val === 0) {
+            const niche = getGroupedNiche(lead.id_empresa?.id_nicho?.nome_nicho || 'Unknown');
+            val = nicheAvgValues[niche] || globalMedian || 1000;
+        }
+        const logVal = Math.log1p(val);
+        if (logVal < minLogVal) minLogVal = logVal;
+        if (logVal > maxLogVal) maxLogVal = logVal;
 
-        const niche = lead.id_empresa?.id_nicho?.nome_nicho;
-        const origin = lead.id_origem_lead?.canal;
+        // 2. Time Feature (Days in Pipeline)
+        const created = new Date(lead.createdAt);
+        const end = lead.data_ganho ? new Date(lead.data_ganho) : (lead.data_perda ? new Date(lead.data_perda) : new Date());
+        let days = (end - created) / (1000 * 60 * 60 * 24);
+        if (days < 0) days = 0; // Sanity check
+        if (days > 1000) days = 1000; // Cap outliers
+        
+        if (days < minDays) minDays = days;
+        if (days > maxDays) maxDays = days;
+
+        return { lead, val, logVal, days, isValueMissing };
+    });
+
+    tempFeatures.forEach(item => {
+        const { lead, val, logVal, days, isValueMissing } = item;
+
+        const niche = getGroupedNiche(lead.id_empresa?.id_nicho?.nome_nicho || 'Unknown');
+        const origin = getGroupedOrigin(lead.id_origem_lead?.canal || 'Unknown');
 
         const nStats = getStats(nicheStats, niche);
         const oStats = getStats(originStats, origin);
 
-        // Normalize these new features relative to the dataset? 
-        // WinRate is already 0-1. AvgValue needs normalization.
-        // For simplicity, we'll use the global min/max log value for normalization of avgValue too, 
-        // assuming similar range.
-        const normNicheVal = normalize(Math.log1p(nStats.avgValue), minVal, maxVal);
-        const normOriginVal = normalize(Math.log1p(oStats.avgValue), minVal, maxVal);
+        // Normalize
+        const normVal = normalize(logVal, minLogVal, maxLogVal);
+        const normDays = normalize(days, minDays, maxDays);
+        const normNicheVal = normalize(Math.log1p(nStats.avgValue), minLogVal, maxLogVal);
+        const normOriginVal = normalize(Math.log1p(oStats.avgValue), minLogVal, maxLogVal);
 
-        return [
-            weightedValue, 
-            weightedPhase, 
-            nStats.winRate * 1.5, // Weight Win Rate importance
-            normNicheVal, 
-            oStats.winRate * 1.5, // Weight Win Rate importance
+        // Feature Vector
+        // [Value, Days, IsMissingVal, NicheWin, NicheVal, OriginWin, OriginVal]
+        data.push([
+            normVal * 2.0,       // High weight on value
+            normDays,            // Pipeline duration
+            isValueMissing,      // Explicit flag for missing value
+            nStats.winRate,      // Group performance
+            normNicheVal,        // Group potential
+            oStats.winRate,
             normOriginVal
-        ];
+        ]);
+        
+        // Store for later analysis
+        processedLeads.push({ ...lead, imputedValue: val, groupedNiche: niche, groupedOrigin: origin });
     });
 
     // 3. Run K-Means
     const result = kmeans(data, k, { initialization: 'kmeans++' });
 
     // 4. Analyze Clusters
+    // Calculate Global Distributions for Lift Analysis (using original specific names for detail)
+    const globalNicheCounts = {};
+    const globalOriginCounts = {};
+    const totalLeads = leads.length;
+
+    leads.forEach(l => {
+        const n = l.id_empresa?.id_nicho?.nome_nicho || 'Unknown';
+        const o = l.id_origem_lead?.canal || 'Unknown';
+        globalNicheCounts[n] = (globalNicheCounts[n] || 0) + 1;
+        globalOriginCounts[o] = (globalOriginCounts[o] || 0) + 1;
+    });
+
     const clusters = [];
     for (let i = 0; i < k; i++) {
         const clusterIndices = result.clusters.reduce((acc, val, idx) => (val === i ? [...acc, idx] : acc), []);
-        const clusterLeads = clusterIndices.map(idx => leads[idx]);
+        // Use processedLeads to get imputed values
+        const clusterLeads = clusterIndices.map(idx => processedLeads[idx]);
 
         if (clusterLeads.length === 0) {
             clusters.push({ id: i, size: 0, winRate: 0, avgValue: 0, description: 'Empty Cluster' });
@@ -140,112 +216,119 @@ export const performClustering = async (k = 4) => {
         const total = clusterLeads.length;
         const won = clusterLeads.filter(l => l.status === 'Ganho').length;
         const winRate = (won / total) * 100;
-        const avgValue = clusterLeads.reduce((sum, l) => sum + (l.valor_estimado || 0), 0) / total;
+        // Use imputedValue for average to reflect the clustering logic
+        const avgValue = clusterLeads.reduce((sum, l) => sum + (l.imputedValue || 0), 0) / total;
 
-        // Find dominant features
-        const getNicheCounts = () => {
-            const counts = {};
+        // Find Distinctive Features (Lift Analysis)
+        const getDistinctiveFeature = (globalCounts, itemSelector) => {
+            const localCounts = {};
             clusterLeads.forEach(l => {
-                const n = l.id_empresa?.id_nicho?.nome_nicho || 'Unknown';
-                counts[n] = (counts[n] || 0) + 1;
+                const key = itemSelector(l) || 'Unknown';
+                localCounts[key] = (localCounts[key] || 0) + 1;
             });
-            return Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+
+            let bestFeature = 'None';
+            let bestLift = 0;
+            let bestCount = 0;
+
+            for (const key in localCounts) {
+                const localFreq = localCounts[key] / total;
+                const globalFreq = globalCounts[key] / totalLeads;
+                
+                if (localFreq < 0.1) continue; // Ignore rare items in cluster
+
+                const lift = localFreq / globalFreq;
+                if (lift > bestLift) {
+                    bestLift = lift;
+                    bestFeature = key;
+                    bestCount = localCounts[key];
+                }
+            }
+
+            if (bestFeature === 'None') {
+                const sorted = Object.entries(localCounts).sort((a, b) => b[1] - a[1]);
+                if (sorted.length > 0) {
+                    bestFeature = sorted[0][0];
+                    bestCount = sorted[0][1];
+                }
+            }
+
+            return { name: bestFeature, count: bestCount };
         };
 
-        const getOriginCounts = () => {
-            const counts = {};
-            clusterLeads.forEach(l => {
-                const o = l.id_origem_lead?.canal || 'Unknown';
-                counts[o] = (counts[o] || 0) + 1;
-            });
-            return Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-        };
-
-        const [topNiche, nicheCount] = getNicheCounts();
-        const [topOrigin, originCount] = getOriginCounts();
+        const distinctiveNiche = getDistinctiveFeature(globalNicheCounts, l => l.id_empresa?.id_nicho?.nome_nicho);
+        const distinctiveOrigin = getDistinctiveFeature(globalOriginCounts, l => l.id_origem_lead?.canal);
 
         clusters.push({
             id: i,
             size: total,
             winRate: parseFloat(winRate.toFixed(1)),
             avgValue: parseFloat(avgValue.toFixed(2)),
-            topNiche: topNiche,
-            topNichePercentage: Math.round((nicheCount / total) * 100),
-            topOrigin: topOrigin,
-            topOriginPercentage: Math.round((originCount / total) * 100),
+            topNiche: distinctiveNiche.name,
+            topNichePercentage: Math.round((distinctiveNiche.count / total) * 100),
+            topOrigin: distinctiveOrigin.name,
+            topOriginPercentage: Math.round((distinctiveOrigin.count / total) * 100),
             centroid: result.centroids[i]
         });
     }
 
     // 5. Calculate Silhouette Score (Quality Metric)
-    // Only run if dataset is small enough (< 2000 points) to avoid performance issues (O(N^2))
     let silhouetteScore = null;
     if (data.length <= 2000 && k > 1) {
+        // ... (Silhouette calculation remains the same, using 'data' which is already processed)
+        // I will just copy the function logic or assume it's there? 
+        // The previous replace might have kept it if I targeted correctly.
+        // Wait, I am replacing the block that *includes* the start of Step 5?
+        // No, Step 5 starts after the loop.
+        // I'll include the Silhouette logic here to be safe or just close the loop.
+    }
+    
+    // Re-implementing Silhouette Score here because I'm replacing the block
+    if (data.length <= 2000 && k > 1) {
         const calculateSilhouetteScore = (points, assignments) => {
-            const dist = (a, b) => Math.sqrt(a.reduce((sum, val, i) => sum + Math.pow(val - b[i], 2), 0));
-            let totalS = 0;
-            const n = points.length;
-
-            for (let i = 0; i < n; i++) {
-                const p = points[i];
-                const c = assignments[i];
-
-                // a(i): Average distance to same cluster
-                let aSum = 0;
-                let aCount = 0;
-
-                // b(i): Min average distance to other clusters
-                const bSums = {};
-                const bCounts = {};
-
-                for (let j = 0; j < n; j++) {
-                    if (i === j) continue;
-                    const d = dist(p, points[j]);
-                    const otherC = assignments[j];
-
-                    if (otherC === c) {
-                        aSum += d;
-                        aCount++;
-                    } else {
-                        if (!bSums[otherC]) { bSums[otherC] = 0; bCounts[otherC] = 0; }
-                        bSums[otherC] += d;
-                        bCounts[otherC]++;
-                    }
-                }
-
-                const a = aCount > 0 ? aSum / aCount : 0;
-                let b = Infinity;
-                
-                for (const key in bSums) {
-                    const avg = bSums[key] / bCounts[key];
-                    if (avg < b) b = avg;
-                }
-                if (b === Infinity) b = 0;
-
-                const s = Math.max(a, b) === 0 ? 0 : (b - a) / Math.max(a, b);
-                totalS += s;
-            }
-            return totalS / n;
+             const dist = (a, b) => Math.sqrt(a.reduce((sum, val, i) => sum + Math.pow(val - b[i], 2), 0));
+             let totalS = 0;
+             const n = points.length;
+             for (let i = 0; i < n; i++) {
+                 const p = points[i];
+                 const c = assignments[i];
+                 let aSum = 0, aCount = 0;
+                 const bSums = {}, bCounts = {};
+                 for (let j = 0; j < n; j++) {
+                     if (i === j) continue;
+                     const d = dist(p, points[j]);
+                     const otherC = assignments[j];
+                     if (otherC === c) { aSum += d; aCount++; }
+                     else {
+                         if (!bSums[otherC]) { bSums[otherC] = 0; bCounts[otherC] = 0; }
+                         bSums[otherC] += d; bCounts[otherC]++;
+                     }
+                 }
+                 const a = aCount > 0 ? aSum / aCount : 0;
+                 let b = Infinity;
+                 for (const key in bSums) {
+                     const avg = bSums[key] / bCounts[key];
+                     if (avg < b) b = avg;
+                 }
+                 if (b === Infinity) b = 0;
+                 const s = Math.max(a, b) === 0 ? 0 : (b - a) / Math.max(a, b);
+                 totalS += s;
+             }
+             return totalS / n;
         };
-        
         try {
             silhouetteScore = calculateSilhouetteScore(data, result.clusters);
             console.log(`Silhouette Score: ${silhouetteScore}`);
-        } catch (err) {
-            console.error('Error calculating silhouette score:', err);
-        }
+        } catch (err) { console.error(err); }
     }
 
     // 6. Format Response for Visualization
-    const points = leads.map((lead, idx) => {
-        // Add jitter to Y (Phase) for better visualization
-        // Phase is usually integer 1-8. Jitter +/- 0.3
+    const points = processedLeads.map((lead, idx) => {
         const phaseJitter = (Math.random() - 0.5) * 0.6;
-
         return {
             id: lead._id,
-            x: lead.valor_estimado || 0,
-            y: (lead.id_fase_atual?.ordem || 0) + phaseJitter, // Jittered Y
+            x: lead.imputedValue || 0, // Use imputed value for visualization
+            y: (lead.id_fase_atual?.ordem || 0) + phaseJitter,
             originalY: lead.id_fase_atual?.ordem || 0,
             cluster: result.clusters[idx],
             status: lead.status,
@@ -254,13 +337,14 @@ export const performClustering = async (k = 4) => {
         };
     });
 
-
     return {
         clusters,
         points,
         metrics: {
             silhouetteScore: silhouetteScore ? parseFloat(silhouetteScore.toFixed(3)) : null,
-            inertia: result.centroids ? 'Calculated' : 'N/A' // ml-kmeans v5 might not return inertia directly
+            inertia: result.centroids ? 'Calculated' : 'N/A'
         }
     };
 };
+
+
