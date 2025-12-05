@@ -62,6 +62,12 @@ type PredictionResponse = {
     selectedYear: number;
     icpAnalysis: ICPData;
     monthlyForecast: MonthlyForecast[];
+    modelMetrics?: {
+        accuracy: number;
+        precision: number;
+        recall: number;
+        f1Score: number;
+    };
 };
 
 import { apiClient } from '@/services/api';
@@ -171,6 +177,33 @@ export function PredictionAnalysis() {
             ) : (
                 <>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {data.modelMetrics && (
+                            <Card className="bg-slate-800 border-slate-700 col-span-full">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm font-medium text-slate-400">Performance do Modelo (Teste 30%)</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div>
+                                            <p className="text-xs text-slate-500">Acurácia</p>
+                                            <p className={`text-xl font-bold ${data.modelMetrics.accuracy > 70 ? 'text-green-400' : 'text-yellow-400'}`}>{data.modelMetrics.accuracy}%</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-slate-500">Precisão</p>
+                                            <p className="text-xl font-bold text-slate-200">{data.modelMetrics.precision}%</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-slate-500">Recall</p>
+                                            <p className="text-xl font-bold text-slate-200">{data.modelMetrics.recall}%</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-slate-500">F1-Score</p>
+                                            <p className="text-xl font-bold text-slate-200">{data.modelMetrics.f1Score}%</p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
                         <Card className="bg-slate-800 border-slate-700">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-sm font-medium text-slate-400">Previsão de Ganhos</CardTitle>

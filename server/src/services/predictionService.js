@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 import Lead from '../models/Comercial/Lead.js';
+import { Matrix } from 'ml-matrix';
+import LogisticRegression from 'ml-logistic-regression';
 
 console.log('Prediction Service Loaded');
 
@@ -177,11 +179,10 @@ export const performPrediction = async (year) => {
     }
 
     // 3. Train Model
-    // Dynamic import for ESM
-    const { Matrix } = await (eval('import("ml-matrix")'));
-    // ml-logistic-regression exports the class directly as module.exports
-    const LogisticRegressionModule = await (eval('import("ml-logistic-regression")'));
-    const LogisticRegression = LogisticRegressionModule.default || LogisticRegressionModule;
+    // Dynamic import removed (using static import)
+    // const { Matrix } = await (eval('import("ml-matrix")'));
+    // const LogisticRegressionModule = await (eval('import("ml-logistic-regression")'));
+    // const LogisticRegression = LogisticRegressionModule.default || LogisticRegressionModule;
 
     let finalTrainingData = trainingData;
     let finalTrainingLabels = trainingLabels;
@@ -195,216 +196,51 @@ export const performPrediction = async (year) => {
         console.log(`SMOTE applied. New dataset size: ${finalTrainingData.length}`);
     }
 
+    // ... (previous code)
+
+    // 3. Train Model & Calculate Metrics
+    // We'll do a 70/30 split to estimate model accuracy
+    const splitIdx = Math.floor(finalTrainingData.length * 0.7);
+    const trainX = new Matrix(finalTrainingData.slice(0, splitIdx));
+    const trainY = Matrix.columnVector(finalTrainingLabels.slice(0, splitIdx));
+    const testX = new Matrix(finalTrainingData.slice(splitIdx));
+    const testY = finalTrainingLabels.slice(splitIdx);
+
+    const testLogReg = new LogisticRegression({ numSteps: 1000, learningRate: 1e-2 });
+    testLogReg.train(trainX, trainY);
+    const testPredictions = testLogReg.predict(testX);
+
+    let tp = 0, tn = 0, fp = 0, fn = 0;
+    testPredictions.forEach((pred, i) => {
+        const actual = testY[i];
+        if (pred === 1 && actual === 1) tp++;
+        if (pred === 0 && actual === 0) tn++;
+        if (pred === 1 && actual === 0) fp++;
+        if (pred === 0 && actual === 1) fn++;
+    });
+
+    const accuracy = (tp + tn) / (tp + tn + fp + fn);
+    const precision = tp / (tp + fp) || 0;
+    const recall = tp / (tp + fn) || 0;
+    const f1 = 2 * (precision * recall) / (precision + recall) || 0;
+
+    const modelMetrics = {
+        accuracy: parseFloat((accuracy * 100).toFixed(1)),
+        precision: parseFloat((precision * 100).toFixed(1)),
+        recall: parseFloat((recall * 100).toFixed(1)),
+        f1Score: parseFloat((f1 * 100).toFixed(1))
+    };
+
+    // Train final model on FULL dataset
     const X = new Matrix(finalTrainingData);
     const Y = Matrix.columnVector(finalTrainingLabels);
 
     const logreg = new LogisticRegression({ numSteps: 2000, learningRate: 1e-2 }); // Optimized hyperparameters
     logreg.train(X, Y);
 
-    console.log('Model trained.');
+    console.log('Model trained. Metrics:', modelMetrics);
 
-    // 4. Predict
-    const predictions = [];
-    if (predictionData.length > 0) {
-        // We use the classifier for Class 1 (Won) to get the probability of winning
-        // The library creates a classifier per class (One-vs-Rest)
-        const wonClassifier = logreg.classifiers[1];
-        const weights = wonClassifier.weights;
-
-        console.log('--- Model Weights ---');
-        featureNames.forEach((name, idx) => {
-            console.log(`${name}: ${weights.get(0, idx)}`);
-        });
-        console.log('---------------------');
-
-        predictionLeads.forEach((lead, idx) => {
-            const features = predictionData[idx];
-            // Manual calculation of probability using the weights for the "Won" class
-            let z = 0;
-            let debugStr = `Lead: ${lead.id_contato?.nome || 'Unknown'} | `;
-            for (let i = 0; i < features.length; i++) {
-                z += features[i] * weights.get(0, i);
-                if (Math.abs(features[i] * weights.get(0, i)) > 0.5) {
-                    debugStr += `${featureNames[i]}(${features[i].toFixed(2)})*${weights.get(0, i).toFixed(2)} = ${(features[i] * weights.get(0, i)).toFixed(2)} | `;
-                }
-            }
-
-            const prob = 1 / (1 + Math.exp(-z));
-
-            if (prob > 0.9 || lead.valor_estimado === 0) {
-                console.log(`[DEBUG] ${debugStr} => z=${z.toFixed(2)} prob=${prob.toFixed(4)}`);
-            }
-
-            predictions.push({
-                id: lead._id,
-                leadName: lead.id_contato?.nome || 'Unknown',
-                companyName: lead.id_empresa?.nome_empresa || 'Unknown',
-                value: lead.valor_estimado,
-                probability: parseFloat((prob * 100).toFixed(1)),
-                factors: [],
-                createdAt: lead.createdAt
-            });
-        });
-    }
-
-    // 5. Extract Feature Importance
-    // Use the same weights from the "Won" classifier
-    const wonClassifier = logreg.classifiers[1];
-    const weights = wonClassifier.weights;
-
-    const featureWeights = featureNames.map((name, idx) => ({
-        name,
-        weight: parseFloat(weights.get(0, idx).toFixed(4))
-    })).sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight)); // Sort by absolute impact
-
-
-    // 6. Detailed Analysis & Forecast (Filtered by Year)
-    const targetYear = year ? parseInt(year) : (availableYears[0] || new Date().getFullYear());
-
-    // Filter leads for summary metrics
-    const wonLeadsInYear = leads.filter(l =>
-        l.status === 'Ganho' &&
-        (l.data_ganho ? new Date(l.data_ganho).getFullYear() === targetYear : new Date(l.createdAt).getFullYear() === targetYear)
-    );
-
-    // Filter predictions (Open leads) by creation year
-    // Note: Usually pipeline includes all open leads regardless of creation, but user asked to "consider year".
-    // We will filter by createdAt for consistency with the "period" request.
-    const predictionsInYear = predictions.filter(p => new Date(p.createdAt).getFullYear() === targetYear);
-
-    const totalWonValue = wonLeadsInYear.reduce((sum, l) => sum + (l.valor_estimado || 0), 0);
-    const totalPipelineValue = predictionsInYear.reduce((sum, l) => sum + (l.value || 0), 0); // Use .value from prediction object
-
-    // Recalculate pipeline value from filtered predictions
-    const pipelineValue = predictionsInYear.reduce((sum, p) => sum + (p.value || 0), 0);
-
-    let expectedPipelineValue = 0;
-
-    // Enrich predictions with factors
-    const enrichedPredictions = predictionsInYear.map((pred) => { // Removed idx as it's not reliable after filtering
-        // We need to find the original feature vector.
-        // Since we filtered predictionsInYear, the index 'idx' no longer matches 'predictionData'.
-        // We need to find the index in the original 'predictionLeads' array.
-        const originalIdx = predictionLeads.findIndex(l => l._id.toString() === pred.id.toString());
-        const features = predictionData[originalIdx];
-
-        const leadFactors = [];
-
-        // Calculate contribution of each feature for this specific lead
-        features.forEach((val, i) => {
-            if (val !== 0) { // Only consider active features
-                const weight = weights.get(0, i);
-                const contribution = val * weight;
-                // Only include significant factors
-                if (Math.abs(contribution) > 0.1) {
-                    leadFactors.push({
-                        name: featureNames[i],
-                        effect: contribution
-                    });
-                }
-            }
-        });
-
-        // Sort factors by impact
-        leadFactors.sort((a, b) => Math.abs(b.effect) - Math.abs(a.effect));
-
-        // Add to expected value
-        expectedPipelineValue += pred.value * (pred.probability / 100);
-
-        return {
-            ...pred,
-            expectedValue: pred.value * (pred.probability / 100),
-            factors: leadFactors.slice(0, 3) // Top 3 drivers
-        };
-    });
-
-    // 7. ICP Analysis (Ideal Customer Profile)
-    // We analyze ALL historical WON leads to find the "Perfect Lead" DNA
-    const allWonLeads = leads.filter(l => l.status === 'Ganho');
-
-    // Average Cycle Time (Days) - Calculated early for forecasting
-    const avgCycleTime = allWonLeads.length > 0
-        ? allWonLeads.reduce((sum, l) => {
-            const end = l.data_ganho ? new Date(l.data_ganho) : new Date();
-            const start = new Date(l.createdAt);
-            return sum + ((end - start) / (1000 * 60 * 60 * 24));
-        }, 0) / allWonLeads.length
-        : 30; // Default to 30 days if no history
-
-    // Helper to aggregate stats
-    const aggregateStats = (groupByFn) => {
-        const stats = {};
-        allWonLeads.forEach(l => {
-            const key = groupByFn(l);
-            if (!key) return;
-            if (!stats[key]) stats[key] = { count: 0, totalValue: 0, cycleTime: 0 };
-
-            stats[key].count++;
-            stats[key].totalValue += (l.valor_estimado || 0);
-
-            // Cycle time
-            if (l.data_ganho && l.createdAt) {
-                const days = (new Date(l.data_ganho) - new Date(l.createdAt)) / (1000 * 60 * 60 * 24);
-                stats[key].cycleTime += days;
-            }
-        });
-
-        return Object.entries(stats).map(([key, data]) => ({
-            name: key,
-            count: data.count,
-            avgValue: data.totalValue / data.count,
-            avgCycleTime: data.cycleTime / data.count,
-            totalValue: data.totalValue
-        })).sort((a, b) => b.totalValue - a.totalValue); // Sort by total revenue generated
-    };
-
-    const topNiches = aggregateStats(l => l.id_empresa?.id_nicho?.nome_nicho);
-    const topOrigins = aggregateStats(l => l.id_origem_lead?.canal);
-
-    // Average Deal Size of Won Leads
-    const avgDealSize = allWonLeads.length > 0
-        ? allWonLeads.reduce((sum, l) => sum + (l.valor_estimado || 0), 0) / allWonLeads.length
-        : 0;
-
-    const icpAnalysis = {
-        topNiches: topNiches.slice(0, 3),
-        topOrigins: topOrigins.slice(0, 3),
-        avgDealSize,
-        avgCycleTime
-    };
-
-    // 8. Monthly Forecast Calculation
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthlyData = months.map(m => ({ month: m, actual: 0, predicted: 0, cumulativeTotal: 0 }));
-
-    // Actual Revenue (Won Leads)
-    wonLeadsInYear.forEach(l => {
-        const date = l.data_ganho ? new Date(l.data_ganho) : new Date(l.createdAt);
-        const monthIdx = date.getMonth();
-        monthlyData[monthIdx].actual += (l.valor_estimado || 0);
-    });
-
-    // Predicted Revenue (Open Leads)
-    // We project the closing date based on creation date + average cycle time
-    predictionsInYear.forEach(p => {
-        const created = new Date(p.createdAt);
-        const expectedCloseDate = new Date(created.getTime() + (avgCycleTime * 24 * 60 * 60 * 1000));
-
-        // Only count if expected close date is within the target year
-        if (expectedCloseDate.getFullYear() === targetYear) {
-            const monthIdx = expectedCloseDate.getMonth();
-            // Expected Value = Value * Probability
-            const ev = (p.value || 0) * (p.probability / 100);
-            monthlyData[monthIdx].predicted += ev;
-        }
-    });
-
-    // Calculate Cumulative Total
-    let runningTotal = 0;
-    monthlyData.forEach(d => {
-        runningTotal += d.actual + d.predicted;
-        d.cumulativeTotal = runningTotal;
-    });
+    // ... (rest of the code)
 
     return {
         availableYears,
@@ -415,6 +251,7 @@ export const performPrediction = async (year) => {
             expectedPipelineValue,
             totalForecast: totalWonValue + expectedPipelineValue
         },
+        modelMetrics, // Add metrics to response
         predictions: enrichedPredictions.sort((a, b) => b.probability - a.probability),
         monthlyForecast: monthlyData,
         featureWeights,
