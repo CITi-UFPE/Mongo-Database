@@ -64,7 +64,9 @@ const connectDB = async () => {
     return;
   }
   try {
-    await mongoose.connect(dbConnection);
+    await mongoose.connect(dbConnection, {
+      dbName: 'database-comercial'
+    });
     console.log('MongoDB Connected...');
     if (!process.env.VERCEL) {
       seedDb();
