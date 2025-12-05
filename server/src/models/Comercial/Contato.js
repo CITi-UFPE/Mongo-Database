@@ -35,7 +35,7 @@ const ContatoSchema = new Schema(
   },
   {
     timestamps: true,
-    collection: 'contatos_sheet',
+    collection: 'contatos',
   },
 );
 

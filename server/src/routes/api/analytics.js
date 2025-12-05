@@ -190,7 +190,7 @@ router.get('/kpis', requireJwtAuth, async (_req, res) => {
     const funnelDistribution = await Lead.aggregate([
       {
         $lookup: {
-          from: 'fases_funil_sheet',
+          from: 'fase_funils',
           localField: 'id_fase_atual',
           foreignField: '_id',
           as: 'fase'
@@ -211,7 +211,7 @@ router.get('/kpis', requireJwtAuth, async (_req, res) => {
     const leadSources = await Lead.aggregate([
       {
         $lookup: {
-          from: 'origens_lead_sheet',
+          from: 'origem_leads',
           localField: 'id_origem_lead',
           foreignField: '_id',
           as: 'origem'
@@ -233,7 +233,7 @@ router.get('/kpis', requireJwtAuth, async (_req, res) => {
       { $match: { status: 'Perdido', id_motivo_perda: { $ne: null } } },
       {
         $lookup: {
-          from: 'motivos_perda_sheet',
+          from: 'motivo_perdas',
           localField: 'id_motivo_perda',
           foreignField: '_id',
           as: 'motivo'
@@ -253,7 +253,7 @@ router.get('/kpis', requireJwtAuth, async (_req, res) => {
     const sellerPerformance = await Lead.aggregate([
       {
         $lookup: {
-          from: 'membros_sheet',
+          from: 'membros',
           localField: 'id_membro',
           foreignField: '_id',
           as: 'membro'
