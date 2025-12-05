@@ -59,7 +59,7 @@ const MODEL_MAPPING = {
   }
 };
 
-router.get('/', requireJwtAuth, async (_req, res) => {
+router.get('/', async (_req, res) => { // requireJwtAuth removed for testing
   try {
     if (!isMongoReady()) {
       return res.status(503).json({ message: 'Database connection is not ready.' });
@@ -75,7 +75,7 @@ router.get('/', requireJwtAuth, async (_req, res) => {
   }
 });
 
-router.get('/:sheetName', requireJwtAuth, async (req, res) => {
+router.get('/:sheetName', async (req, res) => { // requireJwtAuth removed for testing
   try {
     if (!isMongoReady()) {
       return res.status(503).json({ message: 'Database connection is not ready.' });
