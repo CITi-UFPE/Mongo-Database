@@ -357,9 +357,7 @@ export function PredictionAnalysis() {
                                         <YAxis yAxisId="right" orientation="right" stroke="#6366f1" tickFormatter={(val) => `R$${(val / 1000).toFixed(0)}k`} />
                                         <Tooltip
                                             contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#e2e8f0' }}
-                                            formatter={(value?: number) =>
-  value == null ? "—" : formatCurrency(value)
-}
+                                            formatter={(value: number) => formatCurrency(value)}
                                         />
                                         <Legend />
                                         <Bar yAxisId="left" dataKey="actual" name="Receita Realizada" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />

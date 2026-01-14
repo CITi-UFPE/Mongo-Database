@@ -10,16 +10,11 @@ import { seedDb } from './utils/seed';
 
 const app = express();
 
-/**
- * =========================
- * CORS
- * =========================
- */
+// CORS - Allow requests from client URLs
 const clientUrlDev = process.env.CLIENT_URL_DEV || 'http://localhost:3000';
 const clientUrlProd = process.env.CLIENT_URL_PROD || 'http://localhost:3080';
-
 const allowedOrigins = [
-  'http://localhost:5173', // Vite dev
+  'http://localhost:5173', // Vite dev server
   'http://localhost:4173', // Vite preview
   'http://localhost:3000', // React dev
   'http://localhost:3080', // Docker production
@@ -27,172 +22,103 @@ const allowedOrigins = [
   clientUrlProd,
   'https://mern-boilerplate.amd2.localhost3002.live',
   'https://localhost3002.live',
-  'https://mongo-database-jshebbs-projects.vercel.app'
+  'https://mongo-database-jshebbs-projects.vercel.app' // Vercel production
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
 
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
       console.log('CORS blocked origin:', origin);
-      return callback(new Error('Not allowed by CORS'));
-    },
-    credentials: true
-  })
-);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 
-/**
- * =========================
- * Security headers
- * =========================
- */
+// COOP
 app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   next();
 });
 
-/**
- * =========================
- * Middlewares
- * =========================
- */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
 
-/**
- * =========================
- * Passport strategies
- * =========================
- */
+// Load passport strategies
+// Load passport strategies
 import './services/jwtStrategy';
 import './services/googleStrategy';
 import './services/localStrategy';
 
-/**
- * =========================
- * MongoDB Connection
- * =========================
- */
 const isProduction = process.env.NODE_ENV === 'production';
-
-// Banco que TEM suas coleções (leads, empresas, etc)
-const DB_NAME = process.env.MONGO_DB_NAME || 'database-comercial';
-
-const getMongoUri = () => {
-  const uri = isProduction ? process.env.MONGO_URI_PROD : process.env.MONGO_URI_DEV;
-  return uri;
-};
-
-const maskMongoUri = (uri) => {
-  if (!uri) return uri;
-  // mascara senha em mongodb://user:pass@host...
-  return uri.replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@)/, '$1***$3');
-};
-
-let connectingPromise = null;
+const dbConnection = isProduction ? process.env.MONGO_URI_PROD : process.env.MONGO_URI_DEV;
 
 const connectDB = async () => {
-  // já conectado
-  if (mongoose.connection.readyState === 1) return;
-
-  // se já tem tentativa em andamento, reaproveita
-  if (connectingPromise) return connectingPromise;
-
-  const mongoUri = getMongoUri();
-  if (!mongoUri) {
-    throw new Error(
-      `Missing Mongo URI. Set ${isProduction ? 'MONGO_URI_PROD' : 'MONGO_URI_DEV'} in .env`
-    );
+  if (mongoose.connection.readyState === 1) {
+    return;
   }
-
-  console.log('Connecting to MongoDB:', maskMongoUri(mongoUri));
-  console.log('Target database:', DB_NAME);
-
-  connectingPromise = mongoose
-    .connect(mongoUri, {
-      dbName: DB_NAME
-    })
-    .then(() => {
-      console.log('MongoDB Connected...');
-      console.log('Connected database (mongoose.connection.name):', mongoose.connection.name);
-
-      // opcional: confirma collections rapidamente (bom pra debug)
-      // return mongoose.connection.db.listCollections().toArray().then(cols => {
-      //   console.log('Collections:', cols.map(c => c.name));
-      // });
-
-      if (!process.env.VERCEL) {
-        // seed só fora da vercel
-        seedDb();
-      }
-    })
-    .catch((err) => {
-      console.error('MongoDB connection error:', err);
-      throw err;
-    })
-    .finally(() => {
-      connectingPromise = null;
+  try {
+    await mongoose.connect(dbConnection, {
+      dbName: 'database-comercial'
     });
-
-  return connectingPromise;
+    console.log('MongoDB Connected...');
+    if (!process.env.VERCEL) {
+      seedDb();
+    }
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    throw err;
+  }
 };
 
-// Garante DB antes de atender requests
+// Middleware to ensure DB is connected before handling requests
 app.use(async (req, res, next) => {
   if (mongoose.connection.readyState !== 1) {
     try {
       await connectDB();
     } catch (err) {
-      return res.status(503).json({
-        message: 'Database connection failed',
-        error: err?.message || String(err)
-      });
+      return res.status(503).json({ message: 'Database connection failed', error: err.message });
     }
   }
   next();
 });
 
-// Conexão inicial local (pra dar feedback imediato)
+// Initial connection for local dev (optional but good for immediate feedback)
 if (!process.env.VERCEL) {
   connectDB().catch(console.error);
 }
 
-/**
- * =========================
- * Validate critical env vars
- * =========================
- */
+// Validate critical environment variables at startup
 const validateEnvVars = () => {
   const requiredVars = ['GOOGLE_CLIENT_ID'];
-  const missingVars = requiredVars.filter((varName) => !process.env[varName]);
+  const missingVars = requiredVars.filter(varName => !process.env[varName]);
 
   if (missingVars.length > 0) {
     console.error('❌ Missing required environment variables:', missingVars.join(', '));
   }
 
+  // Check JWT secret
   const jwtSecret = process.env.JWT_SECRET_DEV || process.env.JWT_SECRET_PROD;
   if (!jwtSecret) {
     console.error('❌ Missing JWT_SECRET (JWT_SECRET_DEV or JWT_SECRET_PROD)');
   }
 
+  // Log validation results (without exposing secrets)
   console.log('🔍 Environment validation:');
   console.log('  - GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '✓ Set' : '✗ Missing');
   console.log('  - JWT_SECRET:', jwtSecret ? '✓ Set' : '✗ Missing');
   console.log('  - NODE_ENV:', process.env.NODE_ENV || 'development');
-  console.log('  - Mongo URI chosen:', maskMongoUri(getMongoUri() || ''));
-  console.log('  - Mongo DB_NAME:', DB_NAME);
 };
 
+// Run validation
 validateEnvVars();
 
-/**
- * =========================
- * Routes + Static
- * =========================
- */
 app.use('/api', routes);
 app.use('/', routes);
 app.use('/public/images', express.static(join(__dirname, '../public/images')));
@@ -201,11 +127,7 @@ app.get('/', (req, res) => {
   res.json({ message: 'Server is running' });
 });
 
-/**
- * =========================
- * Global error handler
- * =========================
- */
+// Global error handler - must be after all routes
 app.use((err, req, res, next) => {
   console.error('❌ [Global Error Handler] Unhandled error:');
   console.error('  Path:', req.method, req.path);
@@ -219,11 +141,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-/**
- * =========================
- * Start server
- * =========================
- */
 const port = process.env.PORT || 5000;
 const host = isProduction ? '0.0.0.0' : 'localhost';
 

@@ -117,7 +117,6 @@ app.use((err, req, res, next) => {
 const port = process.env.PORT || 5000;
 const host = isProduction ? '0.0.0.0' : 'localhost';
 if (!process.env.VERCEL) {
-  
   app.listen(port, host, () => {
     console.log(`Server running at http://${host}:${port}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);

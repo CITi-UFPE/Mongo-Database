@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 
-// Import models (se você realmente usa esses models)
+// Import middleware
+import requireJwtAuth from '../../middleware/authMiddleware';
+
+// Import models
 import Lead from '../../models/Comercial/Lead';
 import Membro from '../../models/Comercial/Membro';
 import Vendedor from '../../models/Comercial/Vendedor';
@@ -13,25 +16,25 @@ import Nicho from '../../models/Comercial/Nicho';
 import MotivoPerda from '../../models/Comercial/Motivo_perda';
 
 const router = Router();
-
 const SHEET_NAME_PATTERN = /^[a-zA-Z0-9._-]+$/;
+const isMongoReady = () => mongoose.connection.readyState === 1 && mongoose.connection.db;
 
-const allowedCollections = [
-  'leads',
-  'empresas',
-  'contatos',
-  'vendedors',
-  'membros',
-  'interacaos',
-  'fase_funils',
-  'origem_leads',
-  'nichos',
-  'motivo_perdas',
-];
+const filterSpreadsheetCollections = (names) => {
+  const allowedCollections = [
+    'leads', 'empresas', 'contatos', 'vendedors', 
+    'membros', 'interacaos', 'fase_funils', 
+    'origem_leads', 'nichos', 'motivo_perdas'
+  ];
+  
+  return names.filter((name) => {
+    const lowered = name.toLowerCase();
+    if (lowered.startsWith('system.')) return false;
+    return allowedCollections.includes(lowered) || lowered.includes('sheet');
+  });
+};
 
-// ⚠️ mapeia APENAS se você precisa de populate. Senão, pode deixar tudo cair no "collection().find()"
 const MODEL_MAPPING = {
-  leads: {
+  'leads': {
     model: Lead,
     populate: [
       { path: 'id_fase_atual', select: 'nome_fase' },
@@ -39,101 +42,71 @@ const MODEL_MAPPING = {
       { path: 'id_membro', select: 'nome' },
       { path: 'id_contato', select: 'nome' },
       { path: 'id_origem_lead', select: 'canal fonte' },
-      { path: 'id_motivo_perda', select: 'descricao' },
-    ],
+      { path: 'id_motivo_perda', select: 'descricao' }
+    ]
   },
-  empresas: {
+  'empresas': {
     model: Empresa,
-    populate: [{ path: 'id_nicho', select: 'nome_nicho' }],
+    populate: [
+      { path: 'id_nicho', select: 'nome_nicho' }
+    ]
   },
-  contatos: {
+  'contatos': {
     model: Contato,
-    populate: [{ path: 'id_empresa', select: 'nome_empresa' }],
+    populate: [
+      { path: 'id_empresa', select: 'nome_empresa' }
+    ]
   },
-  vendedors: {
+  'vendedors': {
     model: Vendedor,
-    populate: [{ path: 'id_membro', select: 'nome email' }],
-  },
-  membros: { model: Membro },
-  fase_funils: { model: FaseFunil },
-  origem_leads: { model: OrigemLead },
-  nichos: { model: Nicho },
-  motivo_perdas: { model: MotivoPerda },
+    populate: [
+      { path: 'id_membro', select: 'nome email' }
+    ]
+  }
 };
 
-const isMongoReady = () =>
-  mongoose.connection.readyState === 1 &&
-  mongoose.connection.db &&
-  typeof mongoose.connection.db.listCollections === 'function';
-
-function normalizeSheetName(name) {
-  return String(name || '').trim().toLowerCase();
-}
-
-router.get('/', async (_req, res) => {
+router.get('/', async (_req, res) => { // requireJwtAuth removed for testing
   try {
     if (!isMongoReady()) {
       return res.status(503).json({ message: 'Database connection is not ready.' });
     }
 
     const collections = await mongoose.connection.db.listCollections().toArray();
-
-    // garante string[] independente do formato
-    const names = collections
-      .map((c) => {
-        if (typeof c === 'string') return c;
-        if (c && typeof c.name === 'string') return c.name;
-        return null;
-      })
-      .filter((n) => typeof n === 'string');
-
+    const names = collections.map((collection) => collection.name);
     const spreadsheets = filterSpreadsheetCollections(names);
 
-    return res.json(spreadsheets); // -> ["nichos", "motivo_perdas", ...]
+    return res.json(spreadsheets);
   } catch (error) {
-    console.error('❌ /api/spreadsheet error:', error); // <-- IMPORTANTE
     return res.status(500).json({ message: 'Failed to list spreadsheets.' });
   }
 });
 
-
-router.get('/:sheetName', async (req, res) => {
+router.get('/:sheetName', async (req, res) => { // requireJwtAuth removed for testing
   try {
     if (!isMongoReady()) {
       return res.status(503).json({ message: 'Database connection is not ready.' });
     }
 
-    const sheetNameRaw = req.params.sheetName;
-    if (!SHEET_NAME_PATTERN.test(sheetNameRaw)) {
+    const { sheetName } = req.params;
+    if (!SHEET_NAME_PATTERN.test(sheetName)) {
       return res.status(400).json({ message: 'Invalid sheet name.' });
     }
 
-    const sheetName = normalizeSheetName(sheetNameRaw);
-
-    if (!allowedCollections.includes(sheetName)) {
+    const collectionNames = await mongoose.connection.db.listCollections({ name: sheetName }).toArray();
+    if (collectionNames.length === 0) {
       return res.status(404).json({ message: 'Spreadsheet not found.' });
     }
 
-    // confirma que a collection existe no DB atual
-    const exists = await mongoose.connection.db
-      .listCollections({ name: sheetName })
-      .toArray();
-
-    if (exists.length === 0) {
-      return res.status(404).json({ message: 'Spreadsheet not found.' });
-    }
-
-    let documents = [];
-
-    if (MODEL_MAPPING[sheetName]?.model) {
+    let documents;
+    if (MODEL_MAPPING[sheetName]) {
       const { model, populate } = MODEL_MAPPING[sheetName];
-      let q = model.find({});
-      if (Array.isArray(populate)) {
-        populate.forEach((p) => {
-          q = q.populate(p);
+      let query = model.find({});
+      if (populate) {
+        populate.forEach(p => {
+          query = query.populate(p);
         });
       }
-      documents = await q.lean();
+      documents = await query.lean();
     } else {
       documents = await mongoose.connection.db.collection(sheetName).find({}).toArray();
     }
@@ -145,7 +118,7 @@ router.get('/:sheetName', async (req, res) => {
 
     return res.json(formatted);
   } catch (error) {
-    console.error('[spreadsheet] get error:', error);
+    console.error(error);
     return res.status(500).json({ message: 'Failed to retrieve spreadsheet.' });
   }
 });

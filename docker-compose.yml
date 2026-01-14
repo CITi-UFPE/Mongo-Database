@@ -1,3 +1,5 @@
+version: '3.8'
+
 
 services:
   mdp-client:
@@ -100,11 +102,11 @@ services:
       - "8081:8081"
     environment:
       # direct full connection URL (includes creds + host)
-      - ME_CONFIG_MONGODB_URL=mongodb://admin:Maria180501@mdp-mongo:27017/admin
+      - ME_CONFIG_MONGODB_URL=mongodb://admin:senhasegura123@mdp-mongo:27017/admin
       - ME_CONFIG_BASICAUTH_USERNAME=admin
       - ME_CONFIG_BASICAUTH_PASSWORD=admin
       - ME_CONFIG_MONGODB_ADMINUSERNAME=admin
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=Maria180501
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=senhasegura123
       - ME_CONFIG_MONGODB_SERVER=mdp-mongo
       - ME_CONFIG_MONGODB_PORT=27017
       - ME_CONFIG_MONGODB_AUTH_DATABASE=admin
