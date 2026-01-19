@@ -32,7 +32,7 @@ export default function GoogleAuth() {
       console.log("🔵 [GoogleAuth] 2. Credential recebido:", credentialResponse.credential?.substring(0, 30));
 
       const res = await apiClient.post("/auth/google", {
-        id_token: credentialResponse.credential,
+        idToken: credentialResponse.credential,
       });
 
       console.log("🔵 [GoogleAuth] 3. Resposta do servidor:", res.status);

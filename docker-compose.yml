@@ -5,7 +5,6 @@ services:
   mdp-client:
     container_name: mdp-client
     restart: unless-stopped
-    image: nemanjamitic/mern-boilerplate-client:latest
     build:
       # src must be in context
       context: ./client
@@ -45,26 +44,26 @@ services:
   mdp-server:
     container_name: mdp-server
     restart: unless-stopped
-    image: nemanjamitic/mern-boilerplate-server:latest
     build:
       context: ./server
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     depends_on:
       - mdp-mongo
     env_file:
       - ./server/.env
     environment:
-      NODE_ENV: production
-      PORT: 80
-    volumes:
-      - ./server/public/images:/home/node/app/server/public/images
+      MONGODB_URL: mongodb://admin:senhasegura123@mdp-mongo:27017/database-comercial?authSource=admin
+      PORT: 5000
+      HOST: 0.0.0.0
+      CLIENT_URL_DEV: http://localhost:3080
+      CLIENT_URL_PROD: http://localhost:3080
     networks:
       - default
       - internal-client
 
     # either open port or route through traefik
     ports:
-      - '5000:80'
+      - '5000:5000'
       
     # must be exposed through traefik too
     # handles /api and /public/images

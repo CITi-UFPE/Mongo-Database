@@ -113,7 +113,7 @@ export function DashboardOverview() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiClient.get('/analytics/kpis');
+        const response = await apiClient.get('/api/analytics/kpis');
         setKpiData(response.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load analytics');

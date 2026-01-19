@@ -44,7 +44,7 @@ export default function Home() {
             onSuccess={async (credentialResponse) => {
               try {
                 const res = await axios.post("http://localhost:5000/auth/google", {
-                  id_token: credentialResponse.credential,
+                  idToken: credentialResponse.credential,
                 });
                 console.log("Usuário autenticado:", res.data);
                 // Armazene o token no localStorage ou em outro lugar seguro
