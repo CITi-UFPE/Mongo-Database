@@ -1,7 +1,7 @@
 # server/services/prediction.py
 # Complete ML Prediction Service - Ported from Node.js
 from datetime import datetime, timedelta
-from services.db import db
+from services.db import db_client
 import traceback
 import numpy as np
 import pandas as pd
@@ -18,48 +18,53 @@ def apply_smote(data, labels, k=5):
     """
     try:
         data_array = np.array(data)
-        
+
         # Separate minority and majority classes
         unique_labels = list(set(labels))
         if len(unique_labels) != 2:
             return {"data": data, "labels": labels}
-        
+
         minority_class = min(unique_labels, key=lambda x: labels.count(x))
         majority_class = max(unique_labels, key=lambda x: labels.count(x))
-        
-        minority_indices = [i for i, l in enumerate(labels) if l == minority_class]
-        majority_indices = [i for i, l in enumerate(labels) if l == majority_class]
-        
+
+        minority_indices = [i for i, l in enumerate(
+            labels) if l == minority_class]
+        majority_indices = [i for i, l in enumerate(
+            labels) if l == majority_class]
+
         if len(minority_indices) == 0:
             return {"data": data, "labels": labels}
-        
+
         minority_data = [data[i] for i in minority_indices]
         majority_data = [data[i] for i in majority_indices]
-        
+
         # Generate synthetic samples
         synthetic_data = []
         synthetic_labels = []
         target_count = len(majority_data)
         samples_per_minority = max(1, target_count // len(minority_data))
-        
+
         for sample in minority_data:
             sample_array = np.array(sample)
-            
+
             # Find k-nearest neighbors
-            distances = [np.linalg.norm(sample_array - np.array(other)) for other in minority_data]
-            nearest_indices = np.argsort(distances)[1:min(k+1, len(minority_data))]
-            
+            distances = [np.linalg.norm(sample_array - np.array(other))
+                         for other in minority_data]
+            nearest_indices = np.argsort(
+                distances)[1:min(k+1, len(minority_data))]
+
             for _ in range(samples_per_minority):
                 # Pick random neighbor
-                neighbor_idx = nearest_indices[np.random.randint(0, len(nearest_indices))]
+                neighbor_idx = nearest_indices[np.random.randint(
+                    0, len(nearest_indices))]
                 neighbor = np.array(minority_data[neighbor_idx])
-                
+
                 # Create synthetic sample
                 alpha = np.random.random()
                 synthetic = sample_array + alpha * (neighbor - sample_array)
                 synthetic_data.append(synthetic.tolist())
                 synthetic_labels.append(minority_class)
-        
+
         return {
             "data": data + synthetic_data,
             "labels": labels + synthetic_labels
@@ -75,9 +80,10 @@ async def performPrediction(year: int = None):
     Returns predictions, feature weights, ICP analysis, and forecasts.
     """
     try:
-        print(f"Starting prediction analysis{f' for year {year}' if year else ''}...")
-        
-        db_instance = db.get_instance()
+        print(
+            f"Starting prediction analysis{f' for year {year}' if year else ''}...")
+
+        db_instance = db_client.get_instance()
         leads_collection = db_instance.get_collection('leads')
         contatos_collection = db_instance.get_collection('contatos')
         empresas_collection = db_instance.get_collection('empresas')
@@ -85,14 +91,14 @@ async def performPrediction(year: int = None):
         origem_leads_collection = db_instance.get_collection('origem_leads')
         nichos_collection = db_instance.get_collection('nichos')
         membros_collection = db_instance.get_collection('membros')
-        
+
         # Get all leads with relationships
         leads = list(leads_collection.find())
-        
+
         if len(leads) < 10:
             print("Not enough leads for prediction")
             return _empty_prediction()
-        
+
         # Extract available years
         years_set = set()
         for lead in leads:
@@ -104,10 +110,11 @@ async def performPrediction(year: int = None):
                     years_set.add(date_obj.year)
                 except:
                     pass
-        
-        available_years = sorted(list(years_set)) if years_set else [datetime.now().year]
+
+        available_years = sorted(list(years_set)) if years_set else [
+            datetime.now().year]
         selected_year = year if year and year in available_years else available_years[-1]
-        
+
         # Initialize lists for model training
         training_data = []
         training_labels = []
@@ -115,12 +122,14 @@ async def performPrediction(year: int = None):
         prediction_leads_list = []
         test_data = []
         test_labels = []
-        
+
         # Reference maps for feature engineering
         niches_map = {doc.get('_id'): doc for doc in nichos_collection.find()}
-        origins_map = {doc.get('_id'): doc for doc in origem_leads_collection.find()}
-        fases_map = {doc.get('_id'): doc for doc in fase_funils_collection.find()}
-        
+        origins_map = {
+            doc.get('_id'): doc for doc in origem_leads_collection.find()}
+        fases_map = {
+            doc.get('_id'): doc for doc in fase_funils_collection.find()}
+
         # Build features for each lead
         for lead in leads:
             try:
@@ -129,7 +138,7 @@ async def performPrediction(year: int = None):
                 valor = float(lead.get('valor', 100)) or 100
                 status = lead.get('status', 'open')
                 created_date = lead.get('data_criacao')
-                
+
                 # Normalize created date
                 if isinstance(created_date, str):
                     try:
@@ -138,29 +147,31 @@ async def performPrediction(year: int = None):
                         created_date = datetime.now()
                 elif created_date is None:
                     created_date = datetime.now()
-                
+
                 # Calculate days in pipeline
                 days_in_pipeline = max(0, (datetime.now() - created_date).days)
-                
+
                 # Feature engineering
                 features = []
-                
+
                 # 1. Log-normalized value
                 features.append(math.log1p(valor))
-                
+
                 # 2. Days in pipeline
-                features.append(float(min(days_in_pipeline, 365)))  # Cap at 365 days
-                
+                # Cap at 365 days
+                features.append(float(min(days_in_pipeline, 365)))
+
                 # 3. Niche value (normalized)
                 niche_id = lead.get('id_nicho')
-                niche_valor = float(niches_map.get(niche_id, {}).get('valor', 50)) or 50
+                niche_valor = float(niches_map.get(
+                    niche_id, {}).get('valor', 50)) or 50
                 features.append(math.log1p(niche_valor))
-                
+
                 # 4. Origin factor
                 origin_id = lead.get('id_origem_lead')
                 origin_count = len(origins_map)
                 features.append(float(origin_count) / max(1, len(origins_map)))
-                
+
                 # 5. Status encoded (won=1, open=0.5, lost=0)
                 if status == 'won':
                     status_encoded = 1.0
@@ -169,35 +180,37 @@ async def performPrediction(year: int = None):
                 else:
                     status_encoded = 0.0
                 features.append(status_encoded)
-                
+
                 # 6. Expected close days
                 expected_close = lead.get('data_esperada_fechamento')
                 if expected_close:
                     if isinstance(expected_close, str):
                         try:
-                            expected_close = datetime.fromisoformat(expected_close)
+                            expected_close = datetime.fromisoformat(
+                                expected_close)
                         except:
                             expected_close = None
-                    
+
                     if expected_close:
-                        days_to_close = max(0, (expected_close - datetime.now()).days)
+                        days_to_close = max(
+                            0, (expected_close - datetime.now()).days)
                         features.append(float(days_to_close))
                     else:
                         features.append(0.0)
                 else:
                     features.append(0.0)
-                
+
                 # Ensure exactly 6 features
                 while len(features) < 6:
                     features.append(0.0)
                 features = features[:6]
-                
+
                 # Label (1=won, 0=lost/open)
                 label = 1 if status == 'won' else 0
-                
+
                 # Split into train/test/predict
                 rand_val = np.random.random()
-                
+
                 if rand_val < 0.8:
                     # Training set
                     training_data.append(features)
@@ -206,22 +219,23 @@ async def performPrediction(year: int = None):
                     # Test set
                     test_data.append(features)
                     test_labels.append(label)
-                
+
                 # Open leads for prediction
                 if status == 'open':
                     prediction_data.append(features)
                     prediction_leads_list.append(lead)
-                    
+
             except Exception as e:
                 print(f"Error processing lead {lead.get('_id')}: {e}")
                 continue
-        
+
         if len(training_data) < 5:
             print("Insufficient training data")
             return _empty_prediction()
-        
-        print(f"Dataset: {len(training_data)} training, {len(test_data)} test, {len(prediction_data)} to predict")
-        
+
+        print(
+            f"Dataset: {len(training_data)} training, {len(test_data)} test, {len(prediction_data)} to predict")
+
         # Apply SMOTE for imbalanced dataset
         if len(training_data) < 2000:
             print(f"Applying SMOTE (training set: {len(training_data)})...")
@@ -229,17 +243,17 @@ async def performPrediction(year: int = None):
             training_data = balanced['data']
             training_labels = balanced['labels']
             print(f"After SMOTE: {len(training_data)} samples")
-        
+
         # Convert to numpy arrays
         X_train = np.array(training_data, dtype=float)
         y_train = np.array(training_labels, dtype=int)
-        
+
         # Train and evaluate on test set
         model_metrics = {}
         if len(test_data) >= 2:
             X_test = np.array(test_data, dtype=float)
             y_test = np.array(test_labels, dtype=int)
-            
+
             test_model = LogisticRegression(
                 max_iter=1000,
                 solver='lbfgs',
@@ -248,7 +262,7 @@ async def performPrediction(year: int = None):
             )
             test_model.fit(X_train, y_train)
             y_pred = test_model.predict(X_test)
-            
+
             try:
                 model_metrics = {
                     "accuracy": float(accuracy_score(y_test, y_pred)),
@@ -263,9 +277,9 @@ async def performPrediction(year: int = None):
                     "recall": 0.88,
                     "f1Score": 0.85
                 }
-            
+
             print(f"Model metrics: {model_metrics}")
-        
+
         # Train final model on all training data
         logreg = LogisticRegression(
             max_iter=2000,
@@ -274,36 +288,39 @@ async def performPrediction(year: int = None):
             class_weight='balanced'
         )
         logreg.fit(X_train, y_train)
-        
+
         # Make predictions on open leads
         predictions = []
         if len(prediction_data) > 0:
             X_pred = np.array(prediction_data, dtype=float)
             probabilities = logreg.predict_proba(X_pred)
-            
+
             for idx, lead in enumerate(prediction_leads_list):
                 try:
                     # Get win probability (class 1)
                     win_prob = float(probabilities[idx][1])
                     lead_value = float(lead.get('valor', 0)) or 0
                     expected_value = lead_value * win_prob
-                    
+
                     # Get contact and company names
                     contact_id = lead.get('id_contato')
                     company_id = lead.get('id_empresa')
-                    
+
                     lead_name = 'Unknown'
                     if contact_id:
-                        contact = contatos_collection.find_one({'_id': contact_id})
+                        contact = contatos_collection.find_one(
+                            {'_id': contact_id})
                         if contact:
                             lead_name = contact.get('nome', 'Unknown')
-                    
+
                     company_name = 'Unknown'
                     if company_id:
-                        company = empresas_collection.find_one({'_id': company_id})
+                        company = empresas_collection.find_one(
+                            {'_id': company_id})
                         if company:
-                            company_name = company.get('nome_empresa', 'Unknown')
-                    
+                            company_name = company.get(
+                                'nome_empresa', 'Unknown')
+
                     predictions.append({
                         "id": str(lead.get('_id')),
                         "leadName": lead_name,
@@ -316,10 +333,11 @@ async def performPrediction(year: int = None):
                 except Exception as e:
                     print(f"Error predicting for lead: {e}")
                     continue
-        
+
         # Sort predictions by probability
-        predictions = sorted(predictions, key=lambda x: x['probability'], reverse=True)
-        
+        predictions = sorted(
+            predictions, key=lambda x: x['probability'], reverse=True)
+
         # Feature weights (coefficients)
         feature_weights = []
         feature_names = [
@@ -330,22 +348,24 @@ async def performPrediction(year: int = None):
             "Status",
             "Days to Close"
         ]
-        
+
         for i, coef in enumerate(logreg.coef_[0]):
             feature_weights.append({
                 "name": feature_names[i] if i < len(feature_names) else f"Feature {i}",
                 "weight": float(coef)
             })
-        
+
         # Calculate summary statistics
-        total_pipeline = sum([l.get('valor', 0) for l in leads if l.get('status') == 'open'])
-        total_won = sum([l.get('valor', 0) for l in leads if l.get('status') == 'won'])
+        total_pipeline = sum([l.get('valor', 0)
+                             for l in leads if l.get('status') == 'open'])
+        total_won = sum([l.get('valor', 0)
+                        for l in leads if l.get('status') == 'won'])
         expected_pipeline = sum([p['expectedValue'] for p in predictions])
-        
+
         # ICP Analysis (Ideal Customer Profile)
         niches_data = {}
         origins_data = {}
-        
+
         for lead in [l for l in leads if l.get('status') == 'won']:
             # Niche analysis
             niche_id = lead.get('id_nicho')
@@ -358,7 +378,7 @@ async def performPrediction(year: int = None):
                     }
                 niches_data[niche_id]['count'] += 1
                 niches_data[niche_id]['total_value'] += lead.get('valor', 0)
-            
+
             # Origin analysis
             origin_id = lead.get('id_origem_lead')
             if origin_id:
@@ -370,7 +390,7 @@ async def performPrediction(year: int = None):
                     }
                 origins_data[origin_id]['count'] += 1
                 origins_data[origin_id]['total_value'] += lead.get('valor', 0)
-        
+
         # Format ICP data
         top_niches = []
         for niche_id, data in sorted(niches_data.items(), key=lambda x: x[1]['total_value'], reverse=True)[:5]:
@@ -382,7 +402,7 @@ async def performPrediction(year: int = None):
                 "totalValue": float(data['total_value']),
                 "avgCycleTime": 30
             })
-        
+
         top_origins = []
         for origin_id, data in sorted(origins_data.items(), key=lambda x: x[1]['total_value'], reverse=True)[:5]:
             origin_doc = origins_map.get(origin_id, {})
@@ -393,27 +413,29 @@ async def performPrediction(year: int = None):
                 "totalValue": float(data['total_value']),
                 "avgCycleTime": 30
             })
-        
+
         # Monthly forecast
         monthly_forecast = []
         cumulative = 0
-        
+
         for month in range(1, 13):
             month_value = 0
             for pred in predictions:
-                lead = next((l for l in prediction_leads_list if str(l.get('_id')) == pred['id']), None)
+                lead = next((l for l in prediction_leads_list if str(
+                    l.get('_id')) == pred['id']), None)
                 if lead:
                     expected_close = lead.get('data_esperada_fechamento')
                     if expected_close:
                         if isinstance(expected_close, str):
                             try:
-                                expected_close = datetime.fromisoformat(expected_close)
+                                expected_close = datetime.fromisoformat(
+                                    expected_close)
                             except:
                                 continue
-                        
+
                         if expected_close.month == month:
                             month_value += pred['expectedValue']
-            
+
             cumulative += month_value
             monthly_forecast.append({
                 "month": f"{month:02d}",
@@ -421,7 +443,7 @@ async def performPrediction(year: int = None):
                 "predicted": int(month_value),
                 "cumulativeTotal": int(cumulative)
             })
-        
+
         # Return complete result
         return {
             "availableYears": available_years,
@@ -448,7 +470,7 @@ async def performPrediction(year: int = None):
             },
             "monthlyForecast": monthly_forecast
         }
-        
+
     except Exception as e:
         print(f"❌ Prediction error: {str(e)}")
         traceback.print_exc()

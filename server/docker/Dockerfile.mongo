@@ -1,0 +1,7 @@
+FROM mongo:6.0.3
+
+# Copy initialization scripts
+COPY init-mongo.js /docker-entrypoint-initdb.d/
+
+# Ensure permissions
+RUN chmod +x /docker-entrypoint-initdb.d/init-mongo.js

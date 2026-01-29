@@ -1,9 +1,11 @@
-# server/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
 from dotenv import load_dotenv
+
+# Import routers
+from routers import auth, spreadsheet, analytics, gemini
 
 # Load env vars
 load_dotenv()
@@ -41,15 +43,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Import routers AFTER app is created
-from routers import auth, spreadsheet, analytics
-from routers import gemini
+# --- INCLUSÃO DE ROTAS (AQUI ESTÁ A CORREÇÃO) ---
 
-# Include routers AFTER app is created
+# 1. Auth (Geralmente o prefixo já está dentro do arquivo auth.py)
 app.include_router(auth.router)
+
+# 2. Spreadsheet (O prefixo /api/spreadsheet já está dentro do arquivo spreadsheet.py)
 app.include_router(spreadsheet.router)
-app.include_router(analytics.router)
+
+# 3. Analytics (CORREÇÃO DO ERRO 404)
+# Incluímos em DOIS endereços para garantir que o frontend encontre
+# ATENÇÃO: Para isso funcionar, você deve ter removido o prefixo de dentro do arquivo analytics.py
+app.include_router(analytics.router, prefix="/api/analytics") # Caminho padrão
+app.include_router(analytics.router, prefix="/analytics")     # Caminho de compatibilidade
+
+# 4. Gemini IA
 app.include_router(gemini.router)
+
 
 @app.get("/")
 async def root():

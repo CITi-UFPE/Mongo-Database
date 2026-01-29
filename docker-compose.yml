@@ -1,12 +1,8 @@
-version: '3.8'
-
-
 services:
   mdp-client:
     container_name: mdp-client
     restart: unless-stopped
     build:
-      # src must be in context
       context: ./client
       dockerfile: docker/Dockerfile
       args:
@@ -23,13 +19,7 @@ services:
     env_file:
       - ./client/.env
     
-    # nginx ports
-    # either open port or route through traefik
-    # ports:
-    # - '3080:80'
-    # - '3443:443' # must edit nginx.conf
-
-    # handles everything except /api and /public/images
+    # Traefik labels
     labels:
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy'
@@ -47,8 +37,10 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
+    # AQUI ESTÁ A CORREÇÃO MÁGICA:
     depends_on:
-      - mdp-mongo
+      mdp-mongo:
+        condition: service_healthy
     env_file:
       - ./server/.env
     environment:
@@ -61,12 +53,10 @@ services:
       - default
       - internal-client
 
-    # either open port or route through traefik
     ports:
       - '5000:5000'
       
-    # must be exposed through traefik too
-    # handles /api and /public/images
+    # Traefik labels
     labels:
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy'
@@ -76,22 +66,27 @@ services:
       - 'traefik.http.services.mb-server-svc.loadbalancer.server.port=80'
 
   mdp-mongo:
-    image: mongo:6.0.3
+    build:
+      context: ./server/docker
+      dockerfile: Dockerfile.mongo
     container_name: mdp-mongo
     restart: unless-stopped
     ports:
       - '27017:27017'
     environment:
-      # forwarded
-      - MONGO_INITDB_DATABASE
-      - MONGO_INITDB_ROOT_USERNAME
-      - MONGO_INITDB_ROOT_PASSWORD
-    env_file:
-       - ./server/.env
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: senhasegura123
+      MONGO_INITDB_DATABASE: database-comercial
     volumes:
       - ./server/docker/mongo-data:/data/db
     networks:
       - default
+    healthcheck:
+      test: mongosh --eval 'db.adminCommand("ping")' --authenticationDatabase admin -u admin -p senhasegura123 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     
   mongo-express:
     image: mongo-express
@@ -100,7 +95,6 @@ services:
     ports:
       - "8081:8081"
     environment:
-      # direct full connection URL (includes creds + host)
       - ME_CONFIG_MONGODB_URL=mongodb://admin:senhasegura123@mdp-mongo:27017/admin
       - ME_CONFIG_BASICAUTH_USERNAME=admin
       - ME_CONFIG_BASICAUTH_PASSWORD=admin
@@ -110,10 +104,10 @@ services:
       - ME_CONFIG_MONGODB_PORT=27017
       - ME_CONFIG_MONGODB_AUTH_DATABASE=admin
     depends_on:
-      - mdp-mongo
+      mdp-mongo:
+        condition: service_healthy
     networks:
       - default
-
 
 networks:
   default:
