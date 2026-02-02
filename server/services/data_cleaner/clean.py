@@ -37,7 +37,6 @@ def load_data(filepath: str) -> List[Dict]:
         with open(filepath, 'r', encoding='utf-8') as f:
             raw_json = json.load(f)
 
-        # --- LÓGICA DE ADAPTAÇÃO PARA O FORMATO DO SEU COLEGA ---
         # Verifica se o JSON tem a chave "pages_raw" (estrutura nova)
         if isinstance(raw_json, dict) and "pages_raw" in raw_json:
             print(">>> Detectado formato paginado (GraphQL Dump). Extraindo cards...")
@@ -151,8 +150,6 @@ def process_data(raw_data: List[Dict]) -> pd.DataFrame:
     processed_list = []
 
     for item in raw_data:
-        # O item aqui já é o 'node' limpo pelo load_data
-        # Mas mantemos a segurança caso venha aninhado por engano
         node = item.get('node', item)
         fields = node.get('fields', [])
 
