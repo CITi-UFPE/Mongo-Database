@@ -3,12 +3,21 @@ import requests
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+current_dir = os.path.dirname(os.path.abspath(__file__))
+server_dir = os.path.dirname(os.path.dirname(current_dir))
+env_path = os.path.join(server_dir, '.env')
 
+load_dotenv(env_path)
+
+# TOKEN DE VALIDAÇÃO DO PIPEFY
 PIPEFY_URL = "https://api.pipefy.com/graphql"
-
 PIPEFY_TOKEN = os.getenv("PIPEFY_TOKEN")    
 PIPEFY_PIPE_ID = os.getenv("PIPEFY_PIPE_ID")   
+
+# Validação de segurança para não rodar sem token
+if not PIPEFY_TOKEN or not PIPEFY_PIPE_ID:
+    print(f"❌ ERRO: Variáveis não encontradas lendo de: {env_path}")
+    exit() 
 
 QUERY = """
 query ($pipeId: ID!, $first: Int!, $after: String) {

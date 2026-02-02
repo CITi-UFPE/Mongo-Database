@@ -4,15 +4,12 @@ import re
 import pandas as pd
 from typing import List, Dict, Any, Union
 
-# ==========================================
 # CONFIGURAÇÕES E CONSTANTES
-# ==========================================
+
 INPUT_FILE = 'raw_data.json'
 COLUNAS_FINAIS = ["Nome do Cliente", "Valor", "Fase Atual", "Responsável"]
 
-# ==========================================
-# 1. FUNÇÕES AUXILIARES (HELPERS)
-# ==========================================
+# 1. FUNÇÕES
 
 def _limpar_string_pipefy(valor: Any) -> Union[str, Any]:
     """
@@ -37,14 +34,12 @@ def load_data(filepath: str) -> List[Dict]:
         with open(filepath, 'r', encoding='utf-8') as f:
             raw_json = json.load(f)
 
-        # Verifica se o JSON tem a chave "pages_raw" (estrutura nova)
         if isinstance(raw_json, dict) and "pages_raw" in raw_json:
             print(">>> Detectado formato paginado (GraphQL Dump). Extraindo cards...")
             flattened_cards = []
             
-            # Itera sobre cada página baixada
+            # Itera sobre cada página
             for page in raw_json["pages_raw"]:
-                # Caminho: page -> data -> cards -> edges -> node
                 cards_data = page.get("data", {}).get("cards", {})
                 edges = cards_data.get("edges", [])
                 
@@ -54,16 +49,13 @@ def load_data(filepath: str) -> List[Dict]:
             
             return flattened_cards
 
-        # Fallback: Se for uma lista simples (formato antigo), retorna direto
         return raw_json if isinstance(raw_json, list) else [raw_json]
 
     except json.JSONDecodeError:
         print(f"Erro: O arquivo {filepath} não é um JSON válido.")
         return []
 
-# ==========================================
-# 2. LÓGICA DE EXTRAÇÃO (EXTRACTORS)
-# ==========================================
+# 2. LÓGICA DE EXTRAÇÃO
 
 def get_valor_proposta(fields: List[Dict]) -> Any:
     """
@@ -85,13 +77,12 @@ def get_responsavel(node: Dict) -> str:
     """
     fields = node.get('fields', [])
     
-    # 1. Tenta buscar no campo do formulário
     for field in fields:
         if "responsável" in field.get('name', '').lower():
             valor = field.get('value')
             return _limpar_string_pipefy(valor)
             
-    # 2. Fallback: Busca nos 'assignees' (metadados do card)
+    # Fallback: Busca nos 'assignees' (metadados do card)
     assignees = node.get('assignees', [])
     if assignees:
         # Junta nomes por vírgula se houver mais de um
@@ -99,9 +90,7 @@ def get_responsavel(node: Dict) -> str:
         
     return "Não informado"
 
-# ==========================================
-# 3. REGRAS DE NEGÓCIO (TRANSFORMERS)
-# ==========================================
+# 3. REGRAS DE NEGÓCIO 
 
 def smart_currency_clean(val: Any) -> float:
     """
@@ -139,9 +128,7 @@ def smart_currency_clean(val: Any) -> float:
     except ValueError:
         return 0.0
 
-# ==========================================
 # 4. ORQUESTRAÇÃO PRINCIPAL (PIPELINE)
-# ==========================================
 
 def process_data(raw_data: List[Dict]) -> pd.DataFrame:
     """
@@ -172,7 +159,7 @@ def process_data(raw_data: List[Dict]) -> pd.DataFrame:
     return pd.DataFrame(processed_list)
 
 def main():
-    # 1. Leitura (Com o novo adaptador para o JSON do colega)
+    # 1. Leitura
     raw_data = load_data(INPUT_FILE)
     
     if not raw_data: 
