@@ -1,13 +1,31 @@
 import json
 import os
 import re
+import sys
 import pandas as pd
 from typing import List, Dict, Any, Union
+from dotenv import load_dotenv
+
+# ACHAR O CAMINHO DO ENV
+current_dir = os.path.dirname(os.path.abspath(__file__))
+server_dir = os.path.dirname(os.path.dirname(current_dir))
+sys.path.append(server_dir)
+env_path = os.path.join(server_dir, '.env')
+load_dotenv(env_path)
+
+# IMPORTAR SINGLETON DO BANCO
+try:
+    from services.db import db_client
+    print("Conexão com o Banco de Dados estabelecida")
+except ImportError as e:
+    print("Erro ao importar o módulo de banco de dados")
+    print(str(e))
+
 
 # CONFIGURAÇÕES E CONSTANTES
 
-INPUT_FILE = 'raw_data.json'
-OUTPUT_FILE = 'clean_data.json'
+INPUT_FILE = os.path.join(current_dir, 'raw_data.json')
+OUTPUT_FILE = os.path.join(current_dir,'clean_data.json')
 COLUNAS_FINAIS = ["Pipefy_ID", "Nome do Cliente", "Valor", "Fase Atual", "Responsável"]
 
 # 1. FUNÇÕES
