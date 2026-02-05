@@ -5,6 +5,7 @@ import sys
 import pandas as pd
 from typing import List, Dict, Any, Union
 from dotenv import load_dotenv
+from pymongo import MongoClient
 
 # ACHAR O CAMINHO DO ENV
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -178,12 +179,89 @@ def process_data(raw_data: List[Dict]) -> pd.DataFrame:
 
     return pd.DataFrame(processed_list)
 
+
+def save_to_mongodb(data_list: List[Dict]):
+    """
+    Salva a lista de dicionários no MongoDB
+    """
+    try:
+        leads_col = db_client.get_collection('leads')
+
+        if leads_col is None:
+            raise Exception("Coleção 'leads' não encontrada no banco de dados.")
+        
+        count_before = leads_col.count_documents({})
+
+    except Exception as e:
+        print("Erro de conexão")
+        print(str(e))
+        return
+    
+    updates = 0
+    inserts = 0
+
+    for item in data_list:
+        pip_id = item.get("Pipefy_ID")
+        if not pip_id:
+            continue
+
+        payload = {
+            "Pipefy_ID": pip_id,
+            "nome_cliente": item["Nome do Cliente"],
+            "valor": item["Valor"],
+            "fase": item["Fase Atual"],
+            "responsavel": item["Responsável"]
+        }
+
+        # UPSERT
+        result = leads_col.update_one(
+            {"Pipefy_ID": pip_id}, 
+            {"$set": payload}, 
+            upsert=True
+        )
+
+        if result.upserted_id:
+            inserts += 1
+        elif result.modified_count > 0:
+            updates += 1
+
+    count_after = leads_col.count_documents({})
+
+    print(f"Sincronização concluída:")
+    print(f" - Documentos criados: {inserts}")
+    print(f" - Documentos atualizados: {updates}")
+
+    if count_after == count_before and inserts == 0:
+        print("   ✨ IDEMPOTÊNCIA COMPROVADA: Nenhuma duplicata criada.")
+
+
+def conectar_banco_local():
+    """
+    Força uma conexão manual com o localhost e injeta no Singleton.
+    """
+    print("\n🔌 Configurando conexão Local...")
+    try:
+        
+        uri = os.getenv("MONGO_URI_DEV") 
+        
+        client = MongoClient(uri, serverSelectionTimeoutMS=2000)
+        client.admin.command('ping')
+        
+        db_client.client = client
+        db_client.db = client['database-comercial']
+        
+        print("✅ Conexão Local injetada com sucesso!")
+        return True
+    except Exception as e:
+        print(f"❌ Falha na conexão local: {e}")
+        return False
+    
+
 def main():
     raw_data = load_data(INPUT_FILE)
     if not raw_data: return
 
     df = process_data(raw_data)
-
     result = df[COLUNAS_FINAIS].to_dict(orient='records')  
     
     if os.path.exists(OUTPUT_FILE):
@@ -193,6 +271,17 @@ def main():
 
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
         json.dump(result, f, indent=4, ensure_ascii=False)
+
+
+    # LÓGICA DE BANCO DE DADOS LOCAL
+    # Descomente essas duas linhas abaixo para testar a conexão local e salvar no MongoDB
+    # e comente a linha original de save_to_mongodb(result)
+    # if conectar_banco_local():
+    #     save_to_mongodb(result)
+
+    # LÓGICA DE BANCO DE DADOS ORIGINAL
+    # Linha abaixo para salvar no MongoDB conforme configuração original
+    save_to_mongodb(result)
 
     print(json.dumps(result, indent=4, ensure_ascii=False))
 
