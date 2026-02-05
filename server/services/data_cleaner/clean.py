@@ -7,7 +7,8 @@ from typing import List, Dict, Any, Union
 # CONFIGURAÇÕES E CONSTANTES
 
 INPUT_FILE = 'raw_data.json'
-COLUNAS_FINAIS = ["Nome do Cliente", "Valor", "Fase Atual", "Responsável"]
+OUTPUT_FILE = 'clean_data.json'
+COLUNAS_FINAIS = ["Pipefy_ID", "Nome do Cliente", "Valor", "Fase Atual", "Responsável"]
 
 # 1. FUNÇÕES
 
@@ -35,7 +36,6 @@ def load_data(filepath: str) -> List[Dict]:
             raw_json = json.load(f)
 
         if isinstance(raw_json, dict) and "pages_raw" in raw_json:
-            print(">>> Detectado formato paginado (GraphQL Dump). Extraindo cards...")
             flattened_cards = []
             
             # Itera sobre cada página
@@ -141,6 +141,7 @@ def process_data(raw_data: List[Dict]) -> pd.DataFrame:
         fields = node.get('fields', [])
 
         # Extração dos campos
+        pipe_id = node.get('id')
         nome = node.get('title')
         fase = node.get('current_phase', {}).get('name')
         resp = get_responsavel(node)
@@ -150,6 +151,7 @@ def process_data(raw_data: List[Dict]) -> pd.DataFrame:
         val_float = smart_currency_clean(raw_val)
 
         processed_list.append({
+            "Pipefy_ID": pipe_id,
             "Nome do Cliente": nome,
             "Valor": val_float,
             "Fase Atual": fase,
@@ -159,19 +161,26 @@ def process_data(raw_data: List[Dict]) -> pd.DataFrame:
     return pd.DataFrame(processed_list)
 
 def main():
-    # 1. Leitura
     raw_data = load_data(INPUT_FILE)
+    if not raw_data: return
+
+    df = process_data(raw_data)
+
+    result = df[COLUNAS_FINAIS].to_dict(orient='records')  
     
+    if os.path.exists(OUTPUT_FILE):
+        print(f"Aviso: O arquivo {OUTPUT_FILE} já existe e será sobrescrito.")
+    else:
+        print(f"Criando arquivo: {OUTPUT_FILE}")
+
+    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+        json.dump(result, f, indent=4, ensure_ascii=False)
+
+    print(json.dumps(result, indent=4, ensure_ascii=False))
+
     if not raw_data: 
         print("Nenhum dado encontrado para processar.")
         return
-
-    # 2. Processamento
-    df = process_data(raw_data)
-    
-    # 3. Output (JSON Limpo)
-    result = df[COLUNAS_FINAIS].to_dict(orient='records')
-    print(json.dumps(result, indent=4, ensure_ascii=False))
 
 if __name__ == "__main__":
     main()
