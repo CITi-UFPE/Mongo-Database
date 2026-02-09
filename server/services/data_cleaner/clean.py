@@ -6,6 +6,7 @@ import pandas as pd
 from typing import List, Dict, Any, Union
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from datetime import datetime
 
 # ACHAR O CAMINHO DO ENV
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,7 +28,20 @@ except ImportError as e:
 
 INPUT_FILE = os.path.join(current_dir, 'raw_data.json')
 OUTPUT_FILE = os.path.join(current_dir,'clean_data.json')
-COLUNAS_FINAIS = ["Pipefy_ID", "Nome do Cliente", "Valor", "Fase Atual", "Responsável"]
+COLUNAS_FINAIS = ["Pipefy_ID", 
+                  "Nome do Cliente", 
+                  "Valor", 
+                  "Fase Atual", 
+                  "Responsável",
+                  "Budget Estimado",
+                  "Autoridade",
+                  "Motivo da Perda",
+                  "Origem do Lead",
+                  "Prazo",
+                  "Data de Qualificação",
+                  "Data de Diagnóstico",
+                  "Data de Proposta",
+                  ]
 
 # 1. FUNÇÕES
 
@@ -89,6 +103,20 @@ def get_valor_proposta(fields: List[Dict]) -> Any:
             
     return None
 
+def get_campo_texto(fields: List[Dict], nome_busca: str) -> str:
+    """
+    Função Genérica: Busca um campo pelo nome exato e retorna o texto limpo.
+    Se não encontrar, retorna None (para o Banco não gravar lixo).
+    """
+    for field in fields:
+        nome_real = field.get('name', '')
+        
+        if nome_busca.lower() == nome_real.lower():
+            valor = field.get('value')
+            return _limpar_string_pipefy(valor)
+            
+    return None
+
 def get_responsavel(node: Dict) -> str:
     """
     Define o responsável pelo card.
@@ -108,6 +136,31 @@ def get_responsavel(node: Dict) -> str:
         return ", ".join([p.get('name', '') for p in assignees])
         
     return "Não informado"
+
+def clean_date_br(date_str: Any) -> Union[str, None]:
+    """
+    Converte datas do formato BR (DD/MM/YYYY) para ISO (YYYY-MM-DD).
+    Ex: "25/11/2025" -> "2025-11-25"
+    """
+    if not date_str or not isinstance(date_str, str):
+        return None
+    
+    date_str = date_str.strip()
+    try:
+        dt_obj = datetime.strptime(date_str, "%d/%m/%Y")
+        return dt_obj.strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+def clean_date_iso(date_str: Any) -> Union[str, None]:
+    """
+    Pega apenas a parte da data de uma string ISO 8601.
+    Ex: "2025-12-23T17:21:09Z" -> "2025-12-23"
+    """
+    if not date_str or not isinstance(date_str, str):
+        return None
+    
+    return date_str[:10]
 
 # 3. REGRAS DE NEGÓCIO 
 
@@ -159,22 +212,43 @@ def process_data(raw_data: List[Dict]) -> pd.DataFrame:
         node = item.get('node', item)
         fields = node.get('fields', [])
 
-        # Extração dos campos
         pipe_id = node.get('id')
         nome = node.get('title')
         fase = node.get('current_phase', {}).get('name')
         resp = get_responsavel(node)
-        
-        # Extração e Tratamento Financeiro
+
         raw_val = get_valor_proposta(fields)
         val_float = smart_currency_clean(raw_val)
+
+        budget = get_campo_texto(fields, "[BANT] Budget Estimado")
+        autoridade = get_campo_texto(fields, "[BANT] Autoridade")
+        motivo = get_campo_texto(fields, "Motivo da perda")
+        origem = get_campo_texto(fields, "Fonte do lead")
+        prazo = get_campo_texto(fields, "[BANT] Prazo")
+
+        dt_criacao_raw = node.get('created_at')
+        data_qualificacao = clean_date_iso(dt_criacao_raw)
+
+        dt_diag_raw = get_campo_texto(fields, "Data do diagnóstico")
+        data_diagnostico = clean_date_br(dt_diag_raw)
+
+        dt_prop_raw = get_campo_texto(fields, "Data de apresentação de proposta")
+        data_proposta = clean_date_br(dt_prop_raw)
 
         processed_list.append({
             "Pipefy_ID": pipe_id,
             "Nome do Cliente": nome,
             "Valor": val_float,
             "Fase Atual": fase,
-            "Responsável": resp
+            "Responsável": resp,
+            "Budget Estimado": budget,
+            "Autoridade": autoridade,
+            "Motivo da Perda": motivo,
+            "Origem do Lead": origem,
+            "Prazo": prazo,
+            "Data de Qualificação": data_qualificacao,
+            "Data de Diagnóstico": data_diagnostico,
+            "Data de Proposta": data_proposta,
         })
 
     return pd.DataFrame(processed_list)
@@ -210,7 +284,15 @@ def save_to_mongodb(data_list: List[Dict]):
             "nome_cliente": item["Nome do Cliente"],
             "valor": item["Valor"],
             "fase": item["Fase Atual"],
-            "responsavel": item["Responsável"]
+            "responsavel": item["Responsável"],
+            "budget_estimado": item.get("Budget Estimado"),
+            "autoridade": item.get("Autoridade"),
+            "motivo_perda": item.get("Motivo da Perda"),
+            "origem_lead": item.get("Origem do Lead"),
+            "prazo": item.get("Prazo"),
+            "data_qualificacao": item.get("Data de Qualificação"),
+            "data_diagnostico": item.get("Data de Diagnóstico"),
+            "data_proposta": item.get("Data de Proposta")
         }
 
         # UPSERT
