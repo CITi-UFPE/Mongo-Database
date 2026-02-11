@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from server.services.integration import sync_pipefy
+from services.integration import sync_pipefy
 
 router = APIRouter(prefix="/api/integrations", tags=["Integrations"])
 

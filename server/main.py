@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from server.routers.pipefy_service import router as integrations_router
-from server.services.integration import sync_pipefy
+from routers.pipefy_service import router as integrations_router
 from services.db import db_client
 from contextlib import asynccontextmanager
 import os
@@ -17,14 +16,7 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Starting server...")
-
-    try:
-        print("🔄 Running Pipefy sync...")
-        result = sync_pipefy(first=50)
-        print("✅ Sync done:", result)
-    except Exception as e:
-        print("⚠️ Sync failed but server will continue:", e)
-
+    db_client.connect()
     yield
 
     print("🛑 Shutting down...")
