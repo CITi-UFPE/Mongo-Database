@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from services.data_cleaner.extract import fetch_pipefy_raw_output 
+from server.services.pipefy_service import fetch_pipefy_raw_output 
 from services.data_cleaner.clean import clean_pipefy_payload, save_to_mongodb  
 
 

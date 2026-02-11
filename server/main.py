@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers.data_cleaner.extract import router as integrations_router
-from services.data_cleaner.integration import sync_pipefy
+from server.routers.pipefy_service import router as integrations_router
+from server.services.integration import sync_pipefy
 from services.db import db_client
 from contextlib import asynccontextmanager
 import os
