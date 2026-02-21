@@ -2,29 +2,19 @@ import json
 import os
 import re
 import sys
-import pandas as pd
 from typing import List, Dict, Any, Union
-from dotenv import load_dotenv
-from pymongo import MongoClient
 from datetime import datetime
 
-# ACHAR O CAMINHO DO ENV
+
+# -----------------------------------------------------------------------------
+# Configuração de caminhos
+# -----------------------------------------------------------------------------
+from dotenv import load_dotenv
+from pymongo import MongoClient
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 server_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(server_dir)
-env_path = os.path.join(server_dir, '.env')
-load_dotenv(env_path)
-
-# IMPORTAR SINGLETON DO BANCO
-try:
-    from services.db import db_client
-    print("Conexão com o Banco de Dados estabelecida")
-except ImportError as e:
-    print("Erro ao importar o módulo de banco de dados")
-    print(str(e))
-
-
-# CONFIGURAÇÕES E CONSTANTES
 
 INPUT_FILE = os.path.join(current_dir, 'raw_data.json')
 OUTPUT_FILE = os.path.join(current_dir,'clean_data.json')
@@ -43,43 +33,55 @@ COLUNAS_FINAIS = ["Pipefy_ID",
                   "Data de Proposta",
                   ]
 
-# 1. FUNÇÕES
+
+# -----------------------------------------------------------------------------
+# Utilitários de string (Pipefy)
+# -----------------------------------------------------------------------------
 
 def _limpar_string_pipefy(valor: Any) -> Union[str, Any]:
     """
-    Remove artefatos de lista stringuificada do Pipefy.
-    Ex: '["Texto"]' -> 'Texto'
+    Remove artefatos de lista stringificada do Pipefy.
+
+    O Pipefy às vezes retorna campos como string de lista, ex: '["Texto"]'.
+    Esta função extrai o valor útil e remove aspas/barras.
     """
     if isinstance(valor, str) and valor.startswith('["'):
         return valor.replace('["', '').replace('"]', '').replace('"', '').replace('\\', '')
     return valor
 
+
+# -----------------------------------------------------------------------------
+# Carregamento de dados
+# -----------------------------------------------------------------------------
+
 def load_data(filepath: str) -> List[Dict]:
     """
-    ADAPTADOR: Carrega o JSON complexo gerado pelo script do colega
-    e transforma em uma lista simples de cards (nodes) para o processamento.
+    Carrega o JSON gerado pelo extract e transforma em uma lista simples de cards.
+
+    Se o JSON tiver estrutura com "pages_raw", extrai os nodes de cada página
+    e retorna uma lista plana. Caso contrário, assume que já é uma lista de cards.
     """
     if not os.path.exists(filepath):
         print(f"Aviso: Arquivo {filepath} não encontrado.")
         return []
 
     print(f"--- Lendo arquivo: {filepath} ---")
+
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             raw_json = json.load(f)
 
         if isinstance(raw_json, dict) and "pages_raw" in raw_json:
             flattened_cards = []
-            
-            # Itera sobre cada página
+
             for page in raw_json["pages_raw"]:
                 cards_data = page.get("data", {}).get("cards", {})
                 edges = cards_data.get("edges", [])
-                
+
                 for edge in edges:
                     if "node" in edge:
                         flattened_cards.append(edge["node"])
-            
+
             return flattened_cards
 
         return raw_json if isinstance(raw_json, list) else [raw_json]
@@ -88,19 +90,20 @@ def load_data(filepath: str) -> List[Dict]:
         print(f"Erro: O arquivo {filepath} não é um JSON válido.")
         return []
 
-# 2. LÓGICA DE EXTRAÇÃO
 
-def get_valor_proposta(fields: List[Dict]) -> Any:
+# -----------------------------------------------------------------------------
+# Extração de campos dos nodes (cards)
+# -----------------------------------------------------------------------------
+
+def get_campo_texto(fields: List[Dict], nome_busca: str) -> str:
     """
-    Busca ESTRITAMENTE o campo 'Valor da proposta' na lista de campos.
+    Busca um campo pelo nome (case-insensitive) e retorna o valor limpo.
+
+    Retorna None se o campo não existir.
     """
     for field in fields:
-        nome_campo = field.get('name', '').lower()
-        
-        if "valor da proposta" in nome_campo:
-            valor = field.get('value')
-            return _limpar_string_pipefy(valor)
-            
+        if nome_busca.lower() == field.get('name', '').lower():
+            return _limpar_string_pipefy(field.get('value'))
     return None
 
 def get_campo_texto(fields: List[Dict], nome_busca: str) -> str:
@@ -119,22 +122,19 @@ def get_campo_texto(fields: List[Dict], nome_busca: str) -> str:
 
 def get_responsavel(node: Dict) -> str:
     """
-    Define o responsável pelo card.
-    Prioridade: 1. Campo 'Responsável' | 2. Assignees (Donos do card no Pipefy).
+    Obtém o responsável pelo card: primeiro tenta o campo "responsável",
+    depois a lista de assignees. Retorna "Não informado" se ausente.
     """
     fields = node.get('fields', [])
-    
+
     for field in fields:
         if "responsável" in field.get('name', '').lower():
-            valor = field.get('value')
-            return _limpar_string_pipefy(valor)
-            
-    # Fallback: Busca nos 'assignees' (metadados do card)
+            return _limpar_string_pipefy(field.get('value'))
+
     assignees = node.get('assignees', [])
     if assignees:
-        # Junta nomes por vírgula se houver mais de um
         return ", ".join([p.get('name', '') for p in assignees])
-        
+
     return "Não informado"
 
 def clean_date_br(date_str: Any) -> Union[str, None]:
@@ -166,45 +166,60 @@ def clean_date_iso(date_str: Any) -> Union[str, None]:
 
 def smart_currency_clean(val: Any) -> float:
     """
-    Limpeza Financeira Inteligente (BR/US).
+    Converte string de moeda (BR ou US) em float.
+
+    - Ignora textos como "sem estimativa", "null", etc. (retorna 0.0).
+    - Detecta formato: vírgula como decimal (BR) ou separador de milhar (US).
+    - Valores negativos são corrigidos para 0.0 (regra de negócio).
     """
-    if not val: return 0.0
-    val_str = str(val)
-    
-    termos_nulos = ['sem', 'estimativa', 'null', 'none']
-    if any(termo in val_str.lower() for termo in termos_nulos):
+    if not val:
         return 0.0
 
-    clean = re.sub(r'[^\d.,]', '', val_str)
-    if not clean: return 0.0
+    val_str = str(val)
 
-    # Lógica de Detecção de Formato
+    if any(x in val_str.lower() for x in ['sem', 'estimativa', 'null', 'none']):
+        return 0.0
+
+    clean = re.sub(r'[^\d.,-]', '', val_str)
+    if not clean:
+        return 0.0
+
+    # Detecção de formato: BR (1.234,56) vs US (1,234.56)
     if '.' in clean and ',' in clean:
         if clean.find(',') < clean.find('.'):
-            clean = clean.replace(',', '') # US
+            clean = clean.replace(',', '')
         else:
-            clean = clean.replace('.', '').replace(',', '.') # BR
+            clean = clean.replace('.', '').replace(',', '.')
     elif ',' in clean:
         parts = clean.split(',')
         if len(parts) > 1 and len(parts[-1]) == 3:
-            clean = clean.replace(',', '') # Milhar US
+            clean = clean.replace(',', '')
         else:
-            clean = clean.replace(',', '.') # Decimal BR
+            clean = clean.replace(',', '.')
     elif '.' in clean:
         parts = clean.split('.')
         if len(parts) > 1 and len(parts[-1]) == 3:
-             clean = clean.replace('.', '') # Milhar BR
+            clean = clean.replace('.', '')
 
     try:
-        return float(clean)
+        final_val = float(clean)
+        if final_val < 0:
+            return 0.0
+        return final_val
     except ValueError:
         return 0.0
 
-# 4. ORQUESTRAÇÃO PRINCIPAL (PIPELINE)
 
-def process_data(raw_data: List[Dict]) -> pd.DataFrame:
+# -----------------------------------------------------------------------------
+# Pipeline principal: raw cards -> lista de dicionários limpos
+# -----------------------------------------------------------------------------
+
+def process_data(raw_data: List[Dict]) -> List[Dict]:
     """
-    Processa a lista de cards (nodes) extraída.
+    Processa a lista de cards brutos e retorna uma lista de dicionários normalizados.
+
+    Cada item de saída contém: identificadores Pipefy, dados do cliente,
+    fase, responsável, valor, serviços, campos BANT e datas padronizadas.
     """
     processed_list = []
 
@@ -251,7 +266,7 @@ def process_data(raw_data: List[Dict]) -> pd.DataFrame:
             "Data de Proposta": data_proposta,
         })
 
-    return pd.DataFrame(processed_list)
+    return processed_list
 
 
 def save_to_mongodb(data_list: List[Dict]):
@@ -340,36 +355,28 @@ def conectar_banco_local():
     
 
 def main():
+    """Carrega dados do arquivo, processa, exibe auditoria e persiste no MongoDB."""
     raw_data = load_data(INPUT_FILE)
-    if not raw_data: return
 
-    df = process_data(raw_data)
-    result = df[COLUNAS_FINAIS].to_dict(orient='records')  
-    
-    if os.path.exists(OUTPUT_FILE):
-        print(f"Aviso: O arquivo {OUTPUT_FILE} já existe e será sobrescrito.")
-    else:
-        print(f"Criando arquivo: {OUTPUT_FILE}")
-
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        json.dump(result, f, indent=4, ensure_ascii=False)
-
-
-    # LÓGICA DE BANCO DE DADOS LOCAL
-    # Descomente essas duas linhas abaixo para testar a conexão local e salvar no MongoDB
-    # e comente a linha original de save_to_mongodb(result)
-    # if conectar_banco_local():
-    #     save_to_mongodb(result)
-
-    # LÓGICA DE BANCO DE DADOS ORIGINAL
-    # Linha abaixo para salvar no MongoDB conforme configuração original
-    save_to_mongodb(result)
-
-    print(json.dumps(result, indent=4, ensure_ascii=False))
-
-    if not raw_data: 
-        print("Nenhum dado encontrado para processar.")
+    if not raw_data:
+        print("Nenhum dado para processar.")
         return
+
+    clean_data = process_data(raw_data)
+
+    print("\nAuditoria de Dados:")
+    print(json.dumps(clean_data[:2], indent=2, ensure_ascii=False))
+
+    try:
+        sys.path.append(os.path.join(server_dir, 'services'))
+        from services.db_loader import save_to_mongodb
+
+        save_to_mongodb(clean_data)
+    except ImportError as e:
+        print(f"❌ Erro de importação: {e}. Verifique o caminho dos arquivos.")
+    except Exception as e:
+        print(f"❌ Erro crítico ao salvar: {e}")
+
 
 if __name__ == "__main__":
     main()
