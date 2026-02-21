@@ -9,12 +9,29 @@ from datetime import datetime
 # -----------------------------------------------------------------------------
 # Configuração de caminhos
 # -----------------------------------------------------------------------------
+from dotenv import load_dotenv
+from pymongo import MongoClient
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 server_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(server_dir)
 
 INPUT_FILE = os.path.join(current_dir, 'raw_data.json')
+OUTPUT_FILE = os.path.join(current_dir,'clean_data.json')
+COLUNAS_FINAIS = ["Pipefy_ID", 
+                  "Nome do Cliente", 
+                  "Valor", 
+                  "Fase Atual", 
+                  "Responsável",
+                  "Budget Estimado",
+                  "Autoridade",
+                  "Motivo da Perda",
+                  "Origem do Lead",
+                  "Prazo",
+                  "Data de Qualificação",
+                  "Data de Diagnóstico",
+                  "Data de Proposta",
+                  ]
 
 
 # -----------------------------------------------------------------------------
@@ -89,6 +106,19 @@ def get_campo_texto(fields: List[Dict], nome_busca: str) -> str:
             return _limpar_string_pipefy(field.get('value'))
     return None
 
+def get_campo_texto(fields: List[Dict], nome_busca: str) -> str:
+    """
+    Função Genérica: Busca um campo pelo nome exato e retorna o texto limpo.
+    Se não encontrar, retorna None (para o Banco não gravar lixo).
+    """
+    for field in fields:
+        nome_real = field.get('name', '')
+        
+        if nome_busca.lower() == nome_real.lower():
+            valor = field.get('value')
+            return _limpar_string_pipefy(valor)
+            
+    return None
 
 def get_responsavel(node: Dict) -> str:
     """
@@ -107,47 +137,32 @@ def get_responsavel(node: Dict) -> str:
 
     return "Não informado"
 
-
-def get_valor_proposta(fields: List[Dict]) -> Any:
-    """Retorna o valor do campo 'Valor da proposta', já limpo para uso em moeda."""
-    for field in fields:
-        if "valor da proposta" in field.get('name', '').lower():
-            return _limpar_string_pipefy(field.get('value'))
-    return None
-
-
-# -----------------------------------------------------------------------------
-# Normalização de datas
-# -----------------------------------------------------------------------------
-
 def clean_date_br(date_str: Any) -> Union[str, None]:
     """
-    Converte data no formato brasileiro (dd/mm/yyyy) para ISO (yyyy-mm-dd).
-
-    Retorna None se o valor for inválido ou vazio.
+    Converte datas do formato BR (DD/MM/YYYY) para ISO (YYYY-MM-DD).
+    Ex: "25/11/2025" -> "2025-11-25"
     """
     if not date_str or not isinstance(date_str, str):
         return None
+    
+    date_str = date_str.strip()
     try:
-        return datetime.strptime(date_str.strip(), "%d/%m/%Y").strftime("%Y-%m-%d")
+        dt_obj = datetime.strptime(date_str, "%d/%m/%Y")
+        return dt_obj.strftime("%Y-%m-%d")
     except ValueError:
         return None
 
-
 def clean_date_iso(date_str: Any) -> Union[str, None]:
     """
-    Aceita data já em ISO e retorna apenas a parte da data (yyyy-mm-dd).
-
-    Útil para campos como created_at que vêm com timestamp.
+    Pega apenas a parte da data de uma string ISO 8601.
+    Ex: "2025-12-23T17:21:09Z" -> "2025-12-23"
     """
     if not date_str or not isinstance(date_str, str):
         return None
+    
     return date_str[:10]
 
-
-# -----------------------------------------------------------------------------
-# Normalização de valores monetários
-# -----------------------------------------------------------------------------
+# 3. REGRAS DE NEGÓCIO 
 
 def smart_currency_clean(val: Any) -> float:
     """
@@ -212,33 +227,132 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
         node = item.get('node', item)
         fields = node.get('fields', [])
 
+        pipe_id = node.get('id')
+        nome = node.get('title')
+        fase = node.get('current_phase', {}).get('name')
+        resp = get_responsavel(node)
+
+        raw_val = get_valor_proposta(fields)
+        val_float = smart_currency_clean(raw_val)
+
+        budget = get_campo_texto(fields, "[BANT] Budget Estimado")
+        autoridade = get_campo_texto(fields, "[BANT] Autoridade")
+        motivo = get_campo_texto(fields, "Motivo da perda")
+        origem = get_campo_texto(fields, "Fonte do lead")
+        prazo = get_campo_texto(fields, "[BANT] Prazo")
+
+        dt_criacao_raw = node.get('created_at')
+        data_qualificacao = clean_date_iso(dt_criacao_raw)
+
+        dt_diag_raw = get_campo_texto(fields, "Data do diagnóstico")
+        data_diagnostico = clean_date_br(dt_diag_raw)
+
+        dt_prop_raw = get_campo_texto(fields, "Data de apresentação de proposta")
+        data_proposta = clean_date_br(dt_prop_raw)
+
         processed_list.append({
-            "Pipefy_ID": node.get('id'),
-            "Nome do Cliente": node.get('title'),
-            "Fase Atual": node.get('current_phase', {}).get('name'),
-            "Responsável": get_responsavel(node),
-            "Valor": smart_currency_clean(get_valor_proposta(fields)),
-            "Serviços": get_campo_texto(fields, "Serviço de interesse"),
-
-            # Campos BANT (qualificação de lead)
-            "Budget Estimado": get_campo_texto(fields, "[BANT] Budget Estimado"),
-            "Autoridade": get_campo_texto(fields, "[BANT] Autoridade"),
-            "Motivo da Perda": get_campo_texto(fields, "Motivo da perda"),
-            "Origem do Lead": get_campo_texto(fields, "Fonte do lead"),
-            "Prazo": get_campo_texto(fields, "[BANT] Prazo"),
-
-            # Datas (todas em yyyy-mm-dd)
-            "Data de Qualificação": clean_date_iso(node.get('created_at')),
-            "Data de Diagnóstico": clean_date_br(get_campo_texto(fields, "Data do diagnóstico")),
-            "Data de Proposta": clean_date_br(get_campo_texto(fields, "Data de apresentação de proposta"))
+            "Pipefy_ID": pipe_id,
+            "Nome do Cliente": nome,
+            "Valor": val_float,
+            "Fase Atual": fase,
+            "Responsável": resp,
+            "Budget Estimado": budget,
+            "Autoridade": autoridade,
+            "Motivo da Perda": motivo,
+            "Origem do Lead": origem,
+            "Prazo": prazo,
+            "Data de Qualificação": data_qualificacao,
+            "Data de Diagnóstico": data_diagnostico,
+            "Data de Proposta": data_proposta,
         })
 
     return processed_list
 
 
-# -----------------------------------------------------------------------------
-# Ponto de entrada
-# -----------------------------------------------------------------------------
+def save_to_mongodb(data_list: List[Dict]):
+    """
+    Salva a lista de dicionários no MongoDB
+    """
+    try:
+        leads_col = db_client.get_collection('leads')
+
+        if leads_col is None:
+            raise Exception("Coleção 'leads' não encontrada no banco de dados.")
+        
+        count_before = leads_col.count_documents({})
+
+    except Exception as e:
+        print("Erro de conexão")
+        print(str(e))
+        return
+    
+    updates = 0
+    inserts = 0
+
+    for item in data_list:
+        pip_id = item.get("Pipefy_ID")
+        if not pip_id:
+            continue
+
+        payload = {
+            "Pipefy_ID": pip_id,
+            "nome_cliente": item["Nome do Cliente"],
+            "valor": item["Valor"],
+            "fase": item["Fase Atual"],
+            "responsavel": item["Responsável"],
+            "budget_estimado": item.get("Budget Estimado"),
+            "autoridade": item.get("Autoridade"),
+            "motivo_perda": item.get("Motivo da Perda"),
+            "origem_lead": item.get("Origem do Lead"),
+            "prazo": item.get("Prazo"),
+            "data_qualificacao": item.get("Data de Qualificação"),
+            "data_diagnostico": item.get("Data de Diagnóstico"),
+            "data_proposta": item.get("Data de Proposta")
+        }
+
+        # UPSERT
+        result = leads_col.update_one(
+            {"Pipefy_ID": pip_id}, 
+            {"$set": payload}, 
+            upsert=True
+        )
+
+        if result.upserted_id:
+            inserts += 1
+        elif result.modified_count > 0:
+            updates += 1
+
+    count_after = leads_col.count_documents({})
+
+    print(f"Sincronização concluída:")
+    print(f" - Documentos criados: {inserts}")
+    print(f" - Documentos atualizados: {updates}")
+
+    if count_after == count_before and inserts == 0:
+        print("   ✨ IDEMPOTÊNCIA COMPROVADA: Nenhuma duplicata criada.")
+
+
+def conectar_banco_local():
+    """
+    Força uma conexão manual com o localhost e injeta no Singleton.
+    """
+    print("\n🔌 Configurando conexão Local...")
+    try:
+        
+        uri = os.getenv("MONGO_URI_DEV") 
+        
+        client = MongoClient(uri, serverSelectionTimeoutMS=2000)
+        client.admin.command('ping')
+        
+        db_client.client = client
+        db_client.db = client['database-comercial']
+        
+        print("✅ Conexão Local injetada com sucesso!")
+        return True
+    except Exception as e:
+        print(f"❌ Falha na conexão local: {e}")
+        return False
+    
 
 def main():
     """Carrega dados do arquivo, processa, exibe auditoria e persiste no MongoDB."""
