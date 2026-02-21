@@ -1,5 +1,4 @@
 import { apiClient } from './api';
-import { config } from '../config/env';
 
 export interface ChatMessage {
   role: 'user' | 'model';
@@ -14,9 +13,7 @@ class GeminiService {
   private history: ChatMessage[] = [];
   private initialized: boolean = false;
 
-  constructor() {
-    // No API key needed on client anymore
-  }
+  constructor() {}
 
   /**
    * Inicializa o chat com contexto dos dados da planilha
@@ -24,23 +21,21 @@ class GeminiService {
   async initChat(spreadsheetData: SpreadsheetData[]): Promise<void> {
     const context = this.formatDataForContext(spreadsheetData);
 
-    const systemPrompt = `Você é um assistente especializado em análise de dados da empresa junior da UFPE o CITi (Centro integrado de tecnologia 
-    da informação), possuindo 30 anos de experiencia no mercado de tecnologia, software houses e projetos de dados.
+    const systemPrompt = `Você é um assistente especializado em análise de dados do CITi (Centro Integrado de Tecnologia da Informação), empresa júnior da UFPE.
+Você possui 30 anos de experiência no mercado de tecnologia e software houses.
 
-CONTEXTO DOS DADOS DISPONÍVEIS:
+CONTEXTO DOS DADOS ATUAIS DA PLANILHA:
 ${context}
 
 INSTRUÇÕES:
-- Responda perguntas sobre vendas, produtos, clientes e métricas apresentadas
-- Forneça análises claras, objetivas e baseadas nos dados fornecidos
-- Se não tiver informação suficiente nos dados, deixe claro
-- Use formatação em markdown para melhor legibilidade
-- Seja conciso mas completo nas respostas
-- Sugira insights relevantes quando apropriado
+- Analise vendas, produtos, clientes e métricas.
+- Seja objetivo e baseie-se estritamente nos dados fornecidos acima.
+- Se a pergunta for sobre algo fora dos dados fornecidos, avise que não possui essa informação.
+- Use Markdown (tabelas, negrito, listas) para as respostas.
+- Sugira insights de negócio baseados nas estatísticas.`;
 
-Está pronto para ajudar com análises desses dados!`;
-
-    // Initialize history with system prompt and greeting
+    // Reinicia o histórico com o prompt de sistema "disfarçado" de primeira mensagem
+    // para que o backend Gemini receba o contexto corretamente.
     this.history = [
       {
         role: 'user',
@@ -48,41 +43,33 @@ Está pronto para ajudar com análises desses dados!`;
       },
       {
         role: 'model',
-        parts: [{ text: 'Olá! Estou pronto para ajudar com análises sobre os dados disponíveis. Posso responder perguntas sobre vendas, produtos, clientes, períodos e métricas. Como posso ajudar?' }],
+        parts: [{ text: 'Olá! Sou o analista de dados do CITi. Identifiquei os dados da sua planilha e estou pronto para gerar insights. O que você deseja saber?' }],
       },
     ];
 
     this.initialized = true;
-    console.log('✓ Chat Gemini inicializado com sucesso (via Backend)');
+    console.log('✓ Memória do Chat Gemini preparada com novos dados.');
   }
 
   /**
-   * Formata os dados da planilha para contexto do chat
+   * Formata os dados da planilha para o contexto da IA
    */
   private formatDataForContext(data: SpreadsheetData[]): string {
     if (!data || data.length === 0) {
-      return 'Nenhum dado disponível no momento. Aguardando seleção de planilha.';
+      return 'Nenhum dado disponível no momento.';
     }
 
-    // Extrai informações estatísticas dos dados
     const columns = Object.keys(data[0] || {});
     const totalRecords = data.length;
-
-    // Amostra dos primeiros registros
-    const sampleSize = Math.min(20, data.length);
+    
+    // Pegamos apenas os primeiros 15 registros para não estourar o limite de tokens da API gratuita
+    const sampleSize = Math.min(15, data.length);
     const sample = data.slice(0, sampleSize);
 
-    // Cria resumo estatístico
-    const summary = {
-      totalRegistros: totalRecords,
-      colunas: columns,
-      amostra: sample,
-    };
-
-    // Análise de colunas numéricas
+    // Identifica colunas numéricas para cálculos rápidos
     const numericColumns = columns.filter(col => {
-      const value = data[0][col];
-      return typeof value === 'number' || !isNaN(Number(value));
+      const val = data[0][col];
+      return typeof val === 'number' || (!isNaN(Number(val)) && val !== "");
     });
 
     const stats: any = {};
@@ -92,44 +79,44 @@ Está pronto para ajudar com análises desses dados!`;
         stats[col] = {
           min: Math.min(...values),
           max: Math.max(...values),
-          media: values.reduce((a, b) => a + b, 0) / values.length,
-          total: values.reduce((a, b) => a + b, 0),
+          media: (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2),
+          total_soma: values.reduce((a, b) => a + b, 0).toFixed(2)
         };
       }
     });
 
     return `
-RESUMO DOS DADOS:
-- Total de registros: ${totalRecords}
-- Colunas disponíveis: ${columns.join(', ')}
-- Colunas numéricas: ${numericColumns.join(', ') || 'Nenhuma'}
+ESTRUTURA:
+- Total de Linhas: ${totalRecords}
+- Colunas: ${columns.join(' | ')}
 
-ESTATÍSTICAS:
+ESTATÍSTICAS DAS COLUNAS NUMÉRICAS:
 ${JSON.stringify(stats, null, 2)}
 
-AMOSTRA DOS DADOS (primeiros ${sampleSize} registros):
+AMOSTRA DOS DADOS (Primeiras ${sampleSize} linhas):
 ${JSON.stringify(sample, null, 2)}
 `;
   }
 
   /**
-   * Envia uma mensagem para o chat
+   * Envia mensagem para o Backend (FastAPI)
    */
   async sendMessage(message: string): Promise<string> {
     if (!this.initialized) {
-      throw new Error('Chat não inicializado. Chame initChat() primeiro.');
+      throw new Error('O chat precisa ser inicializado com dados antes de enviar mensagens.');
     }
 
     try {
-      // Send history + new message to backend
+      // Chamada ao backend Python
       const response = await apiClient.post('/api/gemini/chat', {
-        history: this.history,
-        message: message
+        message: message,
+        history: this.history // Enviamos o histórico atual
       });
 
       const responseText = response.data.text;
 
-      // Update local history
+      // ATUALIZAÇÃO DO HISTÓRICO LOCAL
+      // Só adicionamos ao histórico se a requisição teve sucesso
       this.history.push({
         role: 'user',
         parts: [{ text: message }]
@@ -143,36 +130,26 @@ ${JSON.stringify(sample, null, 2)}
       return responseText;
 
     } catch (error: any) {
-      console.error('Erro Gemini API (Backend):', error);
-
-      const errorMessage = error.response?.data?.error || error.message || 'Erro desconhecido';
-      throw new Error(`⚠️ Erro ao processar mensagem: ${errorMessage}`);
+      console.error('Erro na comunicação com o Backend Gemini:', error);
+      
+      // Tenta pegar a mensagem de erro detalhada vinda do Python
+      const backendError = error.response?.data?.detail || error.message;
+      throw new Error(backendError || 'Erro ao processar resposta da IA.');
     }
   }
 
-  /**
-   * Reinicia o chat (limpa histórico)
-   */
   resetChat(): void {
     this.history = [];
     this.initialized = false;
-    console.log('Chat reiniciado');
   }
 
-  /**
-   * Verifica se o serviço está configurado corretamente
-   */
   isConfigured(): boolean {
-    return true; // Always configured as logic is on backend
+    return true; 
   }
 
-  /**
-   * Verifica se o chat está inicializado
-   */
   isInitialized(): boolean {
     return this.initialized;
   }
 }
 
-// Exporta instância única (singleton)
 export const geminiService = new GeminiService();

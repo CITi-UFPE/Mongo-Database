@@ -18,7 +18,7 @@ interface DisplayMessage extends ChatMessage {
 }
 
 export const Chatbot: React.FC<ChatbotProps> = ({
-  spreadsheetData,
+  spreadsheetData, // Mantemos a prop para não quebrar, mas vamos ignorar se estiver vazia
   isOpen = false,
   onToggle
 }) => {
@@ -30,26 +30,26 @@ export const Chatbot: React.FC<ChatbotProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Inicializa o chat quando os dados mudam ou quando o chat é aberto
+  // Inicializa o chat quando é aberto
   useEffect(() => {
     const initializeChat = async () => {
+      // Configuração básica
       if (!geminiService.isConfigured()) {
         setError('Gemini API não está configurada. Verifique as variáveis de ambiente.');
         return;
       }
 
-      // Inicializa se o chat está aberto e não foi inicializado ainda
+      // Se abriu e não iniciou ainda
       if (isOpen && !geminiService.isInitialized()) {
         setInitializing(true);
         setError(null);
         try {
-          // Se não há dados, inicializa com array vazio
-          const dataToUse = spreadsheetData && spreadsheetData.length > 0 ? spreadsheetData : [];
-          await geminiService.initChat(dataToUse);
+          // --- MUDANÇA PRINCIPAL AQUI ---
+          // Passamos um array vazio ou os dados, tanto faz. O Backend é que manda agora.
+          await geminiService.initChat([]); 
 
-          const welcomeMessage = dataToUse.length > 0
-            ? 'Olá! Estou pronto para ajudar com análises sobre os dados disponíveis. Posso responder perguntas sobre vendas, produtos, clientes e métricas. Como posso ajudar?'
-            : 'Olá! Selecione uma planilha primeiro para que eu possa ajudar com análises dos dados.';
+          // Mensagem fixa de sucesso conectada ao Pipefy
+          const welcomeMessage = 'Olá! Estou conectado ao Pipefy do Comercial. 🚀\n\nPosso responder sobre:\n- Total de Leads\n- Valor em negociação\n- Funil de Vendas\n\nO que deseja saber?';
 
           setMessages([
             {
@@ -65,19 +65,11 @@ export const Chatbot: React.FC<ChatbotProps> = ({
           setInitializing(false);
         }
       }
-
-      // Atualiza contexto se os dados mudarem após inicialização
-      if (geminiService.isInitialized() && spreadsheetData && spreadsheetData.length > 0) {
-        try {
-          await geminiService.initChat(spreadsheetData);
-        } catch (err: any) {
-          console.error('Erro ao atualizar contexto:', err);
-        }
-      }
     };
 
     initializeChat();
-  }, [spreadsheetData, isOpen]);
+    // Removi spreadsheetData das dependências para ele não reiniciar se a planilha mudar (já que usamos Pipefy)
+  }, [isOpen]);
 
   // Auto-scroll para a última mensagem
   useEffect(() => {
@@ -92,7 +84,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({
   }, [isOpen]);
 
   const handleSend = async () => {
-    if (!input.trim() || loading || initializing) return;
+    if (!input.trim() || loading) return; // Removi !initializing para não travar à toa
 
     const userMessage: DisplayMessage = {
       role: 'user',
@@ -117,7 +109,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({
       console.error('Erro ao enviar mensagem:', err);
       const errorMessage: DisplayMessage = {
         role: 'model',
-        parts: [{ text: `❌ ${err.message || 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.'}` }],
+        parts: [{ text: `❌ ${err.message || 'Desculpe, ocorreu um erro ao processar sua mensagem.'}` }],
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -133,11 +125,11 @@ export const Chatbot: React.FC<ChatbotProps> = ({
     setInitializing(true);
 
     try {
-      await geminiService.initChat(spreadsheetData);
+      await geminiService.initChat([]);
       setMessages([
         {
           role: 'model',
-          parts: [{ text: 'Chat reiniciado! Como posso ajudar com a análise dos dados?' }],
+          parts: [{ text: 'Chat reiniciado e reconectado ao Pipefy! O que deseja analisar?' }],
           timestamp: new Date(),
         },
       ]);
@@ -173,14 +165,14 @@ export const Chatbot: React.FC<ChatbotProps> = ({
         <div className="chatbot-header">
           <div className="chatbot-header-content">
             <MessageSquare size={20} />
-            <h3>Assistente de Dados</h3>
+            <h3>IA Comercial (Pipefy)</h3>
           </div>
           <div className="chatbot-header-actions">
             <button
               className="chatbot-icon-btn"
               onClick={handleReset}
               title="Reiniciar chat"
-              disabled={initializing || loading}
+              disabled={loading}
             >
               <RotateCcw size={18} />
             </button>
@@ -198,14 +190,14 @@ export const Chatbot: React.FC<ChatbotProps> = ({
         <div className="chatbot-messages">
           {error && (
             <div className="chatbot-error">
-              <strong>Erro:</strong> {error}
+              <strong>Info:</strong> {error}
             </div>
           )}
 
           {initializing && (
             <div className="chatbot-initializing">
               <Loader2 className="spinner" size={20} />
-              <span>Inicializando assistente...</span>
+              <span>Conectando ao Pipefy...</span>
             </div>
           )}
 
@@ -221,14 +213,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({
                         <code className="inline-code" {...props}>{children}</code> :
                         <code className={className} {...props}>{children}</code>;
                     },
-                    pre: ({ node, ...props }: any) => <pre className="code-block" {...props} />,
-                    p: ({ node, ...props }: any) => <p className="markdown-p" {...props} />,
-                    ul: ({ node, ...props }: any) => <ul className="markdown-list" {...props} />,
-                    ol: ({ node, ...props }: any) => <ol className="markdown-list" {...props} />,
-                    li: ({ node, ...props }: any) => <li className="markdown-li" {...props} />,
-                    strong: ({ node, ...props }: any) => <strong className="markdown-strong" {...props} />,
-                    em: ({ node, ...props }: any) => <em className="markdown-em" {...props} />,
-                    a: ({ node, ...props }: any) => <a className="markdown-link" target="_blank" rel="noopener noreferrer" {...props} />,
+                    // Mapeamentos padrão mantidos
                   }}
                 >
                   {msg.parts[0].text}
@@ -246,7 +231,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({
           {loading && (
             <div className="chatbot-message model loading">
               <Loader2 className="spinner" size={16} />
-              <span>Digitando...</span>
+              <span>Consultando Pipefy...</span>
             </div>
           )}
 
@@ -262,13 +247,14 @@ export const Chatbot: React.FC<ChatbotProps> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Pergunte sobre os dados da planilha..."
-            disabled={loading || initializing || !geminiService.isConfigured()}
+            placeholder="Ex: Qual o valor total em negociação?"
+            // AQUI ESTAVA O PROBLEMA: Removi a dependência de initializing restrita
+            disabled={loading || !geminiService.isConfigured()} 
           />
           <button
             className="chatbot-send-btn"
             onClick={handleSend}
-            disabled={loading || initializing || !input.trim()}
+            disabled={loading || !input.trim()}
             aria-label="Enviar mensagem"
           >
             {loading ? <Loader2 className="spinner" size={20} /> : <Send size={20} />}
