@@ -6,14 +6,14 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 
-# --- AQUI ESTA A MÁGICA: IMPORTAMOS O SERVIÇO DO PIPEFY ---
+# importação temporário do pipefy
 from services.pipefy_temp import pipefy_temp_service
 
 # Configuração de Logs
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/gemini", tags=["ai"])
 
-# --- Modelos de Dados ---
+# Modelos de Dados 
 class Part(BaseModel):
     text: str
 
@@ -25,7 +25,7 @@ class ChatRequest(BaseModel):
     history: Optional[List[ChatMessage]] = None
     message: str
 
-# --- Rota do Chat ---
+# Rota do Chat 
 @router.post("/chat")
 async def chat(req: ChatRequest):
     api_key = os.getenv("GEMINI_API_KEY") 
@@ -33,16 +33,16 @@ async def chat(req: ChatRequest):
     if not api_key:
         raise HTTPException(status_code=500, detail="Chave de API ausente.")
 
-    # 1. BUSCA DADOS DO PIPEFY (O CÉREBRO)
+    #  BUSCA DADOS DO PIPEFY 
     try:
-        # Pega o JSON resumido do seu serviço temporário
+        # Pega o JSON resumido do serviço temporário/ pré-extract 
         context_str = await pipefy_temp_service.get_context_for_ai()
         logger.info("Dados do Pipefy carregados com sucesso.")
     except Exception as e:
         logger.error(f"Erro ao buscar Pipefy: {e}")
         context_str = "ERRO: Não foi possível conectar ao Pipefy. Avise o usuário."
 
-    # 2. CONFIGURA O GROQ
+    #CONFIGURA O GROQ
     GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
     MODEL_ID = "llama-3.3-70b-versatile"
 
@@ -62,7 +62,7 @@ async def chat(req: ChatRequest):
     1. Se o usuário perguntar "Quantos leads?", LEIA o JSON acima e responda o número exato.
     2. Se os dados estiverem vazios, diga: "O Pipefy retornou zero leads."
     3. Responda em Português, de forma direta e profissional.
-    # ADICIONE ESTA LINHA ABAIXO:
+    
     4. NÃO mencione nomes técnicos de campos (como "objeto json", "campo total_leads"). Fale como um humano.
     """
 
