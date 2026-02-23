@@ -1,769 +1,246 @@
-// src/components/ui/dashboard.tsx
-
-import { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useState } from "react";
 import {
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Target,
   Users,
-  Activity,
-  Award,
-  AlertCircle,
-  Clock,
+  TrendingUp,
+  DollarSign,
+  Receipt,
+  Building2,
+  User,
+  Briefcase,
   ChevronLeft,
   ChevronRight,
-  Percent,
-  Loader2,
-  X
-} from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart as RechartsLineChart,
-  Line,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts';
+} from "lucide-react";
+import { MetricCard } from "./metric-card";
+import { ProgressGoal } from "./progress-goal";
+import { LeadQualityCard } from "./lead-quality-card";
+import { RealisticForecast } from "./realistic-forecast";
+import { StageTimeMetrics } from "./stage-time-metrics";
+import { LostLeadsBreakdown } from "./lost-leads-breakdown";
+import { DateFilter } from "./date-filter";
+import { FunnelChart } from "./funnel-chart";
+import { LeadSourcesChart } from "./lead-sources-chart";
+import { InsightsCard } from "./insights-card";
+import { Button } from "@/components/ui/button";
 
-type KPIData = {
-  kpis: {
-    total_leads: number;
-    open_leads: number;
-    won_leads: number;
-    lost_leads: number;
-    conversion_rate: number;
-    loss_rate: number;
-    pipeline_value: number;
-    won_value: number;
-  };
-  funnel_distribution: Array<{
-    fase: string;
-    ordem: number;
-    count: number;
-    valor: number;
-  }>;
-  lead_sources: Array<{
-    canal: string;
-    count: number;
-    valor: number;
-  }>;
-  loss_reasons: Array<{
-    motivo: string;
-    count: number;
-  }>;
-  seller_performance: Array<{
-    id: string;
-    nome: string;
-    total_leads: number;
-    leads_ganhos: number;
-    leads_perdidos: number;
-    valor_total: number;
-    valor_ganho: number;
-    taxa_conversao: number;
-  }>;
-  temporal_evolution: Array<{
-    year: number;
-    month: number;
-    date: string;
-    total_leads: number;
-    leads_ganhos: number;
-    leads_perdidos: number;
-    valor_total: number;
-  }>;
+const mockData = {
+  totalLeads: 1250,
+  qualifiedLeads: 487,
+  unqualifiedLeads: 398,
+  conversionRate: 25.6,
+  pipelineValue: 450000,
+  ticketMedio: 563,
+  closedValue: 385000,
+  monthlyGoal: 500000,
+  lostLeads: 180,
+  lostValue: 245000,
 };
 
-const COLORS = ['#0ea5e9', '#14b8a6', '#84cc16', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#10b981'];
-const FASE_COLORS: Record<string, string> = {
-  'Prospecção': '#3b82f6',
-  'Qualificação': '#06b6d4',
-  'Proposta': '#14b8a6',
-  'Negociação': '#eab308',
-  'Fechado': '#10b981',
-  'Ganho': '#10b981',
-  'Perdido': '#ef4444',
-  'Aberto': '#3b82f6'
-};
+const stageTimeData = [
+  { name: "Qualificação", avgDays: 4, leads: 156, maxDays: 7 },
+  { name: "Diagnóstico", avgDays: 12, leads: 89, maxDays: 14 },
+  { name: "Proposta", avgDays: 8, leads: 67, maxDays: 10 },
+  { name: "Negociação", avgDays: 18, leads: 45, maxDays: 21 },
+];
 
-import { PredictionAnalysis } from './PredictionAnalysis';
-import { ClusterAnalysis } from './ClusterAnalysis';
-import { StageTimeMetrics } from './StageTimeMetrics';
-import { ProgressGoal } from './progressgoal';
-import { DateRangePicker } from './date-range-picker';
+const lostReasons = [
+  { reason: "Preço alto", count: 50, percentage: 32, icon: "price" as const },
+  { reason: "Concorrência", count: 30, percentage: 25, icon: "competitor" as const },
+  { reason: "Sem budget", count: 20, percentage: 21, icon: "price" as const },
+];
 
+const funnelStages = [
+  { name: "Novo", count: 480, value: 180000, color: "hsl(199, 89%, 48%)" },
+  { name: "Qualificação", count: 300, value: 128000, color: "hsl(174, 72%, 56%)" },
+  { name: "Proposta", count: 150, value: 95000, color: "hsl(160, 72%, 50%)" },
+  { name: "Negociação", count: 80, value: 47000, color: "hsl(45, 93%, 58%)" },
+];
 
-import { apiClient } from '@/services/api';
+const leadSources = [
+  { name: "Google Ads", value: 43, color: "hsl(174, 72%, 56%)" },
+  { name: "Instagram", value: 19, color: "hsl(142, 71%, 45%)" },
+  { name: "LinkedIn", value: 10, color: "hsl(45, 93%, 58%)" },
+  { name: "Indicação", value: 29, color: "hsl(199, 89%, 48%)" },
+];
 
-export function DashboardOverview() {
-  const [chartPage, setChartPage] = useState(0);
-  const [viewMode, setViewMode] = useState<'overview' | 'clustering' | 'prediction'>('overview');
-  const [kpiData, setKpiData] = useState<KPIData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const insights = [
+  { type: "info" as const, message: "Taxa de conversão atual: 25.6%" },
+  { type: "success" as const, message: "Ticket médio: R$ 562,50" },
+  { type: "warning" as const, message: "450 leads ativos no pipeline com potencial de R$ 450K" },
+];
 
-  useEffect(() => {
-    const fetchKPIs = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await apiClient.get('/api/analytics/kpis');
-        setKpiData(response.data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load analytics');
-        console.error('Error fetching KPIs:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+const TOTAL_PAGES = 2;
 
-    fetchKPIs();
-  }, []);
-
-  const dashboardData = useMemo(() => {
-    if (!kpiData) return null;
-
-    const { kpis, funnel_distribution, lead_sources, loss_reasons, seller_performance, temporal_evolution } = kpiData;
-
-    // Prepare funnel data
-    const funnelData = funnel_distribution.map(f => ({
-      name: f.fase,
-      leads: f.count,
-      valor: f.valor,
-      fill: FASE_COLORS[f.fase] || COLORS[0]
-    }));
-
-    // Prepare lead sources data
-    const sortedSources = [...lead_sources].sort((a, b) => b.count - a.count);
-    let sourcesData;
-
-    if (sortedSources.length > 8) {
-      const top8 = sortedSources.slice(0, 8);
-      const others = sortedSources.slice(8);
-
-      const othersCount = others.reduce((sum, s) => sum + s.count, 0);
-      const othersValue = others.reduce((sum, s) => sum + s.valor, 0);
-
-      sourcesData = [
-        ...top8.map((s, idx) => ({
-          name: s.canal,
-          value: s.count,
-          valor: s.valor,
-          fill: COLORS[idx % COLORS.length]
-        })),
-        {
-          name: 'Outros',
-          value: othersCount,
-          valor: othersValue,
-          fill: '#64748b', // Slate-500 for others
-          details: others.map(s => ({ name: s.canal, value: s.count }))
-        }
-      ];
-    } else {
-      sourcesData = sortedSources.map((s, idx) => ({
-        name: s.canal,
-        value: s.count,
-        valor: s.valor,
-        fill: COLORS[idx % COLORS.length]
-      }));
-    }
-
-    // Prepare loss reasons data
-    const lossData = loss_reasons.map(r => ({
-      name: r.motivo,
-      value: r.count
-    }));
-
-    // Prepare seller performance data
-    const sellersData = seller_performance.slice(0, 10).map((s, idx) => ({
-      name: s.nome,
-      total: s.total_leads,
-      ganhos: s.leads_ganhos,
-      perdidos: s.leads_perdidos,
-      valor: s.valor_ganho,
-      taxa: s.taxa_conversao,
-      fill: COLORS[idx % COLORS.length]
-    }));
-
-    // Prepare temporal data
-    const temporalData = temporal_evolution.map(t => ({
-      mes: `${t.month}/${t.year}`,
-      total: t.total_leads,
-      ganhos: t.leads_ganhos,
-      perdidos: t.leads_perdidos,
-      valor: t.valor_total
-    }));
-
-    // Prepare stage time metrics data
-    const stageTimeData = funnel_distribution.map((stage, idx) => ({
-      name: stage.fase,
-      avgDays: Math.floor(Math.random() * 30) + 5, // Mock data - adjust based on your actual data
-      leads: stage.count,
-      maxDays: 30 // Mock data - adjust based on your actual data
-    }));
-
-    return {
-      kpis: {
-        totalLeads: kpis.total_leads,
-        leadsAbertos: kpis.open_leads,
-        leadsGanhos: kpis.won_leads,
-        leadsPerdidos: kpis.lost_leads,
-        taxaConversao: kpis.conversion_rate,
-        taxaPerda: kpis.loss_rate,
-        valorPipeline: kpis.pipeline_value,
-        valorGanho: kpis.won_value,
-        ticketMedio: kpis.won_leads > 0 ? kpis.won_value / kpis.won_leads : 0
-      },
-      funnelData,
-      sourcesData,
-      lossData,
-      sellersData,
-      temporalData,
-      stageTimeData
-    };
-  }, [kpiData]);
-
-  if (viewMode === 'clustering') {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-slate-100">Análise de Clusters (IA)</h2>
-          <Button
-            variant="outline"
-            onClick={() => setViewMode('overview')}
-            className="bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
-          >
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            Voltar ao Dashboard
-          </Button>
-        </div>
-        <ClusterAnalysis />
-      </div>
-    );
-  }
-
-  if (viewMode === 'prediction') {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-slate-100">Previsão de Vendas (IA)</h2>
-          <Button
-            variant="outline"
-            onClick={() => setViewMode('overview')}
-            className="bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
-          >
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            Voltar ao Dashboard
-          </Button>
-        </div>
-        <PredictionAnalysis />
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <Loader2 className="w-12 h-12 animate-spin text-teal-500" />
-        <p className="mt-4 text-slate-400">Carregando analytics do CRM...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <AlertCircle className="w-12 h-12 text-rose-500" />
-        <p className="mt-4 text-slate-200">Erro ao carregar dados</p>
-        <p className="mt-2 text-sm text-slate-400">{error}</p>
-      </div>
-    );
-  }
-
-  if (!dashboardData) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <Activity className="w-12 h-12 text-slate-500" />
-        <p className="mt-4 text-slate-400">Nenhum dado disponível</p>
-      </div>
-    );
-  }
-
-  const { kpis, funnelData, sourcesData, lossData, sellersData, temporalData } = dashboardData;
-
-  const chartsPerPage = 2;
-  const allCharts = [
-    { id: 'funnel', title: 'Distribuição do Funil', icon: Target },
-    { id: 'sellers', title: 'Performance dos Vendedores', icon: Award },
-    { id: 'temporal', title: 'Evolução Temporal', icon: Activity },
-    { id: 'stagetime', title: 'Tempo por Estágio', icon: Clock, fullWidth: true },
-  ];
-  const totalChartPages = Math.ceil(allCharts.length / chartsPerPage);
-  const visibleCharts = allCharts.slice(chartPage * chartsPerPage, (chartPage + 1) * chartsPerPage);
+const Dashboard = () => {
+  const [analysisPage, setAnalysisPage] = useState(1);
 
   return (
-    <div className="space-y-6 text-slate-200">
-      <div className="flex justify-between items-center gap-4">
-        <h2 className="text-2xl font-bold text-slate-100">Dashboard</h2>
-        
-        <div className="flex items-center gap-4">
-          <DateRangePicker />
-          
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setViewMode('clustering')}
-              className="bg-teal-600 hover:bg-teal-700 text-white"
-            >
-              <Activity className="w-4 h-4 mr-2" />
-              Análise de Clusters (IA)
-            </Button>
-            <Button
-              onClick={() => setViewMode('prediction')}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
-            >
-              <TrendingUp className="w-4 h-4 mr-2" />
-              Previsão de Vendas (IA)
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* KPI Cards */}
-
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <div className="lg:col-span-1 ring-2 ring-blue-400/50 ring-offset-2 ring-offset-slate-900 rounded-lg shadow-lg shadow-blue-500/20">
-          <KPICard
-            icon={<Target className="w-6 h-6" />}
-            label="Total de Leads"
-            value={kpis.totalLeads}
-            subtitle={`${kpis.leadsAbertos} ativos`}
-            color="blue"
-          />
-        </div>
-        <KPICard
-          icon={<TrendingUp className="w-6 h-6" />}
-          label="Taxa de Conversão"
-          value={`${kpis.taxaConversao.toFixed(1)}%`}
-          subtitle={`${kpis.leadsGanhos} ganhos`}
-          color="teal"
-          trend="up"
-        />
-        <KPICard
-          icon={<DollarSign className="w-6 h-6" />}
-          label="Valor Pipeline"
-          value={`R$ ${(kpis.valorPipeline / 1000).toFixed(0)}K`}
-          subtitle={`R$ ${(kpis.valorGanho / 1000).toFixed(0)}K ganho`}
-          color="green"
-        />
-        <KPICard
-          icon={<Activity className="w-6 h-6" />}
-          label="Ticket Médio"
-          value={`R$ ${kpis.ticketMedio.toFixed(0)}`}
-          subtitle={`${kpis.leadsPerdidos} perdidos`}
-          color="purple"
-        />
-      </div>
-
-      {/* Insights Card */}
-      <div className="mt-6">
-      <Card className="bg-linear-to-r from-slate-800 to-slate-700 border-slate-600">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <div className="p-3 rounded-lg bg-teal-500/20">
-              <TrendingUp className="w-6 h-6 text-teal-400" />
+    <div className="bg-gradient-to-br from-[#0B1120] via-[#0D1929] to-[#0F172A] text-slate-100 min-h-screen">
+      <div className="sticky top-0 z-40 border-b border-slate-700/30 bg-slate-900/80 backdrop-blur-xl">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-cyan-300 to-blue-400">Dashboard CRM</h1>
+              <p className="text-sm text-slate-300">
+                Visão gerencial de vendas e leads.
+              </p>
             </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-slate-100">Insights do CRM</h3>
-              <div className="mt-3 space-y-2 text-sm text-slate-300">
-                <p>• Taxa de conversão atual: <span className="font-semibold text-teal-400">{kpis.taxaConversao.toFixed(1)}%</span></p>
-                <p>• Ticket médio: <span className="font-semibold text-teal-400">R$ {kpis.ticketMedio.toFixed(2)}</span></p>
-                <p>• {kpis.leadsAbertos} leads ativos no pipeline com potencial de <span className="font-semibold text-teal-400">R$ {(kpis.valorPipeline / 1000).toFixed(0)}K</span></p>
+            <DateFilter />
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-500/15 to-cyan-500/15 rounded-xl border border-blue-400/30 backdrop-blur-md">
+              <User className="w-4 h-4 text-blue-300" />
+              <div>
+                <p className="text-xs text-slate-400">Usuário</p>
+                <p className="text-sm font-medium text-blue-100">Mariaeduarda</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-cyan-500/15 to-teal-500/15 rounded-xl border border-cyan-400/30 backdrop-blur-md">
+              <Briefcase className="w-4 h-4 text-cyan-300" />
+              <div>
+                <p className="text-xs text-slate-400">Função</p>
+                <p className="text-sm font-medium text-cyan-100">Gerente</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-emerald-500/15 to-teal-500/15 rounded-xl border border-emerald-400/30 backdrop-blur-md">
+              <Building2 className="w-4 h-4 text-emerald-300" />
+              <div>
+                <p className="text-xs text-slate-400">Departamento</p>
+                <p className="text-sm font-medium text-emerald-100">Vendas</p>
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
       </div>
 
-      {/* Progress Goal */}
-      {dashboardData && (
-        <ProgressGoal
-          current={dashboardData.kpis.valorGanho}
-          goal={dashboardData.kpis.valorPipeline + dashboardData.kpis.valorGanho}
-          label="Faturamento Mensal"
-        />
-      )}
+      <main className="container mx-auto px-4 py-8 space-y-6">
+        <div className="flex justify-end gap-3">
+          <Button className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:from-blue-500 hover:to-cyan-500 shadow-lg transition-all duration-300">
+            ✦ Análise de Clusters (IA)
+          </Button>
+          <Button className="bg-gradient-to-r from-cyan-600 to-teal-600 text-white hover:from-cyan-500 hover:to-teal-500 shadow-lg transition-all duration-300">
+            📈 Previsão de Vendas (IA)
+          </Button>
+        </div>
 
-      {/* Charts Section with Pagination */}
-      <div className="space-y-4">
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            title="Total de Leads"
+            value={mockData.totalLeads.toLocaleString("pt-BR")}
+            subtitle="450 ativos"
+            icon={<Users className="w-5 h-5" />}
+            variant="highlight"
+            className="border-blue-400/50 bg-gradient-to-br from-blue-600/20 to-cyan-600/10"
+          />
+          <MetricCard
+            title="Taxa de Conversão"
+            value={`${mockData.conversionRate}%`}
+            subtitle="320 ganhos"
+            icon={<TrendingUp className="w-5 h-5" />}
+            variant="primary"
+            trend={{ value: 3.2, isPositive: true }}
+            className="hover:border-cyan-400/40 hover:shadow-lg hover:shadow-cyan-500/20"
+          />
+          <MetricCard
+            title="Valor Pipeline"
+            value={`R$ ${(mockData.pipelineValue / 1000).toFixed(0)}K`}
+            subtitle="R$ 180K ganho"
+            icon={<DollarSign className="w-5 h-5" />}
+            variant="highlight"
+            trend={{ value: 12, isPositive: true }}
+            className="hover:border-emerald-400/40 hover:shadow-lg hover:shadow-emerald-500/20"
+          />
+          <MetricCard
+            title="Ticket Médio"
+            value={`R$ ${mockData.ticketMedio}`}
+            subtitle="180 perdidos"
+            icon={<Receipt className="w-5 h-5" />}
+            variant="primary"
+            className="hover:border-orange-400/40 hover:shadow-lg hover:shadow-orange-500/20"
+          />
+        </section>
+
+        <InsightsCard insights={insights} />
+
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-slate-200">Análises Detalhadas</h3>
-          {totalChartPages > 1 && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setChartPage(p => Math.max(0, p - 1))}
-                disabled={chartPage === 0}
-                className="text-slate-300 bg-slate-700 border-slate-600 hover:bg-slate-600"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <span className="text-sm text-slate-400">
-                {chartPage + 1} / {totalChartPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setChartPage(p => Math.min(totalChartPages - 1, p + 1))}
-                disabled={chartPage >= totalChartPages - 1}
-                className="text-slate-300 bg-slate-700 border-slate-600 hover:bg-slate-600"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-4">
-          {visibleCharts.map(chart => (
-            <div
-              key={chart.id}
-              className={`${
-                (chart as any).fullWidth ? 'lg:col-span-2' : ''
-              } animate-fade-in`}
+          <h2 className="text-lg font-semibold bg-gradient-to-r from-blue-300 to-cyan-300 bg-clip-text text-transparent">Análises Detalhadas</h2>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 border-blue-500/30 hover:bg-blue-500/10 hover:border-blue-400/50 text-blue-300 transition-all duration-300"
+              onClick={() => setAnalysisPage((p) => Math.max(1, p - 1))}
+              disabled={analysisPage === 1}
             >
-              <Card className="bg-slate-800 border-slate-700 transition-all duration-300">
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <chart.icon className="w-5 h-5 text-teal-400" />
-                    <CardTitle className="text-xl text-slate-200">{chart.title}</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {chart.id === 'funnel' && (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={funnelData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                      <XAxis dataKey="name" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
-                      <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#1e293b',
-                          border: '1px solid #475569',
-                          borderRadius: '0.5rem',
-                          color: '#e2e8f0'
-                        }}
-                        itemStyle={{ color: '#e2e8f0' }}
-                      />
-                      <Bar dataKey="leads" fill="#14b8a6" radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-                {chart.id === 'sources' && (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={sourcesData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={(entry: any) =>
-                          `${entry.name}: ${((entry.value / sourcesData.reduce((sum, s) => sum + s.value, 0)) * 100).toFixed(0)}%`
-                        }
-                        outerRadius={100}
-                        dataKey="value"
-                        isAnimationActive={false}
-                      >
-                        {sourcesData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.fill || COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CustomPieTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-                {chart.id === 'sellers' && (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={sellersData} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                      <XAxis type="number" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
-                      <YAxis type="category" dataKey="name" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} width={100} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#1e293b',
-                          border: '1px solid #475569',
-                          borderRadius: '0.5rem',
-                          color: '#e2e8f0'
-                        }}
-                        itemStyle={{ color: '#e2e8f0' }}
-                      />
-                      <Bar dataKey="ganhos" fill="#10b981" radius={[0, 8, 8, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-                {chart.id === 'temporal' && (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <RechartsLineChart data={temporalData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                      <XAxis dataKey="mes" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
-                      <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#1e293b',
-                          border: '1px solid #475569',
-                          borderRadius: '0.5rem',
-                          color: '#e2e8f0'
-                        }}
-                        itemStyle={{ color: '#e2e8f0' }}
-                      />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="total"
-                        stroke="#3b82f6"
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        name="Total Leads"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="ganhos"
-                        stroke="#10b981"
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        name="Leads Ganhos"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="perdidos"
-                        stroke="#ef4444"
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        name="Leads Perdidos"
-                      />
-                    </RechartsLineChart>
-                  </ResponsiveContainer>
-                )}
-                {chart.id === 'stagetime' && dashboardData && (
-                  <StageTimeMetrics stages={dashboardData.stageTimeData} />
-                )}
-              </CardContent>
-              </Card>
-            </div>
-          ))}
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span className="text-sm font-medium text-slate-300 px-2">
+              {analysisPage} / {TOTAL_PAGES}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 border-cyan-500/30 hover:bg-cyan-500/10 hover:border-cyan-400/50 text-cyan-300 transition-all duration-300"
+              onClick={() => setAnalysisPage((p) => Math.min(TOTAL_PAGES, p + 1))}
+              disabled={analysisPage === TOTAL_PAGES}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* Loss Reasons & Combined View */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Origem de Leads - Side by Side */}
-        <Card className="bg-slate-800 border-slate-700">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-400" />
-              <CardTitle className="text-xl text-slate-200">Origens de Leads</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={sourcesData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={(entry: any) =>
-                    `${entry.name}: ${((entry.value / sourcesData.reduce((sum, s) => sum + s.value, 0)) * 100).toFixed(0)}%`
-                  }
-                  outerRadius={100}
-                  dataKey="value"
-                  isAnimationActive={false}
-                >
-                  {sourcesData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill || COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip content={<CustomPieTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Loss Reasons - Pie Chart */}
-        {lossData.length > 0 && (
+        {analysisPage === 1 && (
           <div className="space-y-4">
-            {/* Leads Perdidos Alert Card */}
-            <Card className="bg-gradient-to-r from-red-950/40 via-slate-800 to-red-950/20 border-red-700/50 hover:border-red-600/70 transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-lg bg-red-500/20 flex-shrink-0">
-                    <X className="w-6 h-6 text-red-500" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate-100">Leads Perdidos</h3>
-                        <p className="text-sm text-slate-400">Análise detalhada das perdas</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-4xl font-bold text-red-500">{kpis.leadsPerdidos}</p>
-                        <p className="text-xs text-slate-400">este período</p>
-                      </div>
-                    </div>
-                    
-                    {/* Lost Value Details */}
-                    <div className="space-y-3 border-t border-red-700/30 pt-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-slate-300">Valor total perdido</span>
-                        <span className="text-xl font-bold text-red-400">R$ {((kpis.valorPipeline * kpis.taxaPerda) / 1000).toFixed(0)}K</span>
-                      </div>
-                      <div className="text-sm text-red-300/80">
-                        Ticket médio perdido: <span className="font-semibold">R$ {((kpis.valorPipeline * kpis.taxaPerda) / Math.max(kpis.leadsPerdidos, 1)).toFixed(0)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Motivos de Perda Card */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-rose-400" />
-                  <CardTitle className="text-xl text-slate-200">Motivos de Perda</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={lossData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={(entry: any) =>
-                      `${entry.name}: ${((entry.value / kpis.leadsPerdidos) * 100).toFixed(0)}%`
-                    }
-                    outerRadius={100}
-                    dataKey="value"
-                    isAnimationActive={false}
-                  >
-                    {lossData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={['#ef4444', '#f97316', '#eab308', '#84cc16', '#ef4444'][index % 5]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomPieTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-              </CardContent>
-            </Card>
+            <div className="bg-gradient-to-br from-cyan-600/15 to-teal-600/10 border border-cyan-500/30 rounded-2xl p-5 backdrop-blur-sm">
+              <h3 className="text-sm font-semibold text-cyan-200 mb-4">📈 Previsão de Vendas (IA)</h3>
+              <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <ProgressGoal
+                  current={mockData.closedValue}
+                  goal={mockData.monthlyGoal}
+                  label="Faturamento"
+                />
+                <LeadQualityCard
+                  data={{
+                    total: mockData.totalLeads,
+                    qualificados: mockData.qualifiedLeads,
+                    naoQualificados: mockData.unqualifiedLeads,
+                    outros: Math.max(
+                      mockData.totalLeads - mockData.qualifiedLeads - mockData.unqualifiedLeads,
+                      0
+                    ),
+                  }}
+                />
+              </section>
+              <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                <RealisticForecast
+                  pipelineValue={mockData.pipelineValue}
+                  conversionRate={mockData.conversionRate}
+                />
+                <StageTimeMetrics stages={stageTimeData} />
+              </section>
+            </div>
           </div>
         )}
-      </div>
+
+        {analysisPage === 2 && (
+          <div className="space-y-4">
+            <div className="bg-gradient-to-br from-blue-600/15 to-cyan-600/10 border border-blue-500/30 rounded-2xl p-5 backdrop-blur-sm">
+              <h3 className="text-sm font-semibold text-blue-200 mb-4">✦ Análise de Clusters (IA)</h3>
+              <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <FunnelChart stages={funnelStages} />
+                <LeadSourcesChart data={leadSources} />
+              </section>
+            </div>
+            <LostLeadsBreakdown
+              total={mockData.lostLeads}
+              reasons={lostReasons}
+              totalValue={mockData.lostValue}
+            />
+          </div>
+        )}
+      </main>
     </div>
   );
-}
+};
 
-function KPICard({
-  icon,
-  label,
-  value,
-  subtitle,
-  color,
-  trend
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-  subtitle?: string;
-  color: 'blue' | 'teal' | 'green' | 'purple';
-  trend?: 'up' | 'down';
-}) {
-  const colorClasses = {
-    blue: 'from-blue-500 to-blue-600',
-    teal: 'from-teal-500 to-teal-600',
-    green: 'from-green-500 to-green-600',
-    purple: 'from-purple-500 to-purple-600',
-  };
-
-  const iconBgClasses = {
-    blue: 'bg-blue-500/20',
-    teal: 'bg-teal-500/20',
-    green: 'bg-green-500/20',
-    purple: 'bg-purple-500/20',
-  };
-
-  const iconColorClasses = {
-    blue: 'text-blue-400',
-    teal: 'text-teal-400',
-    green: 'text-green-400',
-    purple: 'text-purple-400',
-  };
-
-  return (
-    <Card className="overflow-hidden bg-slate-800 border-slate-700 transition-all duration-300 hover:border-slate-600 hover:shadow-lg hover:shadow-slate-900/50 hover:-translate-y-1 cursor-pointer">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className={`p-3 rounded-lg ${iconBgClasses[color]}`}>
-            <div className={iconColorClasses[color]}>
-              {icon}
-            </div>
-          </div>
-          {trend && (
-            <div className={`flex items-center gap-1 ${trend === 'up' ? 'text-green-400' : 'text-rose-400'}`}>
-              {trend === 'up' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-            </div>
-          )}
-        </div>
-        <div>
-          <p className="text-sm text-slate-400 font-medium">{label}</p>
-          <p className="text-3xl font-bold text-slate-50 mt-2 tracking-tight">{value}</p>
-          {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function CustomPieTooltip({ active, payload }: any) {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div className="bg-slate-800 border border-slate-700 p-3 rounded-lg shadow-lg text-slate-200 z-50">
-        <p className="font-semibold mb-1">{data.name}</p>
-        <p className="text-sm">Leads: {data.value}</p>
-        {data.valor !== undefined && (
-          <p className="text-sm">Valor: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.valor)}</p>
-        )}
-
-        {data.name === 'Outros' && data.details && (
-          <div className="mt-2 pt-2 border-t border-slate-700">
-            <p className="text-xs font-semibold text-slate-400 mb-1">Composição:</p>
-            <div className="max-h-32 overflow-y-auto custom-scrollbar pr-2">
-              {data.details.map((item: any, idx: number) => (
-                <div key={idx} className="flex justify-between text-xs text-slate-300 gap-4">
-                  <span>{item.name}</span>
-                  <span>{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-  return null;
-}
+export default Dashboard;

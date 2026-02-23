@@ -20,6 +20,8 @@ export function DateRangePicker({ onDateChange, className }: DateRangePickerProp
     endDate: new Date()
   });
 
+  const [selectedPreset, setSelectedPreset] = useState<string>('month');
+
   const handlePreset = (preset: 'today' | 'week' | 'month' | 'quarter' | 'year') => {
     const today = new Date();
     let startDate: Date;
@@ -48,6 +50,7 @@ export function DateRangePicker({ onDateChange, className }: DateRangePickerProp
 
     const newRange = { startDate, endDate: today };
     setDateRange(newRange);
+    setSelectedPreset(preset);
     onDateChange?.(newRange);
   };
 
@@ -59,46 +62,41 @@ export function DateRangePicker({ onDateChange, className }: DateRangePickerProp
     return `${format(dateRange.startDate, 'dd MMM', { locale: pt })} - ${format(dateRange.endDate, 'dd MMM yyyy', { locale: pt })}`;
   };
 
+  const presetOptions = [
+    { id: 'today', label: 'Hoje', description: 'Apenas hoje' },
+    { id: 'week', label: 'Últimos 7 dias', description: 'Semana anterior' },
+    { id: 'month', label: 'Este mês', description: 'Do 1º até hoje' },
+    { id: 'quarter', label: 'Últimos 90 dias', description: 'Trimestre anterior' },
+    { id: 'year', label: 'Este ano', description: 'Do 1º de jan até hoje' }
+  ];
+
   return (
-    <div className={`flex items-center gap-2 ${className || ''}`}>
-      <div className="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
-        <Calendar className="w-4 h-4 text-slate-400" />
-        <span className="text-sm text-slate-300">{getDisplayLabel()}</span>
+    <div className={`space-y-4 ${className || ''}`}>
+      {/* Data Display */}
+      <div className="flex items-center gap-3 bg-gradient-to-r from-blue-900/40 to-cyan-900/40 border border-blue-500/40 rounded-lg px-4 py-3">
+        <Calendar className="w-5 h-5 text-blue-400 flex-shrink-0" />
+        <div>
+          <p className="text-xs text-blue-300 font-semibold uppercase tracking-wider">Período analisado</p>
+          <p className="text-lg font-bold text-slate-100">{getDisplayLabel()}</p>
+        </div>
       </div>
 
-      <div className="flex gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handlePreset('today')}
-          className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 text-xs"
-        >
-          Hoje
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handlePreset('week')}
-          className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 text-xs"
-        >
-          7 dias
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handlePreset('month')}
-          className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 text-xs"
-        >
-          Mês
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handlePreset('year')}
-          className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 text-xs"
-        >
-          Ano
-        </Button>
+      {/* Preset Buttons - Grid Layout for better clarity */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        {presetOptions.map(preset => (
+          <button
+            key={preset.id}
+            onClick={() => handlePreset(preset.id as any)}
+            className={`p-3 rounded-lg border-2 transition-all duration-200 text-center ${
+              selectedPreset === preset.id
+                ? 'border-blue-500 bg-blue-500/20 text-blue-100'
+                : 'border-slate-600 bg-slate-700/50 text-slate-300 hover:border-blue-400 hover:bg-slate-600'
+            }`}
+          >
+            <p className="text-sm font-bold">{preset.label}</p>
+            <p className="text-xs text-slate-400 mt-1">{preset.description}</p>
+          </button>
+        ))}
       </div>
     </div>
   );
