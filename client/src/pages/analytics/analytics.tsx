@@ -9,7 +9,7 @@ import VisualToggle from "@/components/dashboard/VisualToggle";
 import UserProfileDropdown from "@/components/ui/userProfileDropdown";
 import { useAuth } from "@/context/AuthContext";
 import { extractNameFromEmail } from "@/lib/nameUtils";
-import { DashboardOverview } from "@/components/ui/dashboard";
+import Dashboard from "@/components/ui/dashboard";
 import AnimatedLogo from "@/components/AnimatedLogo";
 import { Chatbot } from "@/components/Chatbot/Chatbot";
 import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
