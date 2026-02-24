@@ -1,0 +1,57 @@
+# server/services/auth.py
+import os
+import jwt
+from datetime import datetime, timedelta
+from google.auth.transport import requests
+from google.oauth2 import id_token
+
+def verify_google_token(token: str):
+    """Verify Google ID token and return payload"""
+    try:
+        google_client_id = os.getenv('GOOGLE_CLIENT_ID')
+        
+        if not google_client_id:
+            raise Exception("GOOGLE_CLIENT_ID não configurado no .env")
+        
+        # Verify token with Google
+        idinfo = id_token.verify_oauth2_token(
+            token, 
+            requests.Request(), 
+            google_client_id
+        )
+        
+        # Token is valid
+        return {
+            'email': idinfo.get('email'),
+            'name': idinfo.get('name'),
+            'picture': idinfo.get('picture'),
+            'aud': idinfo.get('aud')
+        }
+    except Exception as e:
+        raise Exception(f"Token verification failed: {str(e)}")
+
+def generate_jwt(payload: dict):
+    """Generate JWT token"""
+    jwt_secret = os.getenv('JWT_SECRET_DEV') or os.getenv('JWT_SECRET_PROD')
+    
+    if not jwt_secret:
+        raise Exception("JWT_SECRET not configured")
+    
+    # Add expiration (24 hours)
+    payload['exp'] = datetime.utcnow() + timedelta(hours=24)
+    payload['iat'] = datetime.utcnow()
+    
+    token = jwt.encode(payload, jwt_secret, algorithm='HS256')
+    return token
+
+def decode_jwt(token: str):
+    """Decode and verify JWT token"""
+    jwt_secret = os.getenv('JWT_SECRET_DEV') or os.getenv('JWT_SECRET_PROD')
+    
+    try:
+        payload = jwt.decode(token, jwt_secret, algorithms=['HS256'])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise Exception("Token has expired")
+    except jwt.InvalidTokenError:
+        raise Exception("Invalid token")
