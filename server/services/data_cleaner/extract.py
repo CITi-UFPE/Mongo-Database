@@ -100,7 +100,7 @@ def main():
     else:
         print(f"Criando arquivo: {output_file}")
 
-    with open("raw_data.json", "w", encoding="utf-8") as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
     print("✅ raw_data.json criado com sucesso")
