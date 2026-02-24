@@ -93,7 +93,14 @@ def main():
         "pages_raw": pages_raw,  # <-- só isso, bruto
     }
 
-    with open("raw_data.json", "w", encoding="utf-8") as f:
+    output_file = os.path.join(current_dir, "raw_data.json")
+
+    if os.path.exists(output_file):
+        print(f"Aviso: O arquivo {output_file} já existe e será sobrescrito.")
+    else:
+        print(f"Criando arquivo: {output_file}")
+
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
     print("✅ raw_data.json criado com sucesso")
