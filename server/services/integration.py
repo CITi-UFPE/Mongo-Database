@@ -1,7 +1,8 @@
 from typing import Any, Dict
 
 from services.pipefy_service import fetch_pipefy_raw_output 
-from services.data_cleaner.clean import clean_pipefy_payload, save_to_mongodb  
+from services.data_cleaner.clean import clean_pipefy_payload
+from services.db_load import save_to_mongodb   
 
 
 def sync_pipefy(first: int = 50) -> Dict[str, Any]:
