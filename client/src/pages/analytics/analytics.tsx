@@ -9,7 +9,7 @@ import VisualToggle from "@/components/dashboard/VisualToggle";
 import UserProfileDropdown from "@/components/ui/userProfileDropdown";
 import { useAuth } from "@/context/AuthContext";
 import { extractNameFromEmail } from "@/lib/nameUtils";
-import { DashboardOverview } from "@/components/ui/dashboard";
+import Dashboard from "@/components/ui/dashboard";
 import AnimatedLogo from "@/components/AnimatedLogo";
 import { Chatbot } from "@/components/Chatbot/Chatbot";
 import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
@@ -27,7 +27,7 @@ type TogglePopupState = {
 };
 
 export default function DataVizDashboard() {
-  const [viewMode, setViewMode] = useState<ViewMode>("planilha");
+  const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
   const [sheets, setSheets] = useState<string[]>([]);
   const [loadingSheets, setLoadingSheets] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
@@ -333,12 +333,12 @@ export default function DataVizDashboard() {
       : "Escolha uma planilha";
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
-      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 border-b border-slate-700 backdrop-blur-md bg-slate-900/60">
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-gradient-to-br from-[#0B1120] via-[#0D1929] to-[#0F172A] text-slate-100">
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 border-b border-blue-500/10 backdrop-blur-xl bg-slate-900/50 shadow-lg shadow-blue-500/5">
+        <div className="flex items-center gap-3 flex-1">
           <AnimatedLogo />
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-transparent bg-clip-text bg-linear-to-r from-blue-400 to-teal-400">
+          <div className="min-w-0 hidden sm:block">
+            <h1 className="text-lg font-bold text-transparent bg-clip-text bg-linear-to-r from-blue-400 to-cyan-400">
               Data Lake Analytics
             </h1>
             <p className="text-xs text-slate-400">By CITi</p>
@@ -350,8 +350,9 @@ export default function DataVizDashboard() {
 
       <div className="h-20" />
 
-      <main className="container p-6 mx-auto mt-4 space-y-6">
+      <main className="mx-auto px-4 md:px-6 py-6 space-y-6 max-w-7xl">
         {/* Bem-vindo */}
+        {viewMode === "planilha" ? (
         <div>
         <Card className="transition-all bg-slate-800 border-slate-700">
           <CardHeader>
@@ -384,6 +385,7 @@ export default function DataVizDashboard() {
           </CardContent>
         </Card>
       </div>
+        ) : null}
 
       {viewMode === "planilha" && (
         <Card className="bg-slate-800 border-slate-700">
@@ -640,7 +642,7 @@ export default function DataVizDashboard() {
     )}
   </Card>
 ) : (
-      <DashboardOverview />
+      <Dashboard />
 )}
       </main>
       <AnimatePresence>

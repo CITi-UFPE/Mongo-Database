@@ -84,7 +84,10 @@ def smart_currency_clean(val: Any) -> float:
             clean = clean.replace(".", "")
 
     try:
-        return float(clean)
+        final_val = float(clean)
+        if final_val < 0:
+            return 0.0
+        return final_val
     except ValueError:
         return 0.0
 
