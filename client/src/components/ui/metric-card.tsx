@@ -29,7 +29,7 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "relative rounded-2xl p-5 transition-all duration-300 bg-slate-800/25 backdrop-blur-md border border-blue-500/25 hover:border-blue-400/50",
+        "relative rounded-2xl p-5 transition-all duration-300 bg-slate-800/25 backdrop-blur-md border border-blue-500/25 hover:border-blue-300/70 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-[0_12px_30px_rgba(6,182,212,0.18)]",
         className
       )}
       title={tooltip}

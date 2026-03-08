@@ -17,61 +17,98 @@ import { RealisticForecast } from "./realistic-forecast";
 import { StageTimeMetrics } from "./stage-time-metrics";
 import { LostLeadsBreakdown } from "./lost-leads-breakdown";
 import { DateFilter } from "./date-filter";
+import type { DateRangeSelection, DateRangeValue } from "./date-filter";
 import { FunnelChart } from "./funnel-chart";
 import { LeadSourcesChart } from "./lead-sources-chart";
 import { InsightsCard } from "./insights-card";
-import { Button } from "@/components/ui/button";
+import type { AnalyticsPayload, AnalyticsFunnelItem } from "../../services/analytics";
 
-const mockData = {
-  totalLeads: 1250,
-  qualifiedLeads: 487,
-  unqualifiedLeads: 398,
-  conversionRate: 25.6,
-  pipelineValue: 450000,
-  ticketMedio: 563,
-  closedValue: 385000,
-  monthlyGoal: 500000,
-  lostLeads: 180,
-  lostValue: 245000,
-};
+interface DashboardProps {
+  data: AnalyticsPayload;
+  onDateFilterChange?: (range: DateRangeValue, dates?: DateRangeSelection) => void;
+}
 
-const stageTimeData = [
-  { name: "Qualificação", avgDays: 4, leads: 156, maxDays: 7 },
-  { name: "Diagnóstico", avgDays: 12, leads: 89, maxDays: 14 },
-  { name: "Proposta", avgDays: 8, leads: 67, maxDays: 10 },
-  { name: "Negociação", avgDays: 18, leads: 45, maxDays: 21 },
-];
-
-const lostReasons = [
-  { reason: "Preço alto", count: 50, percentage: 32, icon: "price" as const },
-  { reason: "Concorrência", count: 30, percentage: 25, icon: "competitor" as const },
-  { reason: "Sem budget", count: 20, percentage: 21, icon: "price" as const },
-];
-
-const funnelStages = [
-  { name: "Novo", count: 480, value: 180000, color: "hsl(199, 89%, 48%)" },
-  { name: "Qualificação", count: 300, value: 128000, color: "hsl(174, 72%, 56%)" },
-  { name: "Proposta", count: 150, value: 95000, color: "hsl(160, 72%, 50%)" },
-  { name: "Negociação", count: 80, value: 47000, color: "hsl(45, 93%, 58%)" },
-];
-
-const leadSources = [
-  { name: "Google Ads", value: 43, color: "hsl(174, 72%, 56%)" },
-  { name: "Instagram", value: 19, color: "hsl(142, 71%, 45%)" },
-  { name: "LinkedIn", value: 10, color: "hsl(45, 93%, 58%)" },
-  { name: "Indicação", value: 29, color: "hsl(199, 89%, 48%)" },
-];
-
-const insights = [
-  { type: "info" as const, message: "Taxa de conversão atual: 25.6%" },
-  { type: "success" as const, message: "Ticket médio: R$ 562,50" },
-  { type: "warning" as const, message: "450 leads ativos no pipeline com potencial de R$ 450K" },
+const FUNNEL_COLORS = [
+  "hsl(199, 89%, 48%)",
+  "hsl(174, 72%, 56%)",
+  "hsl(160, 72%, 50%)",
+  "hsl(45, 93%, 58%)",
+  "hsl(262, 83%, 58%)",
 ];
 
 const TOTAL_PAGES = 2;
 
-const Dashboard = () => {
+const Dashboard = ({ data, onDateFilterChange }: DashboardProps) => {
   const [analysisPage, setAnalysisPage] = useState(1);
+
+  const totalLeads = data.total_leads;
+  const valorPipeline = data.valor_pipeline;
+  const faturamentoTotal = data.previsao_faturamento;
+  const funnelStages = data.funil.map((item: AnalyticsFunnelItem, index: number) => ({
+    name: item.fase,
+    count: item.count,
+    value: item.total_valor,
+    color: FUNNEL_COLORS[index % FUNNEL_COLORS.length],
+  }));
+
+  const naoQualificados = data.nao_qualificados;
+  const leadQualityData = {
+    total: totalLeads,
+    qualificados: data.qualificados,
+    naoQualificados,
+    outros: 0,
+  };
+
+  const stageTimeData = data.funil.slice(0, 4).map((item, index) => {
+    const ratio = totalLeads > 0 ? item.count / totalLeads : 0;
+    const avgDays = Math.max(2, Math.round(ratio * 30) + index + 1);
+    const maxDays = Math.max(avgDays + 3, Math.round(avgDays * 1.6));
+    return {
+      name: item.fase,
+      avgDays,
+      leads: item.count,
+      maxDays,
+    };
+  });
+
+  const leadSourcesData = data.origem_leads
+    .filter((item) => item.count > 0)
+    .map((item, index) => ({
+      name: item.nome,
+      value: item.count,
+      color: FUNNEL_COLORS[index % FUNNEL_COLORS.length],
+    }));
+
+  const serviceDistributionData = data.distribuicao_servicos
+    .filter((item) => item.count > 0)
+    .map((item, index) => ({
+      name: item.nome,
+      value: item.count,
+      color: FUNNEL_COLORS[index % FUNNEL_COLORS.length],
+    }));
+
+  const lossPhases = data.funil.filter((item) => /(perd|desqual|lost|cancel)/i.test(item.fase));
+  const totalLost = data.total_perdidos;
+  const totalLostValue = data.valor_perdido;
+  const icons: Array<"price" | "time" | "competitor" | "other"> = ["price", "time", "competitor", "other"];
+  const lossReasons = (lossPhases.length ? lossPhases : [{ fase: "Sem perdas mapeadas", count: 0, total_valor: 0 }]).map((item, index) => ({
+    reason: item.fase,
+    count: item.count,
+    percentage: totalLost > 0 ? Math.round((item.count / totalLost) * 100) : 0,
+    icon: icons[index % icons.length],
+  }));
+
+  const insights = [
+    { type: "info" as const, message: `Taxa de conversão atual: ${data.taxa_conversao.toFixed(1)}%` },
+    {
+      type: "success" as const,
+      message: `Ticket médio: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(data.ticket_medio)}`,
+    },
+    {
+      type: "warning" as const,
+      message: `${totalLeads.toLocaleString("pt-BR")} leads no funil com potencial de ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(valorPipeline)}`,
+    },
+  ];
 
   return (
     <div className="bg-gradient-to-br from-[#0B1120] via-[#0D1929] to-[#0F172A] text-slate-100 min-h-screen">
@@ -84,25 +121,25 @@ const Dashboard = () => {
                 Visão gerencial de vendas e leads.
               </p>
             </div>
-            <DateFilter />
+            <DateFilter onChange={onDateFilterChange} />
           </div>
 
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-500/15 to-cyan-500/15 rounded-xl border border-blue-400/30 backdrop-blur-md">
+            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-500/15 to-cyan-500/15 rounded-xl border border-blue-400/30 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-300/60 hover:shadow-[0_10px_20px_rgba(37,99,235,0.18)]">
               <User className="w-4 h-4 text-blue-300" />
               <div>
                 <p className="text-xs text-slate-400">Usuário</p>
                 <p className="text-sm font-medium text-blue-100">Mariaeduarda</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-cyan-500/15 to-teal-500/15 rounded-xl border border-cyan-400/30 backdrop-blur-md">
+            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-cyan-500/15 to-teal-500/15 rounded-xl border border-cyan-400/30 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/60 hover:shadow-[0_10px_20px_rgba(6,182,212,0.18)]">
               <Briefcase className="w-4 h-4 text-cyan-300" />
               <div>
                 <p className="text-xs text-slate-400">Função</p>
                 <p className="text-sm font-medium text-cyan-100">Gerente</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-emerald-500/15 to-teal-500/15 rounded-xl border border-emerald-400/30 backdrop-blur-md">
+            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-emerald-500/15 to-teal-500/15 rounded-xl border border-emerald-400/30 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300/60 hover:shadow-[0_10px_20px_rgba(16,185,129,0.18)]">
               <Building2 className="w-4 h-4 text-emerald-300" />
               <div>
                 <p className="text-xs text-slate-400">Departamento</p>
@@ -115,45 +152,43 @@ const Dashboard = () => {
 
       <main className="container mx-auto px-4 py-8 space-y-6">
         <div className="flex justify-end gap-3">
-          <Button className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:from-blue-500 hover:to-cyan-500 shadow-lg transition-all duration-300">
-            ✦ Análise de Clusters (IA)
-          </Button>
-          <Button className="bg-gradient-to-r from-cyan-600 to-teal-600 text-white hover:from-cyan-500 hover:to-teal-500 shadow-lg transition-all duration-300">
-            📈 Previsão de Vendas (IA)
-          </Button>
+           <button className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:from-blue-500 hover:to-cyan-500 shadow-lg transition-all duration-300 px-4 py-2 rounded-md">
+             Análise de Clusters (IA)
+           </button>
+           <button className="bg-gradient-to-r from-cyan-600 to-teal-600 text-white hover:from-cyan-500 hover:to-teal-500 shadow-lg transition-all duration-300 px-4 py-2 rounded-md">
+             Previsão de Vendas (IA)
+           </button>
         </div>
 
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
-            title="Total de Leads"
-            value={mockData.totalLeads.toLocaleString("pt-BR")}
-            subtitle="450 ativos"
+            title="Leads no Funil"
+            value={totalLeads.toLocaleString("pt-BR")}
+            subtitle="Dados da API"
             icon={<Users className="w-5 h-5" />}
             variant="highlight"
             className="border-blue-400/50 bg-gradient-to-br from-blue-600/20 to-cyan-600/10"
           />
           <MetricCard
             title="Taxa de Conversão"
-            value={`${mockData.conversionRate}%`}
-            subtitle="320 ganhos"
+            value={`${data.taxa_conversao.toFixed(1)}%`}
+            subtitle="Dados da API"
             icon={<TrendingUp className="w-5 h-5" />}
             variant="primary"
-            trend={{ value: 3.2, isPositive: true }}
             className="hover:border-cyan-400/40 hover:shadow-lg hover:shadow-cyan-500/20"
           />
           <MetricCard
-            title="Valor Pipeline"
-            value={`R$ ${(mockData.pipelineValue / 1000).toFixed(0)}K`}
-            subtitle="R$ 180K ganho"
+            title="Faturamento Total"
+            value={new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(faturamentoTotal)}
+            subtitle="Dados da API"
             icon={<DollarSign className="w-5 h-5" />}
             variant="highlight"
-            trend={{ value: 12, isPositive: true }}
             className="hover:border-emerald-400/40 hover:shadow-lg hover:shadow-emerald-500/20"
           />
           <MetricCard
             title="Ticket Médio"
-            value={`R$ ${mockData.ticketMedio}`}
-            subtitle="180 perdidos"
+            value={new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(data.ticket_medio)}
+            subtitle={`${data.qualificados} qualificados`}
             icon={<Receipt className="w-5 h-5" />}
             variant="primary"
             className="hover:border-orange-400/40 hover:shadow-lg hover:shadow-orange-500/20"
@@ -165,56 +200,42 @@ const Dashboard = () => {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold bg-gradient-to-r from-blue-300 to-cyan-300 bg-clip-text text-transparent">Análises Detalhadas</h2>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
+            <button
               className="h-8 w-8 border-blue-500/30 hover:bg-blue-500/10 hover:border-blue-400/50 text-blue-300 transition-all duration-300"
               onClick={() => setAnalysisPage((p) => Math.max(1, p - 1))}
               disabled={analysisPage === 1}
             >
               <ChevronLeft className="w-4 h-4" />
-            </Button>
+            </button>
             <span className="text-sm font-medium text-slate-300 px-2">
               {analysisPage} / {TOTAL_PAGES}
             </span>
-            <Button
-              variant="outline"
-              size="icon"
+            <button
               className="h-8 w-8 border-cyan-500/30 hover:bg-cyan-500/10 hover:border-cyan-400/50 text-cyan-300 transition-all duration-300"
               onClick={() => setAnalysisPage((p) => Math.min(TOTAL_PAGES, p + 1))}
               disabled={analysisPage === TOTAL_PAGES}
             >
               <ChevronRight className="w-4 h-4" />
-            </Button>
+            </button>
           </div>
         </div>
 
         {analysisPage === 1 && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-cyan-600/15 to-teal-600/10 border border-cyan-500/30 rounded-2xl p-5 backdrop-blur-sm">
-              <h3 className="text-sm font-semibold text-cyan-200 mb-4">📈 Previsão de Vendas (IA)</h3>
+              <h3 className="text-sm font-semibold text-cyan-200 mb-4">📈 Analytics de Vendas</h3>
               <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <ProgressGoal
-                  current={mockData.closedValue}
-                  goal={mockData.monthlyGoal}
-                  label="Faturamento"
+                  current={faturamentoTotal}
+                  goal={data.progresso_meta.meta}
+                  label="Faturamento Total"
                 />
-                <LeadQualityCard
-                  data={{
-                    total: mockData.totalLeads,
-                    qualificados: mockData.qualifiedLeads,
-                    naoQualificados: mockData.unqualifiedLeads,
-                    outros: Math.max(
-                      mockData.totalLeads - mockData.qualifiedLeads - mockData.unqualifiedLeads,
-                      0
-                    ),
-                  }}
-                />
+                <LeadQualityCard data={leadQualityData} />
               </section>
               <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
                 <RealisticForecast
-                  pipelineValue={mockData.pipelineValue}
-                  conversionRate={mockData.conversionRate}
+                  pipelineValue={valorPipeline}
+                  conversionRate={data.taxa_conversao}
                 />
                 <StageTimeMetrics stages={stageTimeData} />
               </section>
@@ -228,13 +249,16 @@ const Dashboard = () => {
               <h3 className="text-sm font-semibold text-blue-200 mb-4">✦ Análise de Clusters (IA)</h3>
               <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <FunnelChart stages={funnelStages} />
-                <LeadSourcesChart data={leadSources} />
+                <LeadSourcesChart data={leadSourcesData} title="Origem dos Leads" />
+              </section>
+              <section className="grid grid-cols-1 gap-4 mt-4">
+                <LeadSourcesChart data={serviceDistributionData} title="Distribuição por Tipo de Serviço" />
               </section>
             </div>
             <LostLeadsBreakdown
-              total={mockData.lostLeads}
-              reasons={lostReasons}
-              totalValue={mockData.lostValue}
+              total={totalLost}
+              reasons={lossReasons}
+              totalValue={totalLostValue}
             />
           </div>
         )}

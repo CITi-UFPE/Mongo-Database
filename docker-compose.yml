@@ -82,11 +82,11 @@ services:
     networks:
       - default
     healthcheck:
-      test: mongosh --eval 'db.adminCommand("ping")' --authenticationDatabase admin -u admin -p senhasegura123 || exit 1
+      test: ["CMD-SHELL", "mongosh --quiet --authenticationDatabase admin -u admin -p senhasegura123 --eval 'db.adminCommand(\"ping\").ok' | grep 1 >/dev/null || exit 1"]
       interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 40s
+      timeout: 15s
+      retries: 10
+      start_period: 90s
     
   mongo-express:
     image: mongo-express
