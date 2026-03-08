@@ -141,7 +141,6 @@ class PipefyTempService:
             }
             cleaned_list.append(item)
         return cleaned_list
-
     # =========================================================================
     # 3. INTELIGÊNCIA (O que a IA vai ler)
     # =========================================================================
