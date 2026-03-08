@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from routers.pipefy_service import router as integrations_router
+from services.db import db_client
 from contextlib import asynccontextmanager
 import os
 from dotenv import load_dotenv
@@ -13,14 +15,16 @@ load_dotenv()
 # Lifespan context
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     print("🚀 Starting server...")
+    db_client.connect()
     yield
-    # Shutdown
+
     print("🛑 Shutting down...")
 
 # Create app FIRST
 app = FastAPI(title="CITi Data Lake", lifespan=lifespan)
+
+
 
 # CORS Config
 client_url_dev = os.getenv('CLIENT_URL_DEV', 'http://localhost:3080')
@@ -59,6 +63,9 @@ app.include_router(analytics.router, prefix="/analytics")     # Caminho de compa
 
 # 4. Gemini IA
 app.include_router(gemini.router)
+
+#5. Integrações (Data Cleaner)
+app.include_router(integrations_router)
 
 
 @app.get("/")
