@@ -10,10 +10,12 @@ import UserProfileDropdown from "@/components/ui/userProfileDropdown";
 import { useAuth } from "@/context/AuthContext";
 import { extractNameFromEmail } from "@/lib/nameUtils";
 import Dashboard from "@/components/ui/dashboard";
+import type { DateRangeSelection, DateRangeValue } from "@/components/ui/date-filter";
 import AnimatedLogo from "@/components/AnimatedLogo";
 import { Chatbot } from "@/components/Chatbot/Chatbot";
 import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { apiClient } from "@/services/api";
+import { fetchAnalyticsPayload, type AnalyticsPayload } from "@/services/analytics";
 
 const LOGO_GRADIENT_ID = "analytics-logo-gradient";
 const ROWS_PER_PAGE = 20;
@@ -57,6 +59,14 @@ export default function DataVizDashboard() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsPayload | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [analyticsDateRange, setAnalyticsDateRange] = useState<DateRangeSelection | undefined>(undefined);
+
+  const handleAnalyticsDateFilterChange = useCallback((_: DateRangeValue, dates?: DateRangeSelection) => {
+    setAnalyticsDateRange(dates);
+  }, []);
 
   useEffect(() => {
     let canceled = false;
@@ -98,6 +108,44 @@ export default function DataVizDashboard() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (viewMode !== "dashboard") {
+      return;
+    }
+
+    let canceled = false;
+
+    const loadAnalytics = async () => {
+      setLoadingAnalytics(true);
+      setAnalyticsError(null);
+
+      try {
+        const payload = await fetchAnalyticsPayload({
+          data_inicio: analyticsDateRange?.from ? analyticsDateRange.from.toISOString().slice(0, 10) : undefined,
+          data_fim: analyticsDateRange?.to ? analyticsDateRange.to.toISOString().slice(0, 10) : undefined,
+        });
+        if (!canceled) {
+          setAnalyticsData(payload);
+        }
+      } catch (_error) {
+        if (!canceled) {
+          setAnalyticsData(null);
+          setAnalyticsError("Não foi possível carregar Analytics da API.");
+        }
+      } finally {
+        if (!canceled) {
+          setLoadingAnalytics(false);
+        }
+      }
+    };
+
+    loadAnalytics();
+
+    return () => {
+      canceled = true;
+    };
+  }, [viewMode, analyticsDateRange]);
 
   const showTogglePopup = useCallback((mode: ViewMode) => {
     setTogglePopup({ visible: true, mode, key: Date.now() });
@@ -642,7 +690,24 @@ export default function DataVizDashboard() {
     )}
   </Card>
 ) : (
-      <Dashboard />
+      <div className="space-y-4">
+        {analyticsError ? (
+          <Card className="bg-slate-800 border-amber-500/40">
+            <CardContent className="pt-6 text-sm text-amber-200">{analyticsError}</CardContent>
+          </Card>
+        ) : null}
+        {loadingAnalytics ? (
+          <Card className="bg-slate-800 border-slate-700">
+            <CardContent className="py-10">
+              <div className="flex items-center justify-center gap-3 text-slate-300">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Carregando Analytics...</span>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+        {analyticsData ? <Dashboard data={analyticsData} onDateFilterChange={handleAnalyticsDateFilterChange} /> : null}
+      </div>
 )}
       </main>
       <AnimatePresence>

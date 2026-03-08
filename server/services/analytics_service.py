@@ -1,6 +1,7 @@
 import os
 import sys
-from typing import List, Dict
+from datetime import datetime
+from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
 # -----------------------------------------------------------------------------
@@ -57,7 +58,35 @@ print("✅ Analytics Service iniciado.")
 # 4. Serviços de KPI (Métricas e Analytics)
 # -----------------------------------------------------------------------------
 
-def get_leads_qualificados(limite_valor: float = 10000.0) -> int:
+def _build_date_match(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
+    if not data_inicio and not data_fim:
+        return {}
+
+    date_conditions = []
+
+    if data_inicio or data_fim:
+        range_query = {}
+        if data_inicio:
+            range_query["$gte"] = data_inicio
+        if data_fim:
+            range_query["$lte"] = data_fim
+        date_conditions.append({"data_qualificacao": range_query})
+
+    if data_inicio or data_fim:
+        range_query_dt = {}
+        if data_inicio:
+            range_query_dt["$gte"] = datetime.fromisoformat(f"{data_inicio}T00:00:00")
+        if data_fim:
+            range_query_dt["$lte"] = datetime.fromisoformat(f"{data_fim}T23:59:59")
+        date_conditions.append({"createdAt": range_query_dt})
+
+    if not date_conditions:
+        return {}
+
+    return {"$or": date_conditions}
+
+
+def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> int:
     """
     Conta o número de leads com alto potencial de fechamento
     
@@ -70,18 +99,26 @@ def get_leads_qualificados(limite_valor: float = 10000.0) -> int:
         if col is None:
             return {"qualificados": 0, "total": 0}
         
-        total_leads = col.count_documents({})
+        date_match = _build_date_match(data_inicio, data_fim)
+        total_leads = col.count_documents(date_match if date_match else {})
         
         invalid_budgets = [
             "< R$10.000,00",
         ]
 
         query = {
-            "$or": [
-                {"valor": {"$gt": limite_valor}},
-                {"budget_estimado": {"$nin": invalid_budgets}}
+            "$and": [
+                {
+                    "$or": [
+                        {"valor": {"$gt": limite_valor}},
+                        {"budget_estimado": {"$nin": invalid_budgets}}
+                    ]
+                }
             ]
         }
+
+        if date_match:
+            query["$and"].append(date_match)
 
         qualificados = col.count_documents(query)
         return {"qualificados": qualificados, "total": total_leads}
@@ -91,7 +128,7 @@ def get_leads_qualificados(limite_valor: float = 10000.0) -> int:
         return {"qualificados": 0, "total": 0}
 
 
-def get_previsao_faturamento(fator_conversao: float = 0.25) -> float:
+def get_previsao_faturamento(fator_conversao: float = 0.25, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> float:
     """
     Calcula a previsão de faturamento do pipeline atual
     
@@ -104,7 +141,12 @@ def get_previsao_faturamento(fator_conversao: float = 0.25) -> float:
         if col is None:
             return 0.0
         
+        date_match = _build_date_match(data_inicio, data_fim)
+
         pipeline = [
+            {
+                "$match": date_match if date_match else {}
+            },
             {
                 "$match": {
                     "fase": {"$in": ["Apresentação de proposta", "Negociação"]}
@@ -133,7 +175,7 @@ def get_previsao_faturamento(fator_conversao: float = 0.25) -> float:
         return 0.0
 
 
-def get_distribuicao_fases() -> List[Dict]:
+def get_distribuicao_fases(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> List[Dict]:
     """
     Retorna a quantidade de leads e o volume financeiro parado em cada fase
     
@@ -147,7 +189,12 @@ def get_distribuicao_fases() -> List[Dict]:
         if col is None:
             return []
         
+        date_match = _build_date_match(data_inicio, data_fim)
+
         pipeline = [
+            {
+                "$match": date_match if date_match else {}
+            },
             {
                 "$addFields": {
                     "valor_calculado": {

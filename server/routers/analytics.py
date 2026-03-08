@@ -1,7 +1,11 @@
 """Analytics routes - Versão Híbrida (Suporta banco vazio)."""
+import os
+import json
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from services.db import db_client
+from services import analytics_service
+from services.pipefy_sync import sync_pipefy_to_mongo
 
 # Tenta importar ML, se falhar, usa mock
 try:
@@ -11,6 +15,170 @@ except ImportError:
 
 # Removemos o prefixo daqui para definir no main.py
 router = APIRouter(tags=["analytics"])
+
+
+def get_mock_overview():
+    return {
+        "qualificados": 15,
+        "previsao_faturamento": 45000.50,
+        "ticket_medio": 12500.00,
+        "taxa_conversao": 15.5,
+        "progresso_meta": {
+            "faturado": 385000,
+            "meta": 407000,
+            "porcentagem": 95,
+        },
+        "funil": [
+            {"fase": "Contato", "count": 10, "total_valor": 15000}
+        ],
+        "origem_leads": [
+            {"nome": "Marketing", "count": 6},
+            {"nome": "LinkedIn", "count": 4},
+        ],
+        "distribuicao_servicos": [
+            {"nome": "Consultoria", "count": 5},
+            {"nome": "Dados", "count": 3},
+            {"nome": "Design", "count": 2},
+        ],
+    }
+
+
+def _split_bucket_values(raw_value):
+    if raw_value is None:
+        return []
+
+    if isinstance(raw_value, list):
+        values = []
+        for item in raw_value:
+            values.extend(_split_bucket_values(item))
+        return values
+
+    value = str(raw_value).strip()
+    if not value:
+        return []
+
+    if value.startswith("[") and value.endswith("]"):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                values = []
+                for item in parsed:
+                    values.extend(_split_bucket_values(item))
+                return values
+        except Exception:
+            pass
+
+    separators = ["|", ";", "/", "\n", "\t"]
+    for sep in separators:
+        value = value.replace(sep, ",")
+
+    parts = [
+        part.strip().strip('"').strip("'").strip("[]")
+        for part in value.split(",")
+        if part.strip()
+    ]
+    return parts if parts else [value]
+
+
+def _aggregate_distribution(collection, field_name: str):
+    try:
+        buckets = {}
+        docs = collection.find({field_name: {"$exists": True, "$ne": None}}, {field_name: 1})
+
+        for doc in docs:
+            for item in _split_bucket_values(doc.get(field_name)):
+                buckets[item] = buckets.get(item, 0) + 1
+
+        return [
+            {"nome": name, "count": count}
+            for name, count in sorted(buckets.items(), key=lambda pair: pair[1], reverse=True)
+        ]
+    except Exception:
+        return []
+
+
+def _build_overview_payload(data_inicio: Optional[str] = None, data_fim: Optional[str] = None):
+    info_leads = analytics_service.get_leads_qualificados(data_inicio=data_inicio, data_fim=data_fim)
+    qualificados = int(info_leads.get("qualificados", 0))
+    total_leads = int(info_leads.get("total", 0))
+
+    previsao_faturamento = float(
+        analytics_service.get_previsao_faturamento(data_inicio=data_inicio, data_fim=data_fim)
+    )
+    taxa_conversao = round((qualificados / total_leads) * 100, 2) if total_leads > 0 else 0.0
+    ticket_medio = round(previsao_faturamento / qualificados, 2) if qualificados > 0 else 0.0
+
+    funil_raw = analytics_service.get_distribuicao_fases(data_inicio=data_inicio, data_fim=data_fim)
+    funil = [
+        {
+            "fase": item.get("fase", "Sem fase"),
+            "count": int(item.get("quantidade", 0)),
+            "total_valor": float(item.get("total_valor", 0.0)),
+        }
+        for item in funil_raw
+    ]
+
+    db = db_client.get_db()
+    leads = db["leads"]
+    origem_leads = _aggregate_distribution(leads, "origem_lead")
+    distribuicao_servicos = _aggregate_distribution(leads, "servicos_interesse")
+
+    meta = float(os.getenv("META_FATURAMENTO", 407000))
+    faturado = round(sum(item["total_valor"] for item in funil), 2)
+    porcentagem = round((faturado / meta) * 100) if meta > 0 else 0
+    total_lost = sum(item["count"] for item in funil if "perd" in item["fase"].lower() or "desqual" in item["fase"].lower() or "lost" in item["fase"].lower() or "cancel" in item["fase"].lower())
+    total_lost_value = round(sum(item["total_valor"] for item in funil if "perd" in item["fase"].lower() or "desqual" in item["fase"].lower() or "lost" in item["fase"].lower() or "cancel" in item["fase"].lower()), 2)
+    nao_qualificados = max(total_leads - qualificados, 0)
+
+    return {
+        "total_leads": total_leads,
+        "qualificados": qualificados,
+        "nao_qualificados": nao_qualificados,
+        "valor_pipeline": faturado,
+        "total_perdidos": total_lost,
+        "valor_perdido": total_lost_value,
+        "previsao_faturamento": round(previsao_faturamento, 2),
+        "ticket_medio": ticket_medio,
+        "taxa_conversao": taxa_conversao,
+        "progresso_meta": {
+            "faturado": faturado,
+            "meta": meta,
+            "porcentagem": porcentagem,
+        },
+        "funil": funil,
+        "origem_leads": origem_leads,
+        "distribuicao_servicos": distribuicao_servicos,
+    }
+
+
+@router.get("/overview")
+async def get_overview(
+    refresh_pipefy: bool = Query(False),
+    data_inicio: Optional[str] = Query(None),
+    data_fim: Optional[str] = Query(None),
+):
+    try:
+        if refresh_pipefy:
+            sync_pipefy_to_mongo()
+
+        payload = _build_overview_payload(data_inicio=data_inicio, data_fim=data_fim)
+        return payload
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro no overview analytics: {str(e)}")
+
+
+@router.post("/sync-pipefy")
+async def sync_pipefy():
+    try:
+        return sync_pipefy_to_mongo()
+    except Exception as e:
+        return {
+            "ok": False,
+            "synced": 0,
+            "reason": f"error: {str(e)}",
+        }
+
+
 def get_mock_kpis():
     """Retorna dados falsos bonitos para quando o banco estiver vazio."""
     return {

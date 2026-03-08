@@ -11,6 +11,7 @@ from datetime import datetime
 # -----------------------------------------------------------------------------
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from services.db import db_client
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 server_dir = os.path.dirname(os.path.dirname(current_dir))
@@ -137,6 +138,27 @@ def get_responsavel(node: Dict) -> str:
 
     return "Não informado"
 
+
+def get_valor_proposta(fields: List[Dict]) -> Any:
+    """
+    Busca o valor da proposta considerando variações comuns de nome do campo.
+    Retorna o valor bruto (string/num) para ser normalizado por smart_currency_clean.
+    """
+    candidatos = [
+        "Valor da proposta",
+        "Valor",
+        "Valor estimado",
+        "Valor total",
+        "[BANT] Budget Estimado",
+    ]
+
+    for nome in candidatos:
+        valor = get_campo_texto(fields, nome)
+        if valor not in (None, ""):
+            return valor
+
+    return None
+
 def clean_date_br(date_str: Any) -> Union[str, None]:
     """
     Converte datas do formato BR (DD/MM/YYYY) para ISO (YYYY-MM-DD).
@@ -232,13 +254,27 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
         fase = node.get('current_phase', {}).get('name')
         resp = get_responsavel(node)
 
-        raw_val = get_valor_proposta(fields)
+        raw_val = (
+            get_campo_texto(fields, "Valor da proposta")
+            or get_campo_texto(fields, "Valor")
+            or get_campo_texto(fields, "Valor estimado")
+            or get_campo_texto(fields, "Valor total")
+            or get_campo_texto(fields, "[BANT] Budget Estimado")
+        )
         val_float = smart_currency_clean(raw_val)
 
         budget = get_campo_texto(fields, "[BANT] Budget Estimado")
         autoridade = get_campo_texto(fields, "[BANT] Autoridade")
         motivo = get_campo_texto(fields, "Motivo da perda")
         origem = get_campo_texto(fields, "Fonte do lead")
+        servicos = (
+            get_campo_texto(fields, "Serviço de interesse")
+            or get_campo_texto(fields, "Servico de interesse")
+            or get_campo_texto(fields, "Serviços")
+            or get_campo_texto(fields, "Serviços de interesse")
+            or get_campo_texto(fields, "Servicos")
+            or get_campo_texto(fields, "Servicos de interesse")
+        )
         prazo = get_campo_texto(fields, "[BANT] Prazo")
 
         dt_criacao_raw = node.get('created_at')
@@ -260,6 +296,7 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
             "Autoridade": autoridade,
             "Motivo da Perda": motivo,
             "Origem do Lead": origem,
+            "Serviços": servicos,
             "Prazo": prazo,
             "Data de Qualificação": data_qualificacao,
             "Data de Diagnóstico": data_diagnostico,

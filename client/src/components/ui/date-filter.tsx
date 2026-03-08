@@ -3,9 +3,14 @@ import { cn } from "@/lib/utils";
 import { Calendar } from "lucide-react";
 
 type DateRange = "today" | "week" | "month" | "quarter" | "year" | "custom";
+export type DateRangeValue = DateRange;
+export interface DateRangeSelection {
+  from: Date;
+  to: Date;
+}
 
 interface DateFilterProps {
-  onChange?: (range: DateRange, dates?: { from: Date; to: Date }) => void;
+  onChange?: (range: DateRangeValue, dates?: DateRangeSelection) => void;
   className?: string;
 }
 
@@ -23,7 +28,36 @@ export function DateFilter({ onChange, className }: DateFilterProps) {
 
   const handleRangeSelect = (range: DateRange) => {
     setSelectedRange(range);
-    onChange?.(range);
+    if (range === "custom") {
+      onChange?.(range);
+      return;
+    }
+
+    const today = new Date();
+    const to = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    let from = new Date(to);
+
+    if (range === "today") {
+      from = new Date(to);
+    }
+
+    if (range === "week") {
+      from.setDate(to.getDate() - 6);
+    }
+
+    if (range === "month") {
+      from = new Date(to.getFullYear(), to.getMonth(), 1);
+    }
+
+    if (range === "quarter") {
+      from = new Date(to.getFullYear(), to.getMonth() - 2, 1);
+    }
+
+    if (range === "year") {
+      from = new Date(to.getFullYear(), 0, 1);
+    }
+
+    onChange?.(range, { from, to });
   };
 
   return (
