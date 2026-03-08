@@ -49,6 +49,9 @@ services:
       HOST: 0.0.0.0
       CLIENT_URL_DEV: http://localhost:3080
       CLIENT_URL_PROD: http://localhost:3080
+      PIPEFY_TOKEN: ${PIPEFY_TOKEN}
+      PIPEFY_PIPE_ID: ${PIPEFY_PIPE_ID}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
     networks:
       - default
       - internal-client
