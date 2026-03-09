@@ -2,6 +2,8 @@
 FROM python:3.11-slim
 
 WORKDIR /app
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 
 # Copy requirements
 COPY requirements.txt .

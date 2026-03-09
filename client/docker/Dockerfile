@@ -1,19 +1,25 @@
 FROM node:20-alpine AS build
 WORKDIR /app
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
+COPY package*.json ./
+RUN npm config set fetch-retries 10 \
+	&& npm config set fetch-retry-mintimeout 20000 \
+	&& npm config set fetch-retry-maxtimeout 120000 \
+	&& npm config set registry https://registry.npmjs.org/
+RUN if [ -f package-lock.json ]; then npm ci --no-audit --prefer-offline; else npm install --no-audit --prefer-offline; fi
 
 COPY . .
 ARG VITE_GOOGLE_CLIENT_ID
 ARG VITE_GEMINI_API_KEY
 ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 ENV VITE_GEMINI_API_KEY=$VITE_GEMINI_API_KEY
-RUN if [ -f index.html ]; then \
-			if [ -f package-lock.json ]; then npm ci; else npm install; fi; \
-			if [ -f tsconfig.json ]; then npm run build; else npx vite build; fi; \
-		else \
-			mkdir -p dist && cp -r build/* dist/; \
-		fi
+RUN npm run build
 
 FROM nginx:1.27-alpine
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY docker/default.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
