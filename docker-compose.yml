@@ -6,6 +6,7 @@ services:
       context: ./client
       dockerfile: docker/Dockerfile
       args:
+        - VITE_API_URL=http://localhost:5000/api
         - VITE_GOOGLE_CLIENT_ID=154331370847-dkmkdgprhjenmnhd4d7g33ui2jg5fk9u.apps.googleusercontent.com
         - VITE_GEMINI_API_KEY=AIzaSyDusQEI9qjjHTGczrQrt-Yv88nptLxTdn0
     depends_on:

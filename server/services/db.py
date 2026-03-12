@@ -23,18 +23,37 @@ class MongoDB:
         if MongoDB._instance is None:
             MongoDB._instance = MongoDB()
         return MongoDB._instance
+
+    def _is_production(self) -> bool:
+        environment = (os.getenv('ENV') or os.getenv('ENVIRONMENT') or os.getenv('NODE_ENV') or '').strip().lower()
+        return environment in {'prod', 'production'}
+
+    def _select_mongo_uri(self) -> Optional[str]:
+        if self._is_production():
+            candidates = [
+                os.getenv('MONGO_URI_PROD'),
+                os.getenv('MONGO_URI'),
+                os.getenv('MONGODB_URL'),
+                os.getenv('MONGO_URI_DEV'),
+            ]
+        else:
+            candidates = [
+                os.getenv('MONGO_URI'),
+                os.getenv('MONGODB_URL'),
+                os.getenv('MONGO_URI_DEV'),
+                os.getenv('MONGO_URI_PROD'),
+            ]
+
+        for uri in candidates:
+            if isinstance(uri, str) and uri.strip():
+                return uri.strip()
+        return None
     
     def connect(self):
         """Connect to MongoDB"""
         with self._lock:
             try:
-                # Tenta pegar do docker-compose primeiro, depois do .env
-                mongo_uri = (
-                    os.getenv('MONGO_URI') or
-                    os.getenv('MONGODB_URL') or 
-                    os.getenv('MONGO_URI_PROD') or 
-                    os.getenv('MONGO_URI_DEV')
-                )
+                mongo_uri = self._select_mongo_uri()
                 
                 if not mongo_uri:
                     raise Exception("MONGO_URI not configured")
