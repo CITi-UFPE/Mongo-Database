@@ -19,6 +19,11 @@ env_path = os.path.join(project_root, '.env')
 if os.path.exists(env_path):
     load_dotenv(env_path)
 
+
+def _should_replace_mongo_host() -> bool:
+    running_in_docker = os.path.exists('/.dockerenv')
+    return os.name == 'nt' and not running_in_docker
+
 # -----------------------------------------------------------------------------
 # 2. Patch de Conexão (Redirecionamento Docker -> Localhost)
 # -----------------------------------------------------------------------------
@@ -31,7 +36,7 @@ base_uri = (
 
 # Se o script for rodado no Windows (fora do Docker), o host 'mdp-mongo' é inacessível.
 # Este bloco intercepta e força a conexão via localhost para a porta exposta.
-if base_uri and "mdp-mongo" in base_uri:
+if base_uri and "mdp-mongo" in base_uri and _should_replace_mongo_host():
     print(f"🔧 Ajuste Local: Trocando 'mdp-mongo' por 'localhost'...")
     final_uri = base_uri.replace("mdp-mongo", "localhost")
     

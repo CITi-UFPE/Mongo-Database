@@ -18,10 +18,15 @@ if os.path.exists(env_path):
 else:
     print("Erro: .env não encontrado")
 
+
+def _should_replace_mongo_host() -> bool:
+    running_in_docker = os.path.exists('/.dockerenv')
+    return os.name == 'nt' and not running_in_docker
+
 # Ajuste para rodar local: .env pode ter host do container (mdp-mongo).
 # db.py prioriza MONGO_URI_PROD; garantimos que ambas apontem para localhost.
 raw_uri = os.getenv("MONGO_URI_DEV")
-if raw_uri and "mdp-mongo" in raw_uri:
+if raw_uri and "mdp-mongo" in raw_uri and _should_replace_mongo_host():
     os.environ["MONGO_URI_DEV"] = raw_uri.replace("mdp-mongo", "localhost")
     prod = os.getenv("MONGO_URI_PROD", "")
     if prod and "mdp-mongo" in prod:
