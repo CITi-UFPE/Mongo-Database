@@ -51,6 +51,14 @@ def _limpar_string_pipefy(valor: Any) -> Union[str, Any]:
     return valor
 
 
+def _safe_lower(value: Any) -> str:
+    if isinstance(value, str):
+        return value.lower()
+    if value is None:
+        return ""
+    return str(value).lower()
+
+
 # -----------------------------------------------------------------------------
 # Carregamento de dados
 # -----------------------------------------------------------------------------
@@ -102,8 +110,11 @@ def get_campo_texto(fields: List[Dict], nome_busca: str) -> str:
 
     Retorna None se o campo não existir.
     """
+    nome_busca_lower = _safe_lower(nome_busca)
     for field in fields:
-        if nome_busca.lower() == field.get('name', '').lower():
+        if not isinstance(field, dict):
+            continue
+        if nome_busca_lower == _safe_lower(field.get('name')):
             return _limpar_string_pipefy(field.get('value'))
     return None
 
@@ -112,10 +123,13 @@ def get_campo_texto(fields: List[Dict], nome_busca: str) -> str:
     Função Genérica: Busca um campo pelo nome exato e retorna o texto limpo.
     Se não encontrar, retorna None (para o Banco não gravar lixo).
     """
+    nome_busca_lower = _safe_lower(nome_busca)
     for field in fields:
+        if not isinstance(field, dict):
+            continue
         nome_real = field.get('name', '')
         
-        if nome_busca.lower() == nome_real.lower():
+        if nome_busca_lower == _safe_lower(nome_real):
             valor = field.get('value')
             return _limpar_string_pipefy(valor)
             
@@ -129,7 +143,9 @@ def get_responsavel(node: Dict) -> str:
     fields = node.get('fields', [])
 
     for field in fields:
-        if "responsável" in field.get('name', '').lower():
+        if not isinstance(field, dict):
+            continue
+        if "responsável" in _safe_lower(field.get('name')):
             return _limpar_string_pipefy(field.get('value'))
 
     assignees = node.get('assignees', [])
@@ -199,7 +215,7 @@ def smart_currency_clean(val: Any) -> float:
 
     val_str = str(val)
 
-    if any(x in val_str.lower() for x in ['sem', 'estimativa', 'null', 'none']):
+    if any(x in _safe_lower(val_str) for x in ['sem', 'estimativa', 'null', 'none']):
         return 0.0
 
     clean = re.sub(r'[^\d.,-]', '', val_str)

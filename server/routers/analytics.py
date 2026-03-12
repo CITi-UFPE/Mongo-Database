@@ -2,7 +2,7 @@
 import os
 import json
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from services.db import db_client
 from services import analytics_service
 from services.pipefy_sync import sync_pipefy_to_mongo
@@ -15,6 +15,50 @@ except ImportError:
 
 # Removemos o prefixo daqui para definir no main.py
 router = APIRouter(tags=["analytics"])
+
+
+def _safe_text(value, default: str = "") -> str:
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return default
+    return str(value)
+
+
+def _safe_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_float(value, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _default_overview_payload():
+    return {
+        "total_leads": 0,
+        "qualificados": 0,
+        "nao_qualificados": 0,
+        "valor_pipeline": 0.0,
+        "total_perdidos": 0,
+        "valor_perdido": 0.0,
+        "previsao_faturamento": 0.0,
+        "ticket_medio": 0.0,
+        "taxa_conversao": 0.0,
+        "progresso_meta": {
+            "faturado": 0.0,
+            "meta": _safe_float(os.getenv("META_FATURAMENTO", 407000), 407000.0),
+            "porcentagem": 0,
+        },
+        "funil": [],
+        "origem_leads": [],
+        "distribuicao_servicos": [],
+    }
 
 
 def get_mock_overview():
@@ -98,11 +142,16 @@ def _aggregate_distribution(collection, field_name: str):
 
 
 def _build_overview_payload(data_inicio: Optional[str] = None, data_fim: Optional[str] = None):
-    info_leads = analytics_service.get_leads_qualificados(data_inicio=data_inicio, data_fim=data_fim)
-    qualificados = int(info_leads.get("qualificados", 0))
-    total_leads = int(info_leads.get("total", 0))
+    default_payload = _default_overview_payload()
 
-    previsao_faturamento = float(
+    info_leads = analytics_service.get_leads_qualificados(data_inicio=data_inicio, data_fim=data_fim)
+    if not isinstance(info_leads, dict):
+        info_leads = {}
+
+    qualificados = _safe_int(info_leads.get("qualificados", 0), 0)
+    total_leads = _safe_int(info_leads.get("total", 0), 0)
+
+    previsao_faturamento = _safe_float(
         analytics_service.get_previsao_faturamento(data_inicio=data_inicio, data_fim=data_fim)
     )
     taxa_conversao = round((qualificados / total_leads) * 100, 2) if total_leads > 0 else 0.0
@@ -111,26 +160,47 @@ def _build_overview_payload(data_inicio: Optional[str] = None, data_fim: Optiona
     funil_raw = analytics_service.get_distribuicao_fases(data_inicio=data_inicio, data_fim=data_fim)
     funil = [
         {
-            "fase": item.get("fase", "Sem fase"),
-            "count": int(item.get("quantidade", 0)),
-            "total_valor": float(item.get("total_valor", 0.0)),
+            "fase": _safe_text(item.get("fase"), "Sem fase") or "Sem fase",
+            "count": _safe_int(item.get("quantidade", 0), 0),
+            "total_valor": _safe_float(item.get("total_valor", 0.0), 0.0),
         }
         for item in funil_raw
+        if isinstance(item, dict)
     ]
 
-    db = db_client.get_db()
-    leads = db["leads"]
-    origem_leads = _aggregate_distribution(leads, "origem_lead")
-    distribuicao_servicos = _aggregate_distribution(leads, "servicos_interesse")
+    origem_leads = []
+    distribuicao_servicos = []
+    try:
+        db = db_client.get_db()
+        if db is not None:
+            leads = db["leads"]
+            origem_leads = _aggregate_distribution(leads, "origem_lead")
+            distribuicao_servicos = _aggregate_distribution(leads, "servicos_interesse")
+    except Exception:
+        origem_leads = []
+        distribuicao_servicos = []
 
-    meta = float(os.getenv("META_FATURAMENTO", 407000))
+    meta = _safe_float(os.getenv("META_FATURAMENTO", 407000), 407000.0)
     faturado = round(sum(item["total_valor"] for item in funil), 2)
     porcentagem = round((faturado / meta) * 100) if meta > 0 else 0
-    total_lost = sum(item["count"] for item in funil if "perd" in item["fase"].lower() or "desqual" in item["fase"].lower() or "lost" in item["fase"].lower() or "cancel" in item["fase"].lower())
-    total_lost_value = round(sum(item["total_valor"] for item in funil if "perd" in item["fase"].lower() or "desqual" in item["fase"].lower() or "lost" in item["fase"].lower() or "cancel" in item["fase"].lower()), 2)
+
+    def _is_lost_phase(phase_value):
+        phase = _safe_text(phase_value).lower()
+        return (
+            "perd" in phase
+            or "desqual" in phase
+            or "lost" in phase
+            or "cancel" in phase
+        )
+
+    total_lost = sum(item["count"] for item in funil if _is_lost_phase(item.get("fase")))
+    total_lost_value = round(
+        sum(item["total_valor"] for item in funil if _is_lost_phase(item.get("fase"))),
+        2,
+    )
     nao_qualificados = max(total_leads - qualificados, 0)
 
-    return {
+    payload = {
         "total_leads": total_leads,
         "qualificados": qualificados,
         "nao_qualificados": nao_qualificados,
@@ -150,6 +220,9 @@ def _build_overview_payload(data_inicio: Optional[str] = None, data_fim: Optiona
         "distribuicao_servicos": distribuicao_servicos,
     }
 
+    default_payload.update(payload)
+    return default_payload
+
 
 @router.get("/overview")
 async def get_overview(
@@ -164,7 +237,8 @@ async def get_overview(
         payload = _build_overview_payload(data_inicio=data_inicio, data_fim=data_fim)
         return payload
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro no overview analytics: {str(e)}")
+        print(f"⚠️ Erro no overview analytics. Retornando payload padrão: {str(e)}")
+        return _default_overview_payload()
 
 
 @router.post("/sync-pipefy")
