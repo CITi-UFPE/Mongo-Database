@@ -11,7 +11,9 @@ services:
     depends_on:
       - mdp-server
     networks:
-      - internal-client
+      frontend-network:
+        aliases:
+          - frontend
     environment:
       - NODE_ENV=production
       - REACT_APP_BASE_URL
@@ -50,8 +52,12 @@ services:
       CLIENT_URL_DEV: http://localhost:3080
       CLIENT_URL_PROD: http://localhost:3080
     networks:
-      - default
-      - internal-client
+      backend-network:
+        aliases:
+          - backend
+      frontend-network:
+        aliases:
+          - backend
 
     ports:
       - '5000:5000'
@@ -80,7 +86,7 @@ services:
     volumes:
       - ./server/docker/mongo-data:/data/db
     networks:
-      - default
+      - backend-network
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --authenticationDatabase admin -u admin -p senhasegura123 --eval 'db.adminCommand(\"ping\").ok' | grep 1 >/dev/null || exit 1"]
       interval: 10s
@@ -107,10 +113,10 @@ services:
       mdp-mongo:
         condition: service_healthy
     networks:
-      - default
+      - backend-network
 
 networks:
-  default:
-    name: mdp-default
-  internal-client:
-    name: mdp-client
+  backend-network:
+    name: mdp-backend-network
+  frontend-network:
+    name: mdp-frontend-network
