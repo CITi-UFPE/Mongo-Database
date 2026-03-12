@@ -68,16 +68,33 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="CITi Data Lake", lifespan=lifespan)
 
 # CORS Config
-def _safe_origin(env_key: str):
-    raw = os.getenv(env_key)
+def _safe_origin_value(raw):
     if not isinstance(raw, str):
         return None
-    value = raw.strip().rstrip("/")
+    value = raw.strip().strip("/")
     if not value:
         return None
     if not (value.startswith("http://") or value.startswith("https://")):
         return None
     return value
+
+
+def _safe_origin(env_key: str):
+    return _safe_origin_value(os.getenv(env_key))
+
+
+def _parse_allowed_origins():
+    raw = os.getenv("ALLOWED_ORIGINS", "")
+    if not isinstance(raw, str) or not raw.strip():
+        return []
+
+    parsed = []
+    normalized = raw.replace(";", ",")
+    for item in normalized.split(","):
+        origin = _safe_origin_value(item)
+        if origin:
+            parsed.append(origin)
+    return parsed
 
 
 def _build_local_origins():
@@ -96,11 +113,8 @@ default_origins = [
 ]
 
 env_origins = [
-    _safe_origin("CLIENT_URL_DEV"),
     _safe_origin("CLIENT_URL_PROD"),
-    _safe_origin("CLIENT_URL"),
-    _safe_origin("FRONTEND_URL"),
-    _safe_origin("REACT_APP_BASE_URL"),
+    *_parse_allowed_origins(),
 ]
 
 allowed_origins = list(dict.fromkeys(default_origins + [origin for origin in env_origins if origin]))
@@ -118,6 +132,7 @@ app.add_middleware(
 
 # 1. Auth (Geralmente o prefixo já está dentro do arquivo auth.py)
 app.include_router(auth.router)
+app.include_router(auth.router, prefix="/api")
 
 # 2. Spreadsheet (O prefixo /api/spreadsheet já está dentro do arquivo spreadsheet.py)
 app.include_router(spreadsheet.router)
