@@ -5,6 +5,15 @@ from datetime import datetime, timedelta
 from google.auth.transport import requests
 from google.oauth2 import id_token
 
+
+def get_google_callback_url() -> str:
+    callback_url = (os.getenv('GOOGLE_CALLBACK_URL') or '').strip()
+    if not callback_url:
+        raise Exception("GOOGLE_CALLBACK_URL não configurado no .env")
+    if not (callback_url.startswith('http://') or callback_url.startswith('https://')):
+        raise Exception("GOOGLE_CALLBACK_URL deve ser uma URL completa (http/https)")
+    return callback_url.rstrip('/')
+
 def verify_google_token(token: str):
     """Verify Google ID token and return payload"""
     try:
