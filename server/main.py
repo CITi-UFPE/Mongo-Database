@@ -2,42 +2,113 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Import routers
-from routers import auth, spreadsheet, analytics, gemini
+from services.db import db_client
 
-# Load env vars
-load_dotenv()
+
+def _load_environment():
+    server_dir = Path(__file__).resolve().parent
+    project_root = server_dir.parent
+    root_env = project_root / ".env"
+    server_env = server_dir / ".env"
+
+    if root_env.exists():
+        load_dotenv(root_env, override=False)
+    if server_env.exists():
+        load_dotenv(server_env, override=True)
+
+
+def _resolve_required_env(canonical_name: str, aliases):
+    for env_name in aliases:
+        raw_value = os.getenv(env_name)
+        if isinstance(raw_value, str) and raw_value.strip():
+            value = raw_value.strip()
+            os.environ[canonical_name] = value
+            return value
+    return None
+
+
+def _validate_required_envs():
+    required_map = {
+        "MONGO_URI": ["MONGO_URI", "MONGODB_URL", "MONGO_URI_DEV", "MONGO_URI_PROD"],
+        "JWT_SECRET": ["JWT_SECRET", "JWT_SECRET_DEV", "JWT_SECRET_PROD"],
+        "CLIENT_URL": ["CLIENT_URL", "CLIENT_URL_DEV", "CLIENT_URL_PROD", "FRONTEND_URL", "REACT_APP_BASE_URL"],
+    }
+
+    missing_vars = []
+    for canonical_name, aliases in required_map.items():
+        if not _resolve_required_env(canonical_name, aliases):
+            print(f"Falta a variável {canonical_name} no seu arquivo .env")
+            missing_vars.append(canonical_name)
+
+    if missing_vars:
+        raise RuntimeError("Variáveis de ambiente obrigatórias ausentes.")
+
+
+_load_environment()
+_validate_required_envs()
+
+# Import routers (após carregar/validar env)
+from routers import auth, spreadsheet, analytics, gemini
 
 # Lifespan context
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting server...")
+    db_client.start_reconnect_loop()
     yield
     # Shutdown
+    db_client.stop_reconnect_loop()
     print("🛑 Shutting down...")
 
 # Create app FIRST
 app = FastAPI(title="CITi Data Lake", lifespan=lifespan)
 
 # CORS Config
-client_url_dev = os.getenv('CLIENT_URL_DEV', 'http://localhost:3080')
-client_url_prod = os.getenv('CLIENT_URL_PROD', 'http://localhost:3080')
+def _safe_origin(env_key: str):
+    raw = os.getenv(env_key)
+    if not isinstance(raw, str):
+        return None
+    value = raw.strip().rstrip("/")
+    if not value:
+        return None
+    if not (value.startswith("http://") or value.startswith("https://")):
+        return None
+    return value
 
-allowed_origins = [
-    "http://localhost:5173",
-    "http://localhost:4173",
-    "http://localhost:3000",
+
+def _build_local_origins():
+    origins = set()
+    for host in ["localhost", "127.0.0.1"]:
+        for port in [3000, 5173]:
+            origins.add(f"http://{host}:{port}")
+            origins.add(f"https://{host}:{port}")
+    return sorted(origins)
+
+
+default_origins = [
+    *_build_local_origins(),
     "http://localhost:3080",
-    client_url_dev,
-    client_url_prod,
+    "https://localhost:3080",
 ]
+
+env_origins = [
+    _safe_origin("CLIENT_URL_DEV"),
+    _safe_origin("CLIENT_URL_PROD"),
+    _safe_origin("CLIENT_URL"),
+    _safe_origin("FRONTEND_URL"),
+    _safe_origin("REACT_APP_BASE_URL"),
+]
+
+allowed_origins = list(dict.fromkeys(default_origins + [origin for origin in env_origins if origin]))
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
