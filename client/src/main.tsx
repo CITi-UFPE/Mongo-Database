@@ -9,6 +9,12 @@ import "./index.css";
 
 const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "").trim();
 
+if (!GOOGLE_CLIENT_ID) {
+  throw new Error(
+    "VITE_GOOGLE_CLIENT_ID nao configurado. Defina a variavel no ambiente de build do frontend."
+  );
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return null;

@@ -35,6 +35,8 @@ def _validate_required_envs():
         "MONGO_URI": ["MONGO_URI", "MONGODB_URL", "MONGO_URI_DEV", "MONGO_URI_PROD"],
         "JWT_SECRET": ["JWT_SECRET", "JWT_SECRET_DEV", "JWT_SECRET_PROD"],
         "CLIENT_URL": ["CLIENT_URL", "CLIENT_URL_DEV", "CLIENT_URL_PROD", "FRONTEND_URL", "REACT_APP_BASE_URL"],
+        "GOOGLE_CLIENT_ID": ["GOOGLE_CLIENT_ID"],
+        "GOOGLE_CALLBACK_URL": ["GOOGLE_CALLBACK_URL"],
     }
 
     missing_vars = []
