@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { LogOut } from "lucide-react";
 import Dashboard from "@/components/ui/dashboard";
 import { fetchAnalyticsPayload, type AnalyticsPayload } from "@/services/analytics";
 import { apiClient } from "@/services/api";
+import { useAuth } from "./context/AuthContext";
 
 type ViewMode = "dashboard" | "planilha";
 type SheetRow = Record<string, unknown>;
 
 export default function App() {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
@@ -143,25 +148,41 @@ export default function App() {
     return String(value);
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate("/", { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0B1120] via-[#0D1929] to-[#0F172A] text-slate-100 p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-4">
-        <div className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 p-2 w-fit">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 p-2 w-fit">
+            <button
+              onClick={() => setViewMode("dashboard")}
+              className={`px-4 py-2 rounded-md text-sm transition ${
+                viewMode === "dashboard" ? "bg-cyan-600 text-white" : "text-slate-300 hover:bg-slate-800"
+              }`}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => setViewMode("planilha")}
+              className={`px-4 py-2 rounded-md text-sm transition ${
+                viewMode === "planilha" ? "bg-cyan-600 text-white" : "text-slate-300 hover:bg-slate-800"
+              }`}
+            >
+              Visualização de Planilha
+            </button>
+          </div>
+
           <button
-            onClick={() => setViewMode("dashboard")}
-            className={`px-4 py-2 rounded-md text-sm transition ${
-              viewMode === "dashboard" ? "bg-cyan-600 text-white" : "text-slate-300 hover:bg-slate-800"
-            }`}
+            onClick={handleLogout}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800"
+            title="Sair"
           >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setViewMode("planilha")}
-            className={`px-4 py-2 rounded-md text-sm transition ${
-              viewMode === "planilha" ? "bg-cyan-600 text-white" : "text-slate-300 hover:bg-slate-800"
-            }`}
-          >
-            Visualização de Planilha
+            <LogOut className="h-4 w-4" />
+            Sair
           </button>
         </div>
 

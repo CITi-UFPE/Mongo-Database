@@ -24,6 +24,12 @@ axiosInstance.interceptors.request.use((config) => {
     config.baseURL = removeApiSuffix(base);
   }
 
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+
   return config;
 });
 
