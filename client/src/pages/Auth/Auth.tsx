@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Mail, Lock } from "lucide-react"
 import Iridescence from "@/components/Iridescence"
 import AnimatedLogo from "@/components/AnimatedLogo"
-import axios from "axios"
+import { apiClient } from "@/services/api"
 import { GoogleLogin } from "@react-oauth/google"
 
 
@@ -43,7 +43,7 @@ export default function Home() {
           <GoogleLogin
             onSuccess={async (credentialResponse) => {
               try {
-                const res = await axios.post("http://localhost:5000/auth/google", {
+                const res = await apiClient.post("/auth/google", {
                   idToken: credentialResponse.credential,
                 });
                 console.log("Usuário autenticado:", res.data);

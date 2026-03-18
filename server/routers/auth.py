@@ -1,6 +1,11 @@
 """Authentication routes."""
 from fastapi import APIRouter, HTTPException, Body, Query
-from services.auth import verify_google_token, generate_jwt, get_google_callback_url
+from services.auth import (
+    verify_google_token,
+    generate_jwt,
+    get_google_callback_url,
+    get_google_redirect_uri,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -46,6 +51,7 @@ async def google_login(payload: dict = Body(...)):
             "jwt": jwt_token,            # <--- Padrão alternativo
             "id_token": jwt_token,       # <--- Padrão alternativo
             "callback_url": get_google_callback_url(),
+            "redirect_uri": get_google_redirect_uri(),
             "user": user_info
         }
         
@@ -57,9 +63,11 @@ async def google_login(payload: dict = Body(...)):
 @router.get("/google/callback")
 async def google_callback(code: str | None = Query(None), state: str | None = Query(None)):
     callback_url = get_google_callback_url()
+    redirect_uri = get_google_redirect_uri()
     return {
         "ok": True,
         "callback_url": callback_url,
+        "redirect_uri": redirect_uri,
         "code": code,
         "state": state,
         "message": "Callback do Google recebido",
