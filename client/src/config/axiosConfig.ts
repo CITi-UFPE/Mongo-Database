@@ -1,7 +1,9 @@
 import axios, { AxiosInstance } from 'axios';
 
 const envApiUrl = (import.meta.env.VITE_API_URL ?? '').trim();
-const API_URL = envApiUrl || 'http://localhost:5000/api';
+const API_URL = import.meta.env.DEV
+  ? 'http://localhost:5000'
+  : envApiUrl || 'http://localhost:5000';
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
 

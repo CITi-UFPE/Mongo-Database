@@ -11,6 +11,9 @@ from dotenv import load_dotenv
 from services.db import db_client
 
 
+LOCAL_GOOGLE_REDIRECT_URI = "http://localhost:5000/api/auth/google/callback"
+
+
 def _load_environment():
     server_dir = Path(__file__).resolve().parent
     project_root = server_dir.parent
@@ -31,6 +34,20 @@ def _resolve_required_env(canonical_name: str, aliases):
             os.environ[canonical_name] = value
             return value
     return None
+
+
+def _is_render_runtime() -> bool:
+    return (os.getenv("RENDER") or "").strip().lower() == "true"
+
+
+def _configure_google_redirect_uri() -> None:
+    if _is_render_runtime():
+        callback = (os.getenv("GOOGLE_CALLBACK_URL") or "").strip().rstrip("/")
+        if callback:
+            os.environ["GOOGLE_REDIRECT_URI"] = callback
+        return
+
+    os.environ["GOOGLE_REDIRECT_URI"] = LOCAL_GOOGLE_REDIRECT_URI
 
 
 def _validate_required_envs():
@@ -56,6 +73,7 @@ from routers import auth, spreadsheet, analytics, gemini
 
 # Load env vars
 _load_environment()
+_configure_google_redirect_uri()
 _validate_required_envs()
 
 # Lifespan context

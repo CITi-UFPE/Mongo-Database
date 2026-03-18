@@ -6,18 +6,28 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 
 
+LOCAL_GOOGLE_REDIRECT_URI = "http://localhost:5000/api/auth/google/callback"
+
+
+def _is_render_runtime() -> bool:
+    return (os.getenv("RENDER") or "").strip().lower() == "true"
+
+
 def get_google_callback_url() -> str:
-    callback_url = (os.getenv('GOOGLE_CALLBACK_URL') or '').strip()
-    if not callback_url:
-        raise Exception("GOOGLE_CALLBACK_URL não configurado no .env")
-    if not (callback_url.startswith('http://') or callback_url.startswith('https://')):
-        raise Exception("GOOGLE_CALLBACK_URL deve ser uma URL completa (http/https)")
-    return callback_url.rstrip('/')
+    return get_google_redirect_uri()
 
 
 def get_google_redirect_uri() -> str:
-    # Canonical OAuth redirect URI used across the backend.
-    return get_google_callback_url()
+    # Local development should always use localhost callback.
+    if not _is_render_runtime():
+        return LOCAL_GOOGLE_REDIRECT_URI
+
+    callback_url = (os.getenv("GOOGLE_CALLBACK_URL") or "").strip()
+    if not callback_url:
+        raise Exception("GOOGLE_CALLBACK_URL não configurado no Render")
+    if not (callback_url.startswith("http://") or callback_url.startswith("https://")):
+        raise Exception("GOOGLE_CALLBACK_URL deve ser uma URL completa (http/https)")
+    return callback_url.rstrip("/")
 
 def verify_google_token(token: str):
     """Verify Google ID token and return payload"""
