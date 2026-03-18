@@ -3,7 +3,7 @@ import axios, { AxiosInstance } from 'axios';
 const envApiUrl = (import.meta.env.VITE_API_URL ?? '').trim();
 const API_URL = import.meta.env.DEV
   ? 'http://localhost:5000'
-  : envApiUrl || 'http://localhost:5000';
+  : envApiUrl || '';
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
 
