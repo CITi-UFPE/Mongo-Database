@@ -62,7 +62,7 @@ export interface AnalyticsQueryParams {
 }
 
 export async function fetchAnalyticsPayload(params?: AnalyticsQueryParams): Promise<AnalyticsPayload> {
-  const response = await apiClient.get("/api/analytics/overview", {
+  const response = await apiClient.get("/api/analytics/overview/", {
     params: {
       refresh_pipefy: params?.refresh_pipefy ?? false,
       data_inicio: params?.data_inicio,

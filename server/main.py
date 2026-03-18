@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import os
@@ -67,7 +68,7 @@ async def lifespan(app: FastAPI):
     print("🛑 Shutting down...")
 
 # Create app FIRST
-app = FastAPI(title="CITi Data Lake", lifespan=lifespan)
+app = FastAPI(title="CITi Data Lake", lifespan=lifespan, redirect_slashes=False)
 
 # CORS Config
 def _safe_origin_value(raw):
@@ -148,6 +149,55 @@ app.include_router(analytics.router, prefix="/analytics")     # Caminho de compa
 
 # 4. Gemini IA
 app.include_router(gemini.router)
+
+
+def _register_slash_variants() -> None:
+    """Make routes available with and without trailing slash."""
+    existing = {
+        (route.path, tuple(sorted(route.methods or [])))
+        for route in app.router.routes
+        if isinstance(route, APIRoute)
+    }
+
+    for route in list(app.router.routes):
+        if not isinstance(route, APIRoute):
+            continue
+        if route.path == "/":
+            continue
+
+        alias_path = route.path.rstrip("/") if route.path.endswith("/") else f"{route.path}/"
+        alias_key = (alias_path, tuple(sorted(route.methods or [])))
+        if alias_key in existing:
+            continue
+
+        app.add_api_route(
+            alias_path,
+            route.endpoint,
+            methods=list(route.methods or []),
+            name=route.name,
+            include_in_schema=False,
+            response_model=route.response_model,
+            status_code=route.status_code,
+            tags=route.tags,
+            dependencies=route.dependencies,
+            summary=route.summary,
+            description=route.description,
+            response_description=route.response_description,
+            responses=route.responses,
+            deprecated=route.deprecated,
+            operation_id=None,
+            response_model_include=route.response_model_include,
+            response_model_exclude=route.response_model_exclude,
+            response_model_by_alias=route.response_model_by_alias,
+            response_model_exclude_unset=route.response_model_exclude_unset,
+            response_model_exclude_defaults=route.response_model_exclude_defaults,
+            response_model_exclude_none=route.response_model_exclude_none,
+            response_class=route.response_class,
+        )
+        existing.add(alias_key)
+
+
+_register_slash_variants()
 
 
 def _resolve_spa_index() -> Path | None:

@@ -74,7 +74,7 @@ export default function DataVizDashboard() {
       setLoadingSheets(true);
       setSheetError(null);
       try {
-        const response = await apiClient.get("/api/spreadsheet");
+        const response = await apiClient.get("/api/spreadsheet/");
         const payload = response.data;
         if (!Array.isArray(payload)) {
           throw new Error("Formato inesperado de resposta");
@@ -180,7 +180,7 @@ export default function DataVizDashboard() {
 
     const loadSheet = async () => {
       try {
-        const response = await apiClient.get(`/api/spreadsheet/${encodeURIComponent(sheetName)}`);
+        const response = await apiClient.get(`/api/spreadsheet/${encodeURIComponent(sheetName)}/`);
         const payload = response.data;
         if (!Array.isArray(payload)) {
           throw new Error("Formato inesperado de resposta");
