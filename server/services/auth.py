@@ -14,6 +14,11 @@ def get_google_callback_url() -> str:
         raise Exception("GOOGLE_CALLBACK_URL deve ser uma URL completa (http/https)")
     return callback_url.rstrip('/')
 
+
+def get_google_redirect_uri() -> str:
+    # Canonical OAuth redirect URI used across the backend.
+    return get_google_callback_url()
+
 def verify_google_token(token: str):
     """Verify Google ID token and return payload"""
     try:

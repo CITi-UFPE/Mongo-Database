@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import os
 from pathlib import Path
@@ -146,6 +148,40 @@ app.include_router(analytics.router, prefix="/analytics")     # Caminho de compa
 
 # 4. Gemini IA
 app.include_router(gemini.router)
+
+
+def _resolve_spa_index() -> Path | None:
+    server_dir = Path(__file__).resolve().parent
+    project_root = server_dir.parent
+
+    candidates = [
+        server_dir / "static" / "index.html",
+        project_root / "static" / "index.html",
+        project_root / "client" / "dist" / "index.html",
+        project_root / "client" / "build" / "index.html",
+        project_root / "build" / "index.html",
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+@app.exception_handler(StarletteHTTPException)
+async def spa_404_fallback(request: Request, exc: StarletteHTTPException):
+    if exc.status_code != 404:
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+    # Keep API endpoints returning JSON 404; only SPA routes get index.html fallback.
+    if request.url.path.startswith("/api"):
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+    index_file = _resolve_spa_index()
+    if index_file:
+        return FileResponse(index_file)
+
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
 
 
 @app.get("/")
