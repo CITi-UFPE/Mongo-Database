@@ -52,6 +52,9 @@ services:
       HOST: 0.0.0.0
       CLIENT_URL_DEV: http://localhost:3080
       CLIENT_URL_PROD: http://localhost:3080
+      GOOGLE_CLIENT_ID: 154331370847-dkmkdgprhjenmnhd4d7g33ui2jg5fk9u.apps.googleusercontent.com
+      JWT_SECRET_DEV: senhasegura123
+      JWT_SECRET_PROD: senhasegura123
     networks:
       backend-network:
         aliases:

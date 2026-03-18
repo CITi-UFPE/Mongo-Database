@@ -59,7 +59,7 @@ export default function App() {
       setLoadingSheets(true);
       setSheetError(null);
       try {
-        const response = await apiClient.get("/api/spreadsheet/");
+        const response = await apiClient.get("/api/spreadsheet/collections/");
         const payload = response.data;
         if (!Array.isArray(payload)) {
           throw new Error("Formato inválido de planilhas");
