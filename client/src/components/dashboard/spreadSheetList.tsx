@@ -12,7 +12,7 @@ const SpreadsheetList = () => {
   useEffect(() => {
     const fetchSpreadsheets = async () => {
       try {
-        const response = await axios.get('/api/spreadsheet'); // Requisição para a lista de planilhas
+        const response = await axios.get('/api/spreadsheet/'); // Requisição para a lista de planilhas
         setSpreadsheets(response.data);
       } catch (error) {
         console.error('Erro ao buscar planilhas:', error);
