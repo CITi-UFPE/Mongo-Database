@@ -20,8 +20,11 @@ def save_to_mongodb(data_list: List[Dict]) -> Dict[str, int]:
                 "Pipefy_ID": pip_id,
                 "nome_cliente": item.get("Nome do Cliente"),
                 "valor": item.get("Valor", 0.0),
+                "valor_final_negociacao": item.get("Valor_Final_Negociacao", 0.0),
                 "fase": item.get("Fase Atual"),
                 "responsavel": item.get("Responsável"),
+                "servicos_interesse": item.get("Servicos_Interesse", []),
+                "unidade": item.get("Unidade")
             }},
             upsert=True,
         )

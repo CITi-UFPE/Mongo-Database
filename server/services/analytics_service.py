@@ -4,10 +4,6 @@ from datetime import datetime
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
-# -----------------------------------------------------------------------------
-# 1. Configuração de Caminhos e Variáveis de Ambiente
-# -----------------------------------------------------------------------------
-
 current_file_path = os.path.abspath(__file__)
 services_dir = os.path.dirname(current_file_path)
 server_dir = os.path.dirname(services_dir)
@@ -19,206 +15,202 @@ env_path = os.path.join(project_root, '.env')
 if os.path.exists(env_path):
     load_dotenv(env_path)
 
-# -----------------------------------------------------------------------------
-# 2. Patch de Conexão (Redirecionamento Docker -> Localhost)
-# -----------------------------------------------------------------------------
-
 base_uri = (
-    os.getenv("MONGO_URI_DEV") or 
-    os.getenv("MONGODB_URL") or 
+    os.getenv("MONGO_URI_DEV") or
+    os.getenv("MONGODB_URL") or
     os.getenv("MONGO_URI_PROD")
 )
 
-# Se o script for rodado no Windows (fora do Docker), o host 'mdp-mongo' é inacessível.
-# Este bloco intercepta e força a conexão via localhost para a porta exposta.
 if base_uri and "mdp-mongo" in base_uri:
-    print(f"🔧 Ajuste Local: Trocando 'mdp-mongo' por 'localhost'...")
+    print("🔧 Ajuste Local: Trocando 'mdp-mongo' por 'localhost'...")
     final_uri = base_uri.replace("mdp-mongo", "localhost")
-    
-    # Sobrescreve as variáveis na memória para garantir que o Singleton do banco pegue a correta
     os.environ["MONGO_URI_DEV"] = final_uri
     os.environ["MONGO_URI_PROD"] = final_uri
     os.environ["MONGODB_URL"] = final_uri
 
-
-# -----------------------------------------------------------------------------
-# 3. Importação do Banco de Dados
-# -----------------------------------------------------------------------------
-
 try:
     from services.db import db_client
-except ImportError:
-    print("❌ Erro: Não foi possível importar o db_client. Verifique os caminhos do sys.path.")
+except ImportError as e:
+    print(f"❌ Erro ao importar db_client: {e}")
     sys.exit(1)
 
 print("✅ Analytics Service iniciado.")
 
+FASES_ENCERRADAS = [
+    "Perdido",
+    "Desqualificados",
+    "Finalizado/ganho",
+]
 
-# -----------------------------------------------------------------------------
-# 4. Serviços de KPI (Métricas e Analytics)
-# -----------------------------------------------------------------------------
 
 def _build_date_match(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
     if not data_inicio and not data_fim:
         return {}
 
-    date_conditions = []
+    condicoes = []
 
-    if data_inicio or data_fim:
-        range_query = {}
-        if data_inicio:
-            range_query["$gte"] = data_inicio
-        if data_fim:
-            range_query["$lte"] = data_fim
-        date_conditions.append({"data_qualificacao": range_query})
+    range_query = {}
+    if data_inicio:
+        range_query["$gte"] = data_inicio
+    if data_fim:
+        range_query["$lte"] = data_fim
+    condicoes.append({"data_qualificacao": range_query})
 
-    if data_inicio or data_fim:
-        range_query_dt = {}
-        if data_inicio:
-            range_query_dt["$gte"] = datetime.fromisoformat(f"{data_inicio}T00:00:00")
-        if data_fim:
-            range_query_dt["$lte"] = datetime.fromisoformat(f"{data_fim}T23:59:59")
-        date_conditions.append({"createdAt": range_query_dt})
+    range_query_dt = {}
+    if data_inicio:
+        range_query_dt["$gte"] = datetime.fromisoformat(f"{data_inicio}T00:00:00")
+    if data_fim:
+        range_query_dt["$lte"] = datetime.fromisoformat(f"{data_fim}T23:59:59")
+    condicoes.append({"createdAt": range_query_dt})
 
-    if not date_conditions:
-        return {}
-
-    return {"$or": date_conditions}
+    return {"$or": condicoes}
 
 
-def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> int:
-    """
-    Conta o número de leads com alto potencial de fechamento
-    
-    Regra de Negóci:
-    1. O 'valor' da proposta já está definido e é maior que o limite estipulado (Ex: > 10000.0).
-    2. OU o 'budget_estimado' informado é diferente de "< R$10.000,00".
-    """
+def _aplicar_filtro_servico(match: Dict, servico: Optional[str] = None) -> Dict:
+    if servico:
+        match["servicos_interesse"] = servico
+    return match
+
+
+def get_leads_qualificados(
+    limite_valor: float = 10000.0,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    servico: Optional[str] = None
+) -> Dict:
     try:
-        col = db_client.get_collection('leads')
+        col = db_client.get_collection("leads")
         if col is None:
             return {"qualificados": 0, "total": 0}
-        
+
         date_match = _build_date_match(data_inicio, data_fim)
-        total_leads = col.count_documents(date_match if date_match else {})
-        
-        invalid_budgets = [
-            "< R$10.000,00",
-        ]
+
+        filtro_total = {
+            "fase": {"$nin": FASES_ENCERRADAS}
+        }
+        filtro_total = _aplicar_filtro_servico(filtro_total, servico)
+
+        if date_match:
+            filtro_total = {"$and": [filtro_total, date_match]}
+
+        total_leads = col.count_documents(filtro_total)
 
         query = {
             "$and": [
-                {
-                    "$or": [
-                        {"valor": {"$gt": limite_valor}},
-                        {"budget_estimado": {"$nin": invalid_budgets}}
-                    ]
-                }
+                {"fase": {"$nin": FASES_ENCERRADAS}},
+                {"valor": {"$gt": limite_valor}}
             ]
         }
+
+        if servico:
+            query["$and"].append({"servicos_interesse": servico})
 
         if date_match:
             query["$and"].append(date_match)
 
         qualificados = col.count_documents(query)
+
         return {"qualificados": qualificados, "total": total_leads}
-        
+
     except Exception as e:
         print(f"❌ Erro ao contar leads qualificados: {e}")
         return {"qualificados": 0, "total": 0}
 
 
-def get_previsao_faturamento(fator_conversao: float = 0.25, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> float:
-    """
-    Calcula a previsão de faturamento do pipeline atual
-    
-    Regra de Negócio:
-    Soma o valor total de todos os leads que estão nas fases finais de negociação
-    e aplica um percentual de conversão realista (25%)
-    """
+def get_previsao_faturamento(
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    servico: Optional[str] = None
+) -> Dict[str, float]:
     try:
-        col = db_client.get_collection('leads')
+        col = db_client.get_collection("leads")
         if col is None:
-            return 0.0
-        
+            return {
+                "base_pipeline_previsao": 0.0,
+                "pessimista_20": 0.0,
+                "realista_25": 0.0,
+                "otimista_35": 0.0
+            }
+
         date_match = _build_date_match(data_inicio, data_fim)
 
+        match = {
+            "fase": {"$in": ["Apresentação de proposta", "Negociação"]}
+        }
+        match = _aplicar_filtro_servico(match, servico)
+
+        if date_match:
+            match = {"$and": [match, date_match]}
+
         pipeline = [
-            {
-                "$match": date_match if date_match else {}
-            },
-            {
-                "$match": {
-                    "fase": {"$in": ["Apresentação de proposta", "Negociação"]}
-                }
-            },
+            {"$match": match},
             {
                 "$group": {
-                    "_id": None,           
-                    "total_bruto": {"$sum": "$valor"}
+                    "_id": None,
+                    "total": {"$sum": {"$ifNull": ["$valor", 0]}}
                 }
             }
         ]
 
         result = list(col.aggregate(pipeline))
+        total = float(result[0]["total"]) if result else 0.0
 
-        if not result:
-            return 0.0
-        
-        total_bruto = result[0]['total_bruto']
-        previsao = total_bruto * fator_conversao
+        return {
+            "base_pipeline_previsao": total,
+            "pessimista_20": total * 0.20,
+            "realista_25": total * 0.25,
+            "otimista_35": total * 0.35
+        }
 
-        return previsao
-        
     except Exception as e:
         print(f"❌ Erro ao calcular previsão de faturamento: {e}")
-        return 0.0
+        return {
+            "base_pipeline_previsao": 0.0,
+            "pessimista_20": 0.0,
+            "realista_25": 0.0,
+            "otimista_35": 0.0
+        }
 
 
-def get_distribuicao_fases(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> List[Dict]:
-    """
-    Retorna a quantidade de leads e o volume financeiro parado em cada fase
-    
-    Regra de Negócio:
-    1. Se o lead possui um 'valor' real, este é utilizado.
-    2. Se não (fases de prospecção), converte a string de 'budget_estimado' 
-       no valor médio do range estipulado para compor a projeção financeira.
-    """
+def get_distribuicao_fases(
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    servico: Optional[str] = None
+) -> List[Dict]:
     try:
-        col = db_client.get_collection('leads')
+        col = db_client.get_collection("leads")
         if col is None:
             return []
-        
+
         date_match = _build_date_match(data_inicio, data_fim)
 
+        match = {}
+        match = _aplicar_filtro_servico(match, servico)
+
+        if date_match:
+            match = {"$and": [match, date_match]} if match else date_match
+
         pipeline = [
-            {
-                "$match": date_match if date_match else {}
-            },
+            {"$match": match if match else {}},
             {
                 "$addFields": {
                     "valor_calculado": {
-                        "$cond": {
-                            "if": { "$gt": ["$valor", 0] },
-                            "then": "$valor",
-                            "else": {
-                                "$switch": {
-                                    "branches": [
-                                        { "case": { "$eq": ["$budget_estimado", "< R$10.000,00"] }, "then": 5000 },
-                                        { "case": { "$eq": ["$budget_estimado", "R$10.000,00 - R$20.000,00"] }, "then": 15000 },
-                                        { "case": { "$eq": ["$budget_estimado", "R$20.000,00 - R$30.000,00"] }, "then": 25000 },
-                                        { "case": { "$eq": ["$budget_estimado", "R$30.000,00 - R$40.000,00"] }, "then": 35000 },
-                                        { "case": { "$eq": ["$budget_estimado", "R$40.000,00 - R$50.000,00"] }, "then": 45000 },
-                                        { "case": { "$eq": ["$budget_estimado", "> R$50.000,00"] }, "then": 50000 }
-                                    ],
-                                    "default": 0
+                        "$switch": {
+                            "branches": [
+                                {
+                                    "case": {"$in": ["$fase", ["Fechado", "Finalizado/ganho"]]},
+                                    "then": {"$ifNull": ["$valor_final_negociacao", 0]}
+                                },
+                                {
+                                    "case": {"$gt": ["$valor", 0]},
+                                    "then": "$valor"
                                 }
-                            }
+                            ],
+                            "default": 0
                         }
                     }
                 }
             },
-
             {
                 "$group": {
                     "_id": "$fase",
@@ -226,7 +218,6 @@ def get_distribuicao_fases(data_inicio: Optional[str] = None, data_fim: Optional
                     "total_valor": {"$sum": "$valor_calculado"}
                 }
             },
-
             {
                 "$project": {
                     "_id": 0,
@@ -235,44 +226,184 @@ def get_distribuicao_fases(data_inicio: Optional[str] = None, data_fim: Optional
                     "total_valor": 1
                 }
             },
-
-            {
-                "$sort": {"quantidade": -1}
-            }
+            {"$sort": {"quantidade": -1}}
         ]
 
         return list(col.aggregate(pipeline))
-        
+
     except Exception as e:
         print(f"❌ Erro ao obter distribuição por fases: {e}")
         return []
 
 
-# -----------------------------------------------------------------------------
-# 5. Validação Local
-# -----------------------------------------------------------------------------
+def get_ticket_medio(
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    servico: Optional[str] = None
+) -> float:
+    try:
+        col = db_client.get_collection("leads")
+        if col is None:
+            return 0.0
+
+        date_match = _build_date_match(data_inicio, data_fim)
+
+        match = {"fase": "Finalizado/ganho"}
+        match = _aplicar_filtro_servico(match, servico)
+
+        if date_match:
+            match = {"$and": [match, date_match]}
+
+        pipeline = [
+            {"$match": match},
+            {"$group": {"_id": None, "ticket": {"$avg": {"$ifNull": ["$valor_final_negociacao", 0]}}}}
+        ]
+
+        result = list(col.aggregate(pipeline))
+        return round(float(result[0]["ticket"]), 2) if result else 0.0
+
+    except Exception as e:
+        print(f"❌ Erro ao calcular ticket médio: {e}")
+        return 0.0
+
+
+def get_taxa_conversao(
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    servico: Optional[str] = None
+) -> float:
+    try:
+        col = db_client.get_collection("leads")
+        if col is None:
+            return 0.0
+
+        date_match = _build_date_match(data_inicio, data_fim)
+
+        filtro_ganhos = {"fase": "Finalizado/ganho"}
+        filtro_perdidos = {"fase": "Perdido"}
+        filtro_desqualificados = {"fase": "Desqualificados"}
+
+        filtro_ganhos = _aplicar_filtro_servico(filtro_ganhos, servico)
+        filtro_perdidos = _aplicar_filtro_servico(filtro_perdidos, servico)
+        filtro_desqualificados = _aplicar_filtro_servico(filtro_desqualificados, servico)
+
+        if date_match:
+            filtro_ganhos = {"$and": [filtro_ganhos, date_match]}
+            filtro_perdidos = {"$and": [filtro_perdidos, date_match]}
+            filtro_desqualificados = {"$and": [filtro_desqualificados, date_match]}
+
+        ganhos = col.count_documents(filtro_ganhos)
+        perdidos = col.count_documents(filtro_perdidos)
+        desqualificados = col.count_documents(filtro_desqualificados)
+
+        finalizados = ganhos + perdidos + desqualificados
+
+        if finalizados == 0:
+            return 0.0
+
+        return round((ganhos / finalizados) * 100, 2)
+
+    except Exception as e:
+        print(f"❌ Erro ao calcular taxa de conversão: {e}")
+        return 0.0
+
+
+def get_analytics_summary_text(
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    servico: Optional[str] = None
+) -> str:
+    info = get_leads_qualificados(
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        servico=servico
+    )
+
+    forecast = get_previsao_faturamento(
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        servico=servico
+    )
+
+    ticket_medio = get_ticket_medio(
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        servico=servico
+    )
+
+    taxa_conversao = get_taxa_conversao(
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        servico=servico
+    )
+
+    servico_texto = servico if servico else "Todos os serviços"
+    periodo_texto = f"{data_inicio or 'início da base'} até {data_fim or 'hoje'}"
+
+    return f"""
+Resumo de analytics para {servico_texto}, no período {periodo_texto}.
+
+Foram analisados {info['total']} leads ativos, dos quais {info['qualificados']} foram considerados qualificados.
+
+O forecast foi calculado sobre as fases "Apresentação de proposta" e "Negociação".
+A base total considerada foi de R$ {forecast['base_pipeline_previsao']:,.2f}.
+
+Cenários:
+- Pessimista (20%): R$ {forecast['pessimista_20']:,.2f}
+- Realista (25%): R$ {forecast['realista_25']:,.2f}
+- Otimista (35%): R$ {forecast['otimista_35']:,.2f}
+
+Diferença entre os cenários:
+- O cenário pessimista assume uma taxa menor de fechamento do pipeline atual.
+- O cenário realista assume uma taxa padrão de conversão.
+- O cenário otimista assume um melhor aproveitamento comercial da mesma base em negociação.
+
+O ticket médio dos ganhos finalizados é R$ {ticket_medio:,.2f}.
+A taxa de conversão sobre os leads finalizados é {taxa_conversao:.2f}%.
+""".strip()
+
 
 if __name__ == "__main__":
     print("\n📊 --- TESTE DE ANALYTICS ---\n")
-    
-    # 1. Qualificados e Total
-    info_leads = get_leads_qualificados()
-    print(f"Total de Leads na Base: {info_leads['total']}")
-    print(f"Leads Qualificados: {info_leads['qualificados']}")
 
-    # 2. Previsão
-    previsao = get_previsao_faturamento()
-    print(f"Previsão de Faturamento (25%): R$ {previsao:,.2f}")
-    
-    # 3. Funil 
-    print("\nFunil de Vendas:")
-    funil = get_distribuicao_fases()
-    
-    for item in funil:
-        fase_nome = item.get('fase')
-        q = item.get('quantidade', 0)
-        v = item.get('total_valor', 0)
-        
-        print(f"   - {fase_nome:<25} | Qtd: {q:<3} | R$ {v:,.2f}")
-    
+    info = get_leads_qualificados()
+    print("Leads totais:", info["total"])
+    print("Leads qualificados:", info["qualificados"])
+
+    forecast = get_previsao_faturamento()
+    print("\nForecast:")
+    print(forecast)
+
+    print("\nTicket médio:", get_ticket_medio())
+    print("Taxa conversão:", get_taxa_conversao())
+
+    print("\nDistribuição por fase:")
+    fases = get_distribuicao_fases()
+    for f in fases:
+        print(f"{f['fase']} | {f['quantidade']} | {f['total_valor']}")
+
+    print("\n=== FILTRANDO POR SERVIÇO ===")
+    servico_teste = "UX/UI"
+
+    info_servico = get_leads_qualificados(servico=servico_teste)
+    print("Leads totais:", info_servico["total"])
+    print("Leads qualificados:", info_servico["qualificados"])
+
+    forecast_servico = get_previsao_faturamento(servico=servico_teste)
+    print("\nForecast por serviço:")
+    print(forecast_servico)
+
+    print("\nTicket médio por serviço:", get_ticket_medio(servico=servico_teste))
+    print("Taxa conversão por serviço:", get_taxa_conversao(servico=servico_teste))
+
+    fases_servico = get_distribuicao_fases(servico=servico_teste)
+    print("\nDistribuição por fase do serviço:")
+    for f in fases_servico:
+        print(f"{f['fase']} | {f['quantidade']} | {f['total_valor']}")
+
+    col = db_client.get_collection("leads")
+    if col is not None:
+        servicos = col.distinct("servicos_interesse")
+        print("\nServiços encontrados no banco:", servicos)
+
     print("\n-------------------------------------")

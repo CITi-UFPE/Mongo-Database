@@ -10,6 +10,9 @@ def sync_pipefy(first: int = 50) -> Dict[str, Any]:
 
     cleaned = clean_pipefy_payload(raw_output)
 
+    print("EXEMPLO LIMPO:")
+    print(cleaned[0])   # ← adiciona isso
+
     metrics = save_to_mongodb(cleaned)
 
     return {
