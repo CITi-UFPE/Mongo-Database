@@ -66,11 +66,13 @@ def _build_date_match(data_inicio: Optional[str] = None, data_fim: Optional[str]
     return {"$or": condicoes}
 
 
-def _aplicar_filtro_servico(match: Dict, servico: Optional[str] = None) -> Dict:
+def _aplicar_filtro_servico(match: dict, servico: str | None = None) -> dict:
     if servico:
-        match["servicos_interesse"] = servico
+        match["$or"] = [
+            {"servicos_interesse": servico},
+            {"servicos_interesse": {"$in": [servico]}}
+        ]
     return match
-
 
 def get_leads_qualificados(
     limite_valor: float = 10000.0,

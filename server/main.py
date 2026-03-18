@@ -58,7 +58,6 @@ app.include_router(spreadsheet.router)
 # 3. Analytics (CORREÇÃO DO ERRO 404)
 # Incluímos em DOIS endereços para garantir que o frontend encontre
 # ATENÇÃO: Para isso funcionar, você deve ter removido o prefixo de dentro do arquivo analytics.py
-app.include_router(analytics.router, prefix="/api/analytics") # Caminho padrão
 app.include_router(analytics.router, prefix="/analytics")     # Caminho de compatibilidade
 
 # 4. Gemini IA
