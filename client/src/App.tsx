@@ -3,6 +3,7 @@ import Dashboard from "@/components/ui/dashboard";
 import { fetchAnalyticsPayload, type AnalyticsPayload } from "@/services/analytics";
 import { apiClient } from "@/services/api";
 
+
 type ViewMode = "dashboard" | "planilha";
 type SheetRow = Record<string, unknown>;
 
@@ -17,6 +18,8 @@ export default function App() {
   const [loadingSheets, setLoadingSheets] = useState(false);
   const [loadingRows, setLoadingRows] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
+
+  
 
   useEffect(() => {
     let cancelled = false;
