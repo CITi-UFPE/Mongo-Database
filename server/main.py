@@ -139,8 +139,7 @@ env_origins = [
 allowed_origins = list(dict.fromkeys(default_origins + [origin for origin in env_origins if origin]))
 
 # --- SALVA-VIDAS DA VERCEL ---
-if "https://mongo-database-client-iota.vercel.app" not in allowed_origins:
-    allowed_origins.append("https://mongo-database-client-iota.vercel.app")
+url_do_render = "https://mongo-database-1.onrender.com"
 
 app.add_middleware(
     CORSMiddleware,
