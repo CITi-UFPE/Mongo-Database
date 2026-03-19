@@ -138,16 +138,14 @@ env_origins = [
 
 allowed_origins = list(dict.fromkeys(default_origins + [origin for origin in env_origins if origin]))
 
-# --- SALVA-VIDAS DA VERCEL ---
-url_do_render = "https://mongo-database-1.onrender.com"
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    #  allow_origin_regex (Ele estava ignorando a Vercel)
+    # Covers: localhost/127.0.0.1 on any port (dev) + any *.onrender.com subdomain (prod)
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.onrender\.com$",
     allow_credentials=True,
-    allow_methods=["*"], # Liberamos tudo para garantir o Google Auth
-    allow_headers=["*"], # Liberamos tudo para garantir o Google Auth
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],
 )
 
 # --- INCLUSÃO DE ROTAS (AQUI ESTÁ A CORREÇÃO) ---

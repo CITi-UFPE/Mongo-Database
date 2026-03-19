@@ -115,7 +115,7 @@ def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[
             "$and": [
                 {
                     "$or": [
-                        {"valor": {"$gt": limite_valor}},
+                        {"valor_estimado": {"$gt": limite_valor}},
                         {"budget_estimado": {"$nin": invalid_budgets}}
                     ]
                 }
@@ -152,15 +152,32 @@ def get_previsao_faturamento(fator_conversao: float = 0.25, data_inicio: Optiona
             {
                 "$match": date_match if date_match else {}
             },
+            # 1. Traz o nome da fase real lá da coleção de fases
             {
-                "$match": {
-                    "fase": {"$in": ["Apresentação de proposta", "Negociação"]}
+                "$lookup": {
+                    "from": "fases",
+                    "localField": "id_fase_atual",
+                    "foreignField": "_id",
+                    "as": "fase_info"
                 }
             },
             {
+                "$unwind": {
+                    "path": "$fase_info",
+                    "preserveNullAndEmptyArrays": True
+                }
+            },
+            # 2. Filtra apenas os leads que estão nas fases de dinheiro (ajuste os nomes conforme as suas fases reais)
+            {
+                "$match": {
+                    "fase_info.nome_fase": {"$in": ["Montagem de proposta", "Negociação", "Apresentação de proposta"]}
+                }
+            },
+            # 3. Soma o valor estimado
+            {
                 "$group": {
                     "_id": None,           
-                    "total_bruto": {"$sum": "$valor"}
+                    "total_bruto": {"$sum": "$valor_estimado"}
                 }
             }
         ]
@@ -200,38 +217,42 @@ def get_distribuicao_fases(data_inicio: Optional[str] = None, data_fim: Optional
             {
                 "$match": date_match if date_match else {}
             },
+            # 1. Faz a ligação (JOIN) com a coleção de fases para pegar o nome real
+            {
+                "$lookup": {
+                    "from": "fases",
+                    "localField": "id_fase_atual",
+                    "foreignField": "_id",
+                    "as": "fase_info"
+                }
+            },
+            {
+                "$unwind": {
+                    "path": "$fase_info",
+                    "preserveNullAndEmptyArrays": True
+                }
+            },
+            # 2. Arruma o valor (agora buscando 'valor_estimado') e o nome da fase
             {
                 "$addFields": {
+                    "nome_fase_real": { "$ifNull": ["$fase_info.nome_fase", "Sem fase"] },
                     "valor_calculado": {
                         "$cond": {
-                            "if": { "$gt": ["$valor", 0] },
-                            "then": "$valor",
-                            "else": {
-                                "$switch": {
-                                    "branches": [
-                                        { "case": { "$eq": ["$budget_estimado", "< R$10.000,00"] }, "then": 5000 },
-                                        { "case": { "$eq": ["$budget_estimado", "R$10.000,00 - R$20.000,00"] }, "then": 15000 },
-                                        { "case": { "$eq": ["$budget_estimado", "R$20.000,00 - R$30.000,00"] }, "then": 25000 },
-                                        { "case": { "$eq": ["$budget_estimado", "R$30.000,00 - R$40.000,00"] }, "then": 35000 },
-                                        { "case": { "$eq": ["$budget_estimado", "R$40.000,00 - R$50.000,00"] }, "then": 45000 },
-                                        { "case": { "$eq": ["$budget_estimado", "> R$50.000,00"] }, "then": 50000 }
-                                    ],
-                                    "default": 0
-                                }
-                            }
+                            "if": { "$gt": ["$valor_estimado", 0] },
+                            "then": "$valor_estimado",
+                            "else": 0 # Se quiser manter a lógica de budget, troque $valor por $valor_estimado lá também
                         }
                     }
                 }
             },
-
+            # 3. Agrupa usando o nome real e soma o valor correto
             {
                 "$group": {
-                    "_id": "$fase",
+                    "_id": "$nome_fase_real",
                     "quantidade": {"$sum": 1},
                     "total_valor": {"$sum": "$valor_calculado"}
                 }
             },
-
             {
                 "$project": {
                     "_id": 0,
@@ -240,12 +261,10 @@ def get_distribuicao_fases(data_inicio: Optional[str] = None, data_fim: Optional
                     "total_valor": 1
                 }
             },
-
             {
                 "$sort": {"quantidade": -1}
             }
         ]
-
         return list(col.aggregate(pipeline))
         
     except Exception as e:
