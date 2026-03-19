@@ -215,7 +215,124 @@ def get_distribuicao_fases(data_inicio: Optional[str] = None, data_fim: Optional
     except Exception as e:
         print(f"❌ Erro ao obter distribuição por fases: {e}")
         return []
+# -----------------------------------------------------------------------------
+# 6. Novas Métricas (Origem, Serviços, Perdas e Faturamento)
+# -----------------------------------------------------------------------------
 
+def get_origem_dados(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> List[Dict]:
+    try:
+        col = db_client.get_collection('leads')
+        if col is None: return []
+        
+        date_match = _build_date_match(data_inicio, data_fim)
+        # Substitua "origem" pelo nome exato do campo que vem do Pipefy (ex: "origem_do_lead")
+        leads = list(col.find(date_match if date_match else {}, {"origem": 1}))
+        
+        distribuicao = {}
+        for lead in leads:
+            origem = str(lead.get("origem") or "Não informada").strip()
+            if not origem: origem = "Não informada"
+            distribuicao[origem] = distribuicao.get(origem, 0) + 1
+            
+        resultado = [{"origem": nome, "quantidade": qtd} for nome, qtd in distribuicao.items()]
+        resultado.sort(key=lambda x: x["quantidade"], reverse=True)
+        return resultado
+    except Exception as e:
+        print(f"❌ Erro ao obter origem: {e}")
+        return []
+
+def get_distribuicao_servicos(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> List[Dict]:
+    try:
+        col = db_client.get_collection('leads')
+        if col is None: return []
+        
+        date_match = _build_date_match(data_inicio, data_fim)
+        # Substitua "servico" pelo nome exato do campo no Pipefy (ex: "tipo_de_servico")
+        leads = list(col.find(date_match if date_match else {}, {"servico": 1}))
+        
+        distribuicao = {}
+        for lead in leads:
+            servico = str(lead.get("servico") or "Não informado").strip()
+            if not servico: servico = "Não informado"
+            distribuicao[servico] = distribuicao.get(servico, 0) + 1
+            
+        resultado = [{"servico": nome, "quantidade": qtd} for nome, qtd in distribuicao.items()]
+        resultado.sort(key=lambda x: x["quantidade"], reverse=True)
+        return resultado
+    except Exception as e:
+        print(f"❌ Erro ao obter serviços: {e}")
+        return []
+
+def get_motivos_perda(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> List[Dict]:
+    try:
+        col_leads = db_client.get_collection('leads')
+        col_fases = db_client.get_collection('fases')
+        if col_leads is None or col_fases is None: return []
+        
+        fases_docs = list(col_fases.find({}, {"_id": 1, "nome_fase": 1}))
+        fase_map = {str(f["_id"]): f.get("nome_fase", "").lower() for f in fases_docs}
+
+        date_match = _build_date_match(data_inicio, data_fim)
+        # Traz a fase atual e o motivo de perda
+        leads = list(col_leads.find(date_match if date_match else {}, {"id_fase_atual": 1, "motivo_perda": 1}))
+        
+        distribuicao = {}
+        for lead in leads:
+            fase_id = str(lead.get("id_fase_atual", ""))
+            nome_fase = fase_map.get(fase_id, "")
+            
+            # Só contabiliza se o lead estiver realmente na fase "Perdido"
+            if "perdido" in nome_fase or "descartado" in nome_fase:
+                motivo = str(lead.get("motivo_perda") or "Não informado").strip()
+                if not motivo: motivo = "Não informado"
+                distribuicao[motivo] = distribuicao.get(motivo, 0) + 1
+            
+        resultado = [{"motivo": nome, "quantidade": qtd} for nome, qtd in distribuicao.items()]
+        resultado.sort(key=lambda x: x["quantidade"], reverse=True)
+        return resultado
+    except Exception as e:
+        print(f"❌ Erro ao obter motivos de perda: {e}")
+        return []
+
+def get_faturamento_e_ticket(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
+    # Esta função mata dois coelhos com uma cajadada só!
+    try:
+        col_leads = db_client.get_collection('leads')
+        col_fases = db_client.get_collection('fases')
+        if col_leads is None or col_fases is None: return {"faturamento": 0.0, "ticket_medio": 0.0}
+        
+        fases_docs = list(col_fases.find({}, {"_id": 1, "nome_fase": 1}))
+        fase_map = {str(f["_id"]): f.get("nome_fase", "").lower() for f in fases_docs}
+
+        date_match = _build_date_match(data_inicio, data_fim)
+        leads = list(col_leads.find(date_match if date_match else {}, {"id_fase_atual": 1, "valor_estimado": 1}))
+        
+        faturamento_total = 0.0
+        vendas_ganhas = 0
+
+        for lead in leads:
+            fase_id = str(lead.get("id_fase_atual", ""))
+            nome_fase = fase_map.get(fase_id, "")
+            
+            # Só soma o dinheiro de quem está na fase "Ganho" / "Concluído"
+            if "ganho" in nome_fase or "concluído" in nome_fase:
+                try:
+                    valor = float(lead.get("valor_estimado") or 0.0)
+                except:
+                    valor = 0.0
+                
+                faturamento_total += valor
+                vendas_ganhas += 1
+                
+        ticket_medio = (faturamento_total / vendas_ganhas) if vendas_ganhas > 0 else 0.0
+        
+        return {
+            "faturamento": faturamento_total,
+            "ticket_medio": ticket_medio
+        }
+    except Exception as e:
+        print(f"❌ Erro ao calcular faturamento: {e}")
+        return {"faturamento": 0.0, "ticket_medio": 0.0}
 
 # -----------------------------------------------------------------------------
 # 5. Validação Local
