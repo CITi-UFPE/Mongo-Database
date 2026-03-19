@@ -109,13 +109,15 @@ def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[
         
         invalid_budgets = [
             "< R$10.000,00",
+            None,
+            ""
         ]
 
         query = {
             "$and": [
                 {
                     "$or": [
-                        {"valor_estimado": {"$gt": limite_valor}},
+                        {"valor": {"$gt": limite_valor}},
                         {"budget_estimado": {"$nin": invalid_budgets}}
                     ]
                 }
@@ -174,10 +176,12 @@ def get_previsao_faturamento(fator_conversao: float = 0.25, data_inicio: Optiona
                 }
             },
             # 3. Soma o valor estimado
+            # 3. Soma o valor
+            # 3. Soma o valor
             {
                 "$group": {
                     "_id": None,           
-                    "total_bruto": {"$sum": "$valor_estimado"}
+                    "total_bruto": {"$sum": "$valor"}
                 }
             }
         ]
@@ -233,14 +237,27 @@ def get_distribuicao_fases(data_inicio: Optional[str] = None, data_fim: Optional
                 }
             },
             # 2. Arruma o valor (agora buscando 'valor_estimado') e o nome da fase
+            # 2. Arruma o valor e converte o budget caso o valor real seja zero
             {
                 "$addFields": {
                     "nome_fase_real": { "$ifNull": ["$fase_info.nome_fase", "Sem fase"] },
                     "valor_calculado": {
                         "$cond": {
-                            "if": { "$gt": ["$valor_estimado", 0] },
-                            "then": "$valor_estimado",
-                            "else": 0 # Se quiser manter a lógica de budget, troque $valor por $valor_estimado lá também
+                            "if": { "$gt": ["$valor", 0] },
+                            "then": "$valor",
+                            "else": {
+                                "$switch": {
+                                    "branches": [
+                                        { "case": { "$eq": ["$budget_estimado", "< R$10.000,00"] }, "then": 5000 },
+                                        { "case": { "$eq": ["$budget_estimado", "R$10.000,00 - R$20.000,00"] }, "then": 15000 },
+                                        { "case": { "$eq": ["$budget_estimado", "R$20.000,00 - R$30.000,00"] }, "then": 25000 },
+                                        { "case": { "$eq": ["$budget_estimado", "R$30.000,00 - R$40.000,00"] }, "then": 35000 },
+                                        { "case": { "$eq": ["$budget_estimado", "R$40.000,00 - R$50.000,00"] }, "then": 45000 },
+                                        { "case": { "$eq": ["$budget_estimado", "> R$50.000,00"] }, "then": 50000 }
+                                    ],
+                                    "default": 0
+                                }
+                            }
                         }
                     }
                 }
