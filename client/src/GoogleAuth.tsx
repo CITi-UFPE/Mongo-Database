@@ -45,7 +45,7 @@ export default function GoogleAuth() {
       }
 
       console.log("🔵 [GoogleAuth] 6. Iniciando login no Context...");
-      login(res.data.token, res.data.user);
+      await login(res.data.token, res.data.user);
       console.log("🔵 [GoogleAuth] 7. Login no Context completado");
 
       console.log("🔵 [GoogleAuth] 8. Redirecionando para /analytics...");
