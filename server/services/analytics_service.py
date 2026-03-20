@@ -277,7 +277,7 @@ def _build_date_match(data_inicio: str = None, data_fim: str = None):
     # IMPORTANTE: Como os leads são criados em um ano e atualizados em outro,
     # vamos usar o 'updatedAt' para pegar a movimentação real de 2026.
     # Se quiser mudar para a data de criação, mude para "createdAt"
-    campo_data = "updatedAt" 
+    campo_data = "createdAt" 
 
     # Se não vier data nenhuma do Front-end, não filtra nada (ou poderíamos forçar 2026 aqui)
     if not data_inicio and not data_fim:
