@@ -16,6 +16,17 @@ def _normalize_email(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
+def _canonical_email(email: str | None) -> str:
+    normalized = _normalize_email(email)
+    if "@" not in normalized:
+        return normalized
+
+    local, domain = normalized.split("@", 1)
+    # Handle common alias patterns: dots and plus tags in local part.
+    local = local.split("+", 1)[0].replace(".", "")
+    return f"{local}@{domain}"
+
+
 def _email_variants(email: str) -> list[str]:
     variants = []
     normalized = _normalize_email(email)
@@ -55,6 +66,36 @@ def _find_member_by_email(membros_col, email: str | None):
         member = membros_col.find_one({'email': {'$regex': f'^{candidate}$', '$options': 'i'}})
         if member:
             return member
+
+    # Tentativa 3: match canônico (ignora pontos e +alias no local-part).
+    canonical_target = _canonical_email(email)
+    if canonical_target:
+        normalized_domain = canonical_target.split("@", 1)[1] if "@" in canonical_target else ""
+        scope_query = {"email": {"$regex": f"@{normalized_domain}$", "$options": "i"}} if normalized_domain else {}
+        for candidate_member in membros_col.find(scope_query, {"email": 1}):
+            if _canonical_email(candidate_member.get("email")) == canonical_target:
+                full_doc = membros_col.find_one({"email": candidate_member.get("email")})
+                if full_doc:
+                    return full_doc
+
+    # Tentativa 4: fallback por local-part canônico, ignorando domínio.
+    # Ex.: ana.raquel@citi.org e ana.raquel@citi.org.br.
+    canonical_local = ""
+    if canonical_target and "@" in canonical_target:
+        canonical_local = canonical_target.split("@", 1)[0]
+
+    if canonical_local:
+        candidates = []
+        for candidate_member in membros_col.find({}, {"email": 1}):
+            candidate_canonical = _canonical_email(candidate_member.get("email"))
+            if "@" in candidate_canonical and candidate_canonical.split("@", 1)[0] == canonical_local:
+                candidates.append(candidate_member.get("email"))
+
+        # Só usa fallback se houver candidato único para evitar match incorreto.
+        if len(candidates) == 1:
+            full_doc = membros_col.find_one({"email": candidates[0]})
+            if full_doc:
+                return full_doc
 
     return None
 
