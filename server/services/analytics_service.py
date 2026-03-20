@@ -5,7 +5,8 @@ from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
 
-#Configuração de Caminhos e Variáveis
+#  Configuração de Caminhos e Variáveis de Ambiente
+
 
 current_file_path = os.path.abspath(__file__)
 services_dir = os.path.dirname(current_file_path)
@@ -22,9 +23,10 @@ def _should_replace_mongo_host() -> bool:
     running_in_docker = os.path.exists('/.dockerenv')
     return os.name == 'nt' and not running_in_docker
 
-# ==========================================
-# 2. Patch de Conexão com o Banco
-# ==========================================
+
+#  Patch de Conexão (Redirecionamento Docker pro Localhost)
+
+
 base_uri = (
     os.getenv("MONGO_URI_DEV") or 
     os.getenv("MONGODB_URL") or 
@@ -38,167 +40,106 @@ if base_uri and "mdp-mongo" in base_uri and _should_replace_mongo_host():
     os.environ["MONGO_URI_PROD"] = final_uri
     os.environ["MONGODB_URL"] = final_uri
 
+
+# 3. Importação do Banco de Dados
+
+
 try:
     from services.db import db_client
 except ImportError:
     print("❌ Erro: Não foi possível importar o db_client.")
     sys.exit(1)
 
-print("✅ Analytics Service Definitivo iniciado.")
+print("✅ Analytics Service iniciado.")
 
-# ==========================================
-# 3. Helpers e Regras de Negócio
-# ==========================================
-FASES_INATIVAS = ["ganho", "perdido", "descartado", "concluído", "finalizado/ganho", "desqualificados"]
-FASES_NEGOCIACAO = ["montagem de proposta", "negociação", "apresentação de proposta"]
 
-def _build_date_match(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
-    """Filtro de datas ninja (Ideia do Pipo ajustada para updatedAt)"""
-    if not data_inicio and not data_fim:
-        return {}
+#  Funções Auxiliares
 
-    condicoes = []
-    
-    # Busca por datas em string (caso venha do pipefy assim)
-    range_query_str = {}
-    if data_inicio: range_query_str["$gte"] = data_inicio
-    if data_fim: range_query_str["$lte"] = data_fim
-    if range_query_str: condicoes.append({"data_qualificacao": range_query_str})
+# Serviços de KPI (Métricas e Analytics)
 
-    # Busca por data real do banco (updatedAt é melhor para ver as movimentações recentes)
-    range_query_dt = {}
+
+def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
     try:
-        if data_inicio: range_query_dt["$gte"] = datetime.fromisoformat(f"{data_inicio[:10]}T00:00:00")
-        if data_fim: range_query_dt["$lte"] = datetime.fromisoformat(f"{data_fim[:10]}T23:59:59")
-        if range_query_dt:
-            condicoes.append({"updatedAt": range_query_dt})
-            condicoes.append({"createdAt": range_query_dt})
-    except ValueError:
-        pass
-
-    return {"$or": condicoes} if condicoes else {}
-
-def _get_fase_map() -> Dict[str, str]:
-    """Busca as fases na tabela correta e cria um dicionário tradutor (Ideia da Ana)"""
-    try:
+        col_leads = db_client.get_collection('leads')
+        # CORREÇÃO: Usando o nome correto da coleção das fotos!
         col_fases = db_client.get_collection('fase_funils')
-        if not col_fases: return {}
+        if col_leads is None or col_fases is None: return {"qualificados": 0, "total": 0}
+        
         fases_docs = list(col_fases.find({}, {"_id": 1, "nome_fase": 1}))
-        return {str(f["_id"]): f.get("nome_fase", "Sem Fase") for f in fases_docs}
-    except Exception: return {}
+        fase_map = {str(f["_id"]): f.get("nome_fase", "").lower() for f in fases_docs}
 
-# ==========================================
-# 4. Funções de Analytics
-# ==========================================
-
-def get_leads_qualificados(limite_valor: float = 0.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
-    try:
-        col_leads = db_client.get_collection('leads')
-        if col_leads is None: return {"qualificados": 0, "total": 0}
-
-        fase_map = _get_fase_map()
         date_match = _build_date_match(data_inicio, data_fim)
+        leads = list(col_leads.find(date_match if date_match else {}, {"id_fase_atual": 1, "valor_estimado": 1}))
         
-        leads = list(col_leads.find(date_match, {"id_fase_atual": 1, "valor_estimado": 1, "valor": 1}))
-        
-        qualificados = 0
-        total_ativos = 0
-
-        for lead in leads:
-            fase_id = str(lead.get("id_fase_atual", lead.get("fase", "")))
-            nome_fase = fase_map.get(fase_id, fase_id).lower()
-
-            if any(inativa in nome_fase for inativa in FASES_INATIVAS):
-                continue
-
-            total_ativos += 1
-            valor = float(lead.get("valor_estimado") or lead.get("valor") or 0.0)
-            if valor > limite_valor:
-                qualificados += 1
-
-        return {"qualificados": qualificados, "total": total_ativos}
-    except Exception as e:
-        print(f"❌ Erro ao contar leads: {e}")
-        return {"qualificados": 0, "total": 0}
-
-def get_previsao_faturamento(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict[str, float]:
-    try:
-        col_leads = db_client.get_collection('leads')
-        if col_leads is None: raise Exception("Sem coleção")
-
-        fase_map = _get_fase_map()
-        date_match = _build_date_match(data_inicio, data_fim)
-        leads = list(col_leads.find(date_match, {"id_fase_atual": 1, "valor_estimado": 1, "valor": 1, "fase": 1}))
-
-        total_bruto = 0.0
-
-        for lead in leads:
-            fase_id = str(lead.get("id_fase_atual", lead.get("fase", "")))
-            nome_fase = fase_map.get(fase_id, fase_id).lower()
-
-            if any(alvo in nome_fase for alvo in FASES_NEGOCIACAO):
-                valor = float(lead.get("valor_estimado") or lead.get("valor") or 0.0)
-                total_bruto += valor
-
-        return {
-            "base_pipeline_previsao": total_bruto,
-            "pessimista_20": total_bruto * 0.20,
-            "realista_25": total_bruto * 0.25,
-            "otimista_35": total_bruto * 0.35
-        }
-    except Exception as e:
-        return {"base_pipeline_previsao": 0.0, "pessimista_20": 0.0, "realista_25": 0.0, "otimista_35": 0.0}
-
-def get_ticket_medio_e_conversao(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
-    try:
-        col_leads = db_client.get_collection('leads')
-        if col_leads is None: return {"ticket_medio": 0.0, "taxa_conversao": 0.0}
-
-        fase_map = _get_fase_map()
-        date_match = _build_date_match(data_inicio, data_fim)
-        leads = list(col_leads.find(date_match, {"id_fase_atual": 1, "valor_estimado": 1, "valor_final_negociacao": 1}))
-
-        faturamento_ganho = 0.0
-        ganhos = 0
-        perdidos = 0
+        fases_inativas = ["ganho", "perdido", "descartado", "concluído"]
+        qualificados, total_ativos = 0, 0
 
         for lead in leads:
             fase_id = str(lead.get("id_fase_atual", ""))
-            nome_fase = fase_map.get(fase_id, fase_id).lower()
+            nome_fase = fase_map.get(fase_id, "sem fase")
 
-            if "ganho" in nome_fase or "concluído" in nome_fase:
-                ganhos += 1
-                valor = float(lead.get("valor_final_negociacao") or lead.get("valor_estimado") or 0.0)
-                faturamento_ganho += valor
-            elif "perdid" in nome_fase or "descartad" in nome_fase or "desqualificad" in nome_fase:
-                perdidos += 1
+            if any(inativa in nome_fase for inativa in fases_inativas):
+                continue
 
-        ticket_medio = (faturamento_ganho / ganhos) if ganhos > 0 else 0.0
-        total_finalizados = ganhos + perdidos
-        taxa_conversao = (ganhos / total_finalizados * 100) if total_finalizados > 0 else 0.0
+            total_ativos += 1
+            try:
+                if float(lead.get("valor_estimado") or 0.0) > 0:
+                    qualificados += 1
+            except: pass
 
-        return {
-            "ticket_medio": round(ticket_medio, 2),
-            "taxa_conversao": round(taxa_conversao, 2)
-        }
-    except Exception: return {"ticket_medio": 0.0, "taxa_conversao": 0.0}
+        return {"qualificados": qualificados, "total": total_ativos}
+    except Exception as e:
+        return {"qualificados": 0, "total": 0}
+
+def get_previsao_faturamento(fator_conversao: float = 0.25, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> float:
+    try:
+        col_leads = db_client.get_collection('leads')
+        col_fases = db_client.get_collection('fase_funils') # CORRIGIDO
+        if col_leads is None or col_fases is None: return 0.0
+        
+        fases_docs = list(col_fases.find({}, {"_id": 1, "nome_fase": 1}))
+        fase_map = {str(f["_id"]): f.get("nome_fase", "") for f in fases_docs}
+
+        date_match = _build_date_match(data_inicio, data_fim)
+        leads = list(col_leads.find(date_match if date_match else {}, {"id_fase_atual": 1, "valor_estimado": 1}))
+
+        total_bruto = 0.0
+        fases_alvo = ["Montagem de proposta", "Negociação", "Apresentação de proposta"]
+
+        for lead in leads:
+            fase_id = str(lead.get("id_fase_atual", ""))
+            nome_fase = fase_map.get(fase_id, "")
+            if nome_fase in fases_alvo:
+                try: total_bruto += float(lead.get("valor_estimado") or 0.0)
+                except: pass
+
+        return total_bruto * fator_conversao
+    except Exception: return 0.0
 
 def get_distribuicao_fases(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> List[Dict]:
     try:
         col_leads = db_client.get_collection('leads')
-        if col_leads is None: return []
+        col_fases = db_client.get_collection('fase_funils') # CORRIGIDO
+        if col_leads is None or col_fases is None: return []
+        
+        fases_docs = list(col_fases.find({}, {"_id": 1, "nome_fase": 1}))
+        fase_map = {str(f["_id"]): f.get("nome_fase", "Sem fase") for f in fases_docs}
 
-        fase_map = _get_fase_map()
         date_match = _build_date_match(data_inicio, data_fim)
-        leads = list(col_leads.find(date_match, {"id_fase_atual": 1, "valor_estimado": 1, "valor": 1}))
+        leads = list(col_leads.find(date_match if date_match else {}, {"id_fase_atual": 1, "valor_estimado": 1}))
 
         distribuicao = {}
+        fases_inativas = ["ganho", "perdido", "descartado", "concluído"]
 
         for lead in leads:
             fase_id = str(lead.get("id_fase_atual", ""))
-            nome_fase = fase_map.get(fase_id, "Sem Fase").capitalize()
+            nome_fase = fase_map.get(fase_id, "Sem fase")
             
-            valor = float(lead.get("valor_estimado") or lead.get("valor") or 0.0)
+            if any(inativa in nome_fase.lower() for inativa in fases_inativas):
+                continue
+            
+            try: valor = float(lead.get("valor_estimado") or 0.0)
+            except: valor = 0.0
 
             if nome_fase not in distribuicao:
                 distribuicao[nome_fase] = {"quantidade": 0, "total_valor": 0.0}
@@ -206,40 +147,7 @@ def get_distribuicao_fases(data_inicio: Optional[str] = None, data_fim: Optional
             distribuicao[nome_fase]["quantidade"] += 1
             distribuicao[nome_fase]["total_valor"] += valor
 
-        resultado = [{"fase": nome, "quantidade": d["quantidade"], "total_valor": d["total_valor"]} for nome, d in distribuicao.items()]
-        resultado.sort(key=lambda x: x["quantidade"], reverse=True)
-        return resultado
-    except Exception: return []
-
-def get_motivos_perda(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> List[Dict]:
-    try:
-        col_leads = db_client.get_collection('leads')
-        col_motivos = db_client.get_collection('motivos_perda')
-        if col_leads is None: return []
-
-        fase_map = _get_fase_map()
-        
-        motivo_map = {}
-        if col_motivos:
-            motivos_docs = list(col_motivos.find({}))
-            motivo_map = {str(m["_id"]): m.get("nome", m.get("motivo", "Desconhecido")) for m in motivos_docs}
-
-        date_match = _build_date_match(data_inicio, data_fim)
-        leads = list(col_leads.find(date_match, {"id_fase_atual": 1, "motivo_perda": 1}))
-        
-        distribuicao = {}
-        for lead in leads:
-            fase_id = str(lead.get("id_fase_atual", ""))
-            nome_fase = fase_map.get(fase_id, "").lower()
-            
-            if "perdid" in nome_fase or "descartad" in nome_fase:
-                motivo_id = str(lead.get("motivo_perda") or "Não informado").strip()
-                motivo_final = motivo_map.get(motivo_id, motivo_id)
-                if not motivo_final: motivo_final = "Não informado"
-                
-                distribuicao[motivo_final] = distribuicao.get(motivo_final, 0) + 1
-            
-        resultado = [{"motivo": nome, "quantidade": qtd} for nome, qtd in distribuicao.items()]
+        resultado = [{"fase": nome, "quantidade": dados["quantidade"], "total_valor": dados["total_valor"]} for nome, dados in distribuicao.items()]
         resultado.sort(key=lambda x: x["quantidade"], reverse=True)
         return resultado
     except Exception: return []
@@ -249,16 +157,18 @@ def get_origem_dados(data_inicio: Optional[str] = None, data_fim: Optional[str] 
         col = db_client.get_collection('leads')
         if col is None: return []
         date_match = _build_date_match(data_inicio, data_fim)
-        leads = list(col.find(date_match, {"origem": 1}))
+        leads = list(col.find(date_match if date_match else {}, {"origem": 1}))
         
         distribuicao = {}
         for lead in leads:
+            # Blindagem: Tenta pegar a string direta. Se for um ID de outra tabela, vai agrupar por ID por enquanto.
             origem = str(lead.get("origem") or "Não informada").strip()
+            if not origem: origem = "Não informada"
             distribuicao[origem] = distribuicao.get(origem, 0) + 1
             
-        res = [{"origem": k, "quantidade": v} for k, v in distribuicao.items()]
-        res.sort(key=lambda x: x["quantidade"], reverse=True)
-        return res
+        resultado = [{"origem": nome, "quantidade": qtd} for nome, qtd in distribuicao.items()]
+        resultado.sort(key=lambda x: x["quantidade"], reverse=True)
+        return resultado
     except Exception: return []
 
 def get_distribuicao_servicos(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> List[Dict]:
@@ -266,29 +176,166 @@ def get_distribuicao_servicos(data_inicio: Optional[str] = None, data_fim: Optio
         col = db_client.get_collection('leads')
         if col is None: return []
         date_match = _build_date_match(data_inicio, data_fim)
-        leads = list(col.find(date_match, {"servico": 1, "servicos_interesse": 1}))
+        leads = list(col.find(date_match if date_match else {}, {"servico": 1}))
         
         distribuicao = {}
         for lead in leads:
-            servico = str(lead.get("servicos_interesse") or lead.get("servico") or "Não informado").strip()
+            servico = str(lead.get("servico") or "Não informado").strip()
+            if not servico: servico = "Não informado"
             distribuicao[servico] = distribuicao.get(servico, 0) + 1
             
-        res = [{"servico": k, "quantidade": v} for k, v in distribuicao.items()]
-        res.sort(key=lambda x: x["quantidade"], reverse=True)
-        return res
+        resultado = [{"servico": nome, "quantidade": qtd} for nome, qtd in distribuicao.items()]
+        resultado.sort(key=lambda x: x["quantidade"], reverse=True)
+        return resultado
     except Exception: return []
 
+def get_motivos_perda(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> List[Dict]:
+    try:
+        col_leads = db_client.get_collection('leads')
+        col_fases = db_client.get_collection('fase_funils') # CORRIGIDO
+        col_motivos = db_client.get_collection('motivos_perda') # NOVO: Mapeia os motivos!
+        
+        if col_leads is None or col_fases is None: return []
+        
+        # Mapeando fases
+        fases_docs = list(col_fases.find({}, {"_id": 1, "nome_fase": 1}))
+        fase_map = {str(f["_id"]): f.get("nome_fase", "").lower() for f in fases_docs}
+
+        # Mapeando motivos de perda (lendo da coleção correta que vimos na sua foto)
+        motivo_map = {}
+        if col_motivos is not None:
+            motivos_docs = list(col_motivos.find({}))
+            # Ele tenta pegar o campo "nome" ou "motivo". Se o seu campo chamar diferente, ajustamos aqui.
+            motivo_map = {str(m["_id"]): m.get("nome", m.get("motivo", "Desconhecido")) for m in motivos_docs}
+
+        date_match = _build_date_match(data_inicio, data_fim)
+        leads = list(col_leads.find(date_match if date_match else {}, {"id_fase_atual": 1, "motivo_perda": 1}))
+        
+        distribuicao = {}
+        for lead in leads:
+            fase_id = str(lead.get("id_fase_atual", ""))
+            nome_fase = fase_map.get(fase_id, "")
+            
+            # Só contabiliza se o lead estiver "Perdido"
+            if "perdido" in nome_fase or "descartado" in nome_fase:
+                motivo_id_ou_texto = str(lead.get("motivo_perda") or "Não informado").strip()
+                
+                # Se for um ID, traduz. Se não for, usa o texto puro mesmo.
+                motivo_final = motivo_map.get(motivo_id_ou_texto, motivo_id_ou_texto)
+                
+                if not motivo_final: motivo_final = "Não informado"
+                distribuicao[motivo_final] = distribuicao.get(motivo_final, 0) + 1
+            
+        resultado = [{"motivo": nome, "quantidade": qtd} for nome, qtd in distribuicao.items()]
+        resultado.sort(key=lambda x: x["quantidade"], reverse=True)
+        return resultado
+    except Exception: return []
+
+def get_faturamento_e_ticket(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
+    try:
+        col_leads = db_client.get_collection('leads')
+        col_fases = db_client.get_collection('fase_funils') # CORRIGIDO
+        if col_leads is None or col_fases is None: return {"faturamento": 0.0, "ticket_medio": 0.0}
+        
+        fases_docs = list(col_fases.find({}, {"_id": 1, "nome_fase": 1}))
+        fase_map = {str(f["_id"]): f.get("nome_fase", "").lower() for f in fases_docs}
+
+        date_match = _build_date_match(data_inicio, data_fim)
+        leads = list(col_leads.find(date_match if date_match else {}, {"id_fase_atual": 1, "valor_estimado": 1}))
+        
+        faturamento_total = 0.0
+        vendas_ganhas = 0
+
+        for lead in leads:
+            fase_id = str(lead.get("id_fase_atual", ""))
+            nome_fase = fase_map.get(fase_id, "")
+            
+            # Só soma o dinheiro de quem está na fase "Ganho"
+            if "ganho" in nome_fase or "concluído" in nome_fase:
+                try: valor = float(lead.get("valor_estimado") or 0.0)
+                except: valor = 0.0
+                
+                faturamento_total += valor
+                vendas_ganhas += 1
+                
+        ticket_medio = (faturamento_total / vendas_ganhas) if vendas_ganhas > 0 else 0.0
+        
+        return {
+            "faturamento": faturamento_total,
+            "ticket_medio": ticket_medio
+        }
+    except Exception: return {"faturamento": 0.0, "ticket_medio": 0.0}
+
+from datetime import datetime
+
+def _build_date_match(data_inicio: str = None, data_fim: str = None):
+    """
+    Cria o filtro de datas para o MongoDB.
+    """
+    match_query = {}
+    
+    # IMPORTANTE: Como os leads são criados em um ano e atualizados em outro,
+    # vamos usar o 'updatedAt' para pegar a movimentação real de 2026.
+    # Se quiser mudar para a data de criação, mude para "createdAt"
+    campo_data = "createdAt" 
+
+    # Se não vier data nenhuma do Front-end, não filtra nada (ou poderíamos forçar 2026 aqui)
+    if not data_inicio and not data_fim:
+        return match_query
+
+    match_query[campo_data] = {}
+
+    if data_inicio:
+        try:
+            # Pega o formato "2026-01-01" e transforma em formato de data do MongoDB
+            dt_inicio = datetime.strptime(data_inicio[:10], "%Y-%m-%d")
+            match_query[campo_data]["$gte"] = dt_inicio
+        except ValueError:
+            print(f"⚠️ Erro ao converter data_inicio: {data_inicio}")
+            pass
+            
+    if data_fim:
+        try:
+            dt_fim = datetime.strptime(data_fim[:10], "%Y-%m-%d")
+            # Ajusta para o último segundo do dia, para não perder os leads daquela tarde!
+            dt_fim = dt_fim.replace(hour=23, minute=59, second=59)
+            match_query[campo_data]["$lte"] = dt_fim
+        except ValueError:
+            print(f"⚠️ Erro ao converter data_fim: {data_fim}")
+            pass
+            
+    # Limpeza caso a conversão tenha falhado
+    if not match_query[campo_data]:
+        del match_query[campo_data]
+        
+    return match_query
+
 if __name__ == "__main__":
-    print("\n📊 --- TESTE DO ANALYTICS DEFINITIVO ---\n")
+    print("\n📊 --- TESTE DE ANALYTICS ---\n")
+
     data_in = "2026-01-01"
+    data_out = "2026-12-31"
+
+    # 1. Qualificados e Total (Passando as datas)
+    info_leads = get_leads_qualificados(data_inicio=data_in, data_fim=data_out)
+    print(f"Total de Leads na Base: {info_leads['total']}")
+    print(f"Leads Qualificados: {info_leads['qualificados']}")
     
-    info_leads = get_leads_qualificados(data_inicio=data_in)
-    print(f"Total Ativos: {info_leads['total']} | Qualificados: {info_leads['qualificados']}")
     
-    previsao = get_previsao_faturamento(data_inicio=data_in)
-    print(f"Forecast Base: R$ {previsao['base_pipeline_previsao']:,.2f} | Realista: R$ {previsao['realista_25']:,.2f}")
+
+    # 2. Previsão
+    previsao = get_previsao_faturamento()
+    print(f"Previsão de Faturamento (25%): R$ {previsao:,.2f}")
     
-    metricas = get_ticket_medio_e_conversao(data_inicio=data_in)
-    print(f"Ticket Médio: R$ {metricas['ticket_medio']:,.2f} | Conversão: {metricas['taxa_conversao']}%")
+    # 3. Funil 
+    print("\nFunil de Vendas:")
+    funil = get_distribuicao_fases()
+    
+    for item in funil:
+        fase_nome = item.get('fase')
+        q = item.get('quantidade', 0)
+        v = item.get('total_valor', 0)
+        
+        print(f"   - {fase_nome:<25} | Qtd: {q:<3} | R$ {v:,.2f}")
     
     print("\n-------------------------------------")
