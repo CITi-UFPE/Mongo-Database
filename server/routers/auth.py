@@ -78,6 +78,25 @@ def _find_member_by_email(membros_col, email: str | None):
                 if full_doc:
                     return full_doc
 
+    # Tentativa 4: fallback por local-part canônico, ignorando domínio.
+    # Ex.: ana.raquel@citi.org e ana.raquel@citi.org.br.
+    canonical_local = ""
+    if canonical_target and "@" in canonical_target:
+        canonical_local = canonical_target.split("@", 1)[0]
+
+    if canonical_local:
+        candidates = []
+        for candidate_member in membros_col.find({}, {"email": 1}):
+            candidate_canonical = _canonical_email(candidate_member.get("email"))
+            if "@" in candidate_canonical and candidate_canonical.split("@", 1)[0] == canonical_local:
+                candidates.append(candidate_member.get("email"))
+
+        # Só usa fallback se houver candidato único para evitar match incorreto.
+        if len(candidates) == 1:
+            full_doc = membros_col.find_one({"email": candidates[0]})
+            if full_doc:
+                return full_doc
+
     return None
 
 @router.get("/health")
