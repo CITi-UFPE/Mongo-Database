@@ -55,23 +55,6 @@ print("✅ Analytics Service iniciado.")
 
 #  Funções Auxiliares
 
-def _build_date_match(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
-    if not data_inicio and not data_fim:
-        return {}
-    date_conditions = []
-    if data_inicio or data_fim:
-        range_query = {}
-        if data_inicio: range_query["$gte"] = data_inicio
-        if data_fim: range_query["$lte"] = data_fim
-        date_conditions.append({"data_qualificacao": range_query})
-    if data_inicio or data_fim:
-        range_query_dt = {}
-        if data_inicio: range_query_dt["$gte"] = datetime.fromisoformat(f"{data_inicio}T00:00:00")
-        if data_fim: range_query_dt["$lte"] = datetime.fromisoformat(f"{data_fim}T23:59:59")
-        date_conditions.append({"createdAt": range_query_dt})
-    return {"$or": date_conditions} if date_conditions else {}
-
-
 # Serviços de KPI (Métricas e Analytics)
 
 
@@ -283,13 +266,62 @@ def get_faturamento_e_ticket(data_inicio: Optional[str] = None, data_fim: Option
         }
     except Exception: return {"faturamento": 0.0, "ticket_medio": 0.0}
 
+from datetime import datetime
+
+def _build_date_match(data_inicio: str = None, data_fim: str = None):
+    """
+    Cria o filtro de datas para o MongoDB.
+    """
+    match_query = {}
+    
+    # IMPORTANTE: Como os leads são criados em um ano e atualizados em outro,
+    # vamos usar o 'updatedAt' para pegar a movimentação real de 2026.
+    # Se quiser mudar para a data de criação, mude para "createdAt"
+    campo_data = "updatedAt" 
+
+    # Se não vier data nenhuma do Front-end, não filtra nada (ou poderíamos forçar 2026 aqui)
+    if not data_inicio and not data_fim:
+        return match_query
+
+    match_query[campo_data] = {}
+
+    if data_inicio:
+        try:
+            # Pega o formato "2026-01-01" e transforma em formato de data do MongoDB
+            dt_inicio = datetime.strptime(data_inicio[:10], "%Y-%m-%d")
+            match_query[campo_data]["$gte"] = dt_inicio
+        except ValueError:
+            print(f"⚠️ Erro ao converter data_inicio: {data_inicio}")
+            pass
+            
+    if data_fim:
+        try:
+            dt_fim = datetime.strptime(data_fim[:10], "%Y-%m-%d")
+            # Ajusta para o último segundo do dia, para não perder os leads daquela tarde!
+            dt_fim = dt_fim.replace(hour=23, minute=59, second=59)
+            match_query[campo_data]["$lte"] = dt_fim
+        except ValueError:
+            print(f"⚠️ Erro ao converter data_fim: {data_fim}")
+            pass
+            
+    # Limpeza caso a conversão tenha falhado
+    if not match_query[campo_data]:
+        del match_query[campo_data]
+        
+    return match_query
+
 if __name__ == "__main__":
     print("\n📊 --- TESTE DE ANALYTICS ---\n")
-    
-    # 1. Qualificados e Total
-    info_leads = get_leads_qualificados()
+
+    data_in = "2026-01-01"
+    data_out = "2026-12-31"
+
+    # 1. Qualificados e Total (Passando as datas)
+    info_leads = get_leads_qualificados(data_inicio=data_in, data_fim=data_out)
     print(f"Total de Leads na Base: {info_leads['total']}")
     print(f"Leads Qualificados: {info_leads['qualificados']}")
+    
+    
 
     # 2. Previsão
     previsao = get_previsao_faturamento()
