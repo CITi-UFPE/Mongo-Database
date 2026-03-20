@@ -4,10 +4,7 @@ from datetime import datetime
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
-
 #  Configuração de Caminhos e Variáveis de Ambiente
-
-
 current_file_path = os.path.abspath(__file__)
 services_dir = os.path.dirname(current_file_path)
 server_dir = os.path.dirname(services_dir)
@@ -23,10 +20,7 @@ def _should_replace_mongo_host() -> bool:
     running_in_docker = os.path.exists('/.dockerenv')
     return os.name == 'nt' and not running_in_docker
 
-
 #  Patch de Conexão (Redirecionamento Docker pro Localhost)
-
-
 base_uri = (
     os.getenv("MONGO_URI_DEV") or 
     os.getenv("MONGODB_URL") or 
@@ -40,10 +34,7 @@ if base_uri and "mdp-mongo" in base_uri and _should_replace_mongo_host():
     os.environ["MONGO_URI_PROD"] = final_uri
     os.environ["MONGODB_URL"] = final_uri
 
-
 # 3. Importação do Banco de Dados
-
-
 try:
     from services.db import db_client
 except ImportError:
@@ -52,16 +43,12 @@ except ImportError:
 
 print("✅ Analytics Service iniciado.")
 
-
 #  Funções Auxiliares
-
 # Serviços de KPI (Métricas e Analytics)
-
 
 def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
     try:
         col_leads = db_client.get_collection('leads')
-        # CORREÇÃO: Usando o nome correto da coleção das fotos!
         col_fases = db_client.get_collection('fase_funils')
         if col_leads is None or col_fases is None: return {"qualificados": 0, "total": 0}
         
@@ -161,7 +148,6 @@ def get_origem_dados(data_inicio: Optional[str] = None, data_fim: Optional[str] 
         
         distribuicao = {}
         for lead in leads:
-            # Blindagem: Tenta pegar a string direta. Se for um ID de outra tabela, vai agrupar por ID por enquanto.
             origem = str(lead.get("origem") or "Não informada").strip()
             if not origem: origem = "Não informada"
             distribuicao[origem] = distribuicao.get(origem, 0) + 1
@@ -197,15 +183,12 @@ def get_motivos_perda(data_inicio: Optional[str] = None, data_fim: Optional[str]
         
         if col_leads is None or col_fases is None: return []
         
-        # Mapeando fases
         fases_docs = list(col_fases.find({}, {"_id": 1, "nome_fase": 1}))
         fase_map = {str(f["_id"]): f.get("nome_fase", "").lower() for f in fases_docs}
 
-        # Mapeando motivos de perda (lendo da coleção correta que vimos na sua foto)
         motivo_map = {}
         if col_motivos is not None:
             motivos_docs = list(col_motivos.find({}))
-            # Ele tenta pegar o campo "nome" ou "motivo". Se o seu campo chamar diferente, ajustamos aqui.
             motivo_map = {str(m["_id"]): m.get("nome", m.get("motivo", "Desconhecido")) for m in motivos_docs}
 
         date_match = _build_date_match(data_inicio, data_fim)
@@ -216,11 +199,8 @@ def get_motivos_perda(data_inicio: Optional[str] = None, data_fim: Optional[str]
             fase_id = str(lead.get("id_fase_atual", ""))
             nome_fase = fase_map.get(fase_id, "")
             
-            # Só contabiliza se o lead estiver "Perdido"
             if "perdido" in nome_fase or "descartado" in nome_fase:
                 motivo_id_ou_texto = str(lead.get("motivo_perda") or "Não informado").strip()
-                
-                # Se for um ID, traduz. Se não for, usa o texto puro mesmo.
                 motivo_final = motivo_map.get(motivo_id_ou_texto, motivo_id_ou_texto)
                 
                 if not motivo_final: motivo_final = "Não informado"
@@ -250,7 +230,6 @@ def get_faturamento_e_ticket(data_inicio: Optional[str] = None, data_fim: Option
             fase_id = str(lead.get("id_fase_atual", ""))
             nome_fase = fase_map.get(fase_id, "")
             
-            # Só soma o dinheiro de quem está na fase "Ganho"
             if "ganho" in nome_fase or "concluído" in nome_fase:
                 try: valor = float(lead.get("valor_estimado") or 0.0)
                 except: valor = 0.0
@@ -266,20 +245,10 @@ def get_faturamento_e_ticket(data_inicio: Optional[str] = None, data_fim: Option
         }
     except Exception: return {"faturamento": 0.0, "ticket_medio": 0.0}
 
-from datetime import datetime
-
 def _build_date_match(data_inicio: str = None, data_fim: str = None):
-    """
-    Cria o filtro de datas para o MongoDB.
-    """
     match_query = {}
-    
-    # IMPORTANTE: Como os leads são criados em um ano e atualizados em outro,
-    # vamos usar o 'updatedAt' para pegar a movimentação real de 2026.
-    # Se quiser mudar para a data de criação, mude para "createdAt"
     campo_data = "createdAt" 
 
-    # Se não vier data nenhuma do Front-end, não filtra nada (ou poderíamos forçar 2026 aqui)
     if not data_inicio and not data_fim:
         return match_query
 
@@ -287,7 +256,6 @@ def _build_date_match(data_inicio: str = None, data_fim: str = None):
 
     if data_inicio:
         try:
-            # Pega o formato "2026-01-01" e transforma em formato de data do MongoDB
             dt_inicio = datetime.strptime(data_inicio[:10], "%Y-%m-%d")
             match_query[campo_data]["$gte"] = dt_inicio
         except ValueError:
@@ -297,18 +265,114 @@ def _build_date_match(data_inicio: str = None, data_fim: str = None):
     if data_fim:
         try:
             dt_fim = datetime.strptime(data_fim[:10], "%Y-%m-%d")
-            # Ajusta para o último segundo do dia, para não perder os leads daquela tarde!
             dt_fim = dt_fim.replace(hour=23, minute=59, second=59)
             match_query[campo_data]["$lte"] = dt_fim
         except ValueError:
             print(f"⚠️ Erro ao converter data_fim: {data_fim}")
             pass
             
-    # Limpeza caso a conversão tenha falhado
     if not match_query[campo_data]:
         del match_query[campo_data]
         
     return match_query
+
+# ==========================================
+# NOVAS FUNÇÕES ADICIONADAS PARA O MVP (PDF)
+# ==========================================
+
+def get_taxa_conversao(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> float:
+    """Calcula a % de conversão (Ganhos / (Ganhos + Perdidos)) pedida na auditoria."""
+    try:
+        col_leads = db_client.get_collection('leads')
+        col_fases = db_client.get_collection('fase_funils')
+        if col_leads is None or col_fases is None: return 0.0
+        
+        fases_docs = list(col_fases.find({}, {"_id": 1, "nome_fase": 1}))
+        fase_map = {str(f["_id"]): f.get("nome_fase", "").lower() for f in fases_docs}
+
+        date_match = _build_date_match(data_inicio, data_fim)
+        leads = list(col_leads.find(date_match if date_match else {}, {"id_fase_atual": 1}))
+        
+        ganhos = 0
+        perdidos = 0
+
+        for lead in leads:
+            fase_id = str(lead.get("id_fase_atual", ""))
+            nome_fase = fase_map.get(fase_id, "")
+            
+            if "ganho" in nome_fase or "concluído" in nome_fase:
+                ganhos += 1
+            elif "perdid" in nome_fase or "descartad" in nome_fase or "desqualificad" in nome_fase:
+                perdidos += 1
+                
+        total_finalizados = ganhos + perdidos
+        if total_finalizados == 0: return 0.0
+        
+        return round((ganhos / total_finalizados) * 100, 2)
+    except Exception: return 0.0
+
+def get_meta_mensal(meta_alvo: float = 500000.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
+    """Devolve a Meta vs Faturamento Atual (Barra de progresso do PDF)."""
+    try:
+        dados_faturamento = get_faturamento_e_ticket(data_inicio, data_fim)
+        faturamento_atual = dados_faturamento.get("faturamento", 0.0)
+        
+        falta_para_meta = meta_alvo - faturamento_atual
+        if falta_para_meta < 0: falta_para_meta = 0.0
+        
+        progresso_percentual = (faturamento_atual / meta_alvo) * 100 if meta_alvo > 0 else 0.0
+        
+        return {
+            "meta_alvo": meta_alvo,
+            "faturamento_atual": faturamento_atual,
+            "falta_para_meta": falta_para_meta,
+            "progresso_percentual": round(progresso_percentual, 2)
+        }
+    except Exception: return {"meta_alvo": meta_alvo, "faturamento_atual": 0.0, "falta_para_meta": meta_alvo, "progresso_percentual": 0.0}
+
+def get_previsao_detalhada(fator_conversao: float = 0.25, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
+    """Devolve o valor total do pipeline E a previsão realista separada (Exigência 5 do PDF)."""
+    try:
+        col_leads = db_client.get_collection('leads')
+        col_fases = db_client.get_collection('fase_funils')
+        if col_leads is None or col_fases is None: return {"pipeline_total": 0.0, "previsao_realista": 0.0}
+        
+        fases_docs = list(col_fases.find({}, {"_id": 1, "nome_fase": 1}))
+        fase_map = {str(f["_id"]): f.get("nome_fase", "") for f in fases_docs}
+
+        date_match = _build_date_match(data_inicio, data_fim)
+        leads = list(col_leads.find(date_match if date_match else {}, {"id_fase_atual": 1, "valor_estimado": 1}))
+
+        total_bruto = 0.0
+        fases_alvo = ["Montagem de proposta", "Negociação", "Apresentação de proposta"]
+
+        for lead in leads:
+            fase_id = str(lead.get("id_fase_atual", ""))
+            nome_fase = fase_map.get(fase_id, "")
+            if nome_fase in fases_alvo:
+                try: total_bruto += float(lead.get("valor_estimado") or 0.0)
+                except: pass
+
+        return {
+            "pipeline_total": total_bruto,
+            "previsao_realista": total_bruto * fator_conversao
+        }
+    except Exception: return {"pipeline_total": 0.0, "previsao_realista": 0.0}
+
+def get_tempo_por_estagio() -> List[Dict]:
+    """
+    Mock temporário para a métrica de 'Tempo por Estágio' do PDF.
+    Como o Pipefy guarda o histórico de forma complexa, esta função entrega 
+    a estrutura pronta para o Front-end não quebrar até que a extração de histórico seja feita.
+    """
+    return [
+        {"fase": "Qualificação", "dias_medios": 15},
+        {"fase": "Diagnóstico", "dias_medios": 8},
+        {"fase": "Apresentação", "dias_medios": 12},
+        {"fase": "Negociação", "dias_medios": 20}
+    ]
+
+# ==========================================
 
 if __name__ == "__main__":
     print("\n📊 --- TESTE DE ANALYTICS ---\n")
@@ -321,11 +385,17 @@ if __name__ == "__main__":
     print(f"Total de Leads na Base: {info_leads['total']}")
     print(f"Leads Qualificados: {info_leads['qualificados']}")
     
-    
-
     # 2. Previsão
     previsao = get_previsao_faturamento()
-    print(f"Previsão de Faturamento (25%): R$ {previsao:,.2f}")
+    print(f"Previsão de Faturamento (Antiga): R$ {previsao:,.2f}")
+    
+    # NOVOS TESTES (MVP)
+    print("\n--- TESTES NOVOS DO PDF ---")
+    print(f"Taxa de Conversão: {get_taxa_conversao(data_inicio=data_in)}%")
+    meta = get_meta_mensal(data_inicio=data_in)
+    print(f"Meta: R$ {meta['meta_alvo']:,.2f} | Atingido: R$ {meta['faturamento_atual']:,.2f} | Falta: R$ {meta['falta_para_meta']:,.2f}")
+    prev_detalhada = get_previsao_detalhada(data_inicio=data_in)
+    print(f"Pipeline Total: R$ {prev_detalhada['pipeline_total']:,.2f} | Previsão (25%): R$ {prev_detalhada['previsao_realista']:,.2f}")
     
     # 3. Funil 
     print("\nFunil de Vendas:")
