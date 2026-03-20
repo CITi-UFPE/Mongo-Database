@@ -43,12 +43,20 @@ export default function DataVizDashboard() {
   const sheetRequestRef = useRef(0);
   const popupTimeoutRef = useRef<number | null>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const { user: authUser } = useAuth();
+  const { user: authUser, refreshUser } = useAuth();
   const { fullName, initials } = extractNameFromEmail(authUser?.email);
   const user = {
-    name: fullName,
-    role: authUser?.role || 'Usuário',
-    department: authUser?.department || 'Dados',
+    name: (typeof authUser?.name === "string" && authUser.name.trim()) ? authUser.name : fullName,
+    role:
+      (typeof authUser?.position === "string" && authUser.position.trim())
+        ? authUser.position
+        : (typeof authUser?.role === "string" && authUser.role.trim())
+          ? authUser.role
+          : "-",
+    department:
+      (typeof authUser?.department === "string" && authUser.department.trim())
+        ? authUser.department
+        : "-",
     initials,
   };
   const [togglePopup, setTogglePopup] = useState<TogglePopupState>({
@@ -63,6 +71,21 @@ export default function DataVizDashboard() {
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [analyticsDateRange, setAnalyticsDateRange] = useState<DateRangeSelection | undefined>(undefined);
+
+  useEffect(() => {
+    if (!authUser?.email) {
+      return;
+    }
+
+    const hasRole =
+      (typeof authUser?.role === "string" && authUser.role.trim().length > 0) ||
+      (typeof authUser?.position === "string" && authUser.position.trim().length > 0);
+    const hasDepartment = typeof authUser?.department === "string" && authUser.department.trim().length > 0;
+
+    if (!hasRole || !hasDepartment) {
+      refreshUser();
+    }
+  }, [authUser?.email, authUser?.role, authUser?.position, authUser?.department, refreshUser]);
 
   const handleAnalyticsDateFilterChange = useCallback((_: DateRangeValue, dates?: DateRangeSelection) => {
     setAnalyticsDateRange(dates);

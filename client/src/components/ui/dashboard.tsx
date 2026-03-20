@@ -4,12 +4,10 @@ import {
   TrendingUp,
   DollarSign,
   Receipt,
-  Building2,
-  User,
-  Briefcase,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import UserHeader from "../UserHeader";
 import { MetricCard } from "./metric-card";
 import { ProgressGoal } from "./progress-goal";
 import { LeadQualityCard } from "./lead-quality-card";
@@ -124,28 +122,8 @@ const Dashboard = ({ data, onDateFilterChange }: DashboardProps) => {
             <DateFilter onChange={onDateFilterChange} />
           </div>
 
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-500/15 to-cyan-500/15 rounded-xl border border-blue-400/30 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-300/60 hover:shadow-[0_10px_20px_rgba(37,99,235,0.18)]">
-              <User className="w-4 h-4 text-blue-300" />
-              <div>
-                <p className="text-xs text-slate-400">Usuário</p>
-                <p className="text-sm font-medium text-blue-100">Mariaeduarda</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-cyan-500/15 to-teal-500/15 rounded-xl border border-cyan-400/30 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/60 hover:shadow-[0_10px_20px_rgba(6,182,212,0.18)]">
-              <Briefcase className="w-4 h-4 text-cyan-300" />
-              <div>
-                <p className="text-xs text-slate-400">Função</p>
-                <p className="text-sm font-medium text-cyan-100">Gerente</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-emerald-500/15 to-teal-500/15 rounded-xl border border-emerald-400/30 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300/60 hover:shadow-[0_10px_20px_rgba(16,185,129,0.18)]">
-              <Building2 className="w-4 h-4 text-emerald-300" />
-              <div>
-                <p className="text-xs text-slate-400">Departamento</p>
-                <p className="text-sm font-medium text-emerald-100">Vendas</p>
-              </div>
-            </div>
+          <div className="mt-4">
+            <UserHeader variant="full" />
           </div>
         </div>
       </div>
