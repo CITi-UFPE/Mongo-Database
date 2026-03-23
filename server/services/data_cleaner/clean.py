@@ -10,7 +10,11 @@ COLUNAS_FINAIS = [
     "Valor_Final_Negociacao",
     "Fase Atual",
     "Responsável",
-    "Servicos_Interesse"
+    "Servicos_Interesse",
+    "Motivo_Perda",
+    "Created_At",
+    "Updated_At",
+    "Historico_Fases",
 ]
 
 
@@ -95,14 +99,16 @@ def get_valor_final_negociacao(fields: List[Dict]) -> Any:
 
 def get_servicos_interesse(fields: List[Dict]) -> List[str]:
     for field in fields:
-        if "serviço de interesse" in field.get("name", "").lower():
+        nome = field.get("name", "").lower()
+        if "serviço de interesse" in nome or "servico de interesse" in nome:
             return _parse_lista_pipefy(field.get("value"))
     return []
 
 
 def get_responsavel(node: Dict) -> str:
     for field in node.get("fields", []):
-        if "responsável" in field.get("name", "").lower():
+        nome = field.get("name", "").lower()
+        if "responsável" in nome or "responsavel" in nome:
             return str(_limpar_string_pipefy(field.get("value")))
 
     assignees = node.get("assignees", [])
@@ -143,6 +149,38 @@ def smart_currency_clean(val: Any) -> float:
         return 0.0
 
 
+def get_motivo_perda(fields: List[Dict]) -> str:
+    for field in fields:
+        nome = field.get("name", "").lower()
+        if "motivo da perda" in nome or "motivo de perda" in nome:
+            valor = _limpar_string_pipefy(field.get("value"))
+            return str(valor).strip() if valor else ""
+    return ""
+
+
+def get_historico_fases(node: Dict) -> List[Dict]:
+    historico = node.get("phases_history", [])
+    resultado = []
+
+    if not isinstance(historico, list):
+        return resultado
+
+    for item in historico:
+        if not isinstance(item, dict):
+            continue
+
+        fase_info = item.get("phase", {}) or {}
+
+        resultado.append({
+            "id_fase": fase_info.get("id"),
+            "fase": fase_info.get("name"),
+            "data_entrada": item.get("firstTimeIn"),
+            "data_saida": item.get("lastTimeOut"),
+        })
+
+    return resultado
+
+
 def process_data(raw_data: List[Dict]) -> List[Dict]:
     processed: List[Dict] = []
 
@@ -158,6 +196,10 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
             "Fase Atual": node.get("current_phase", {}).get("name"),
             "Responsável": get_responsavel(node),
             "Servicos_Interesse": get_servicos_interesse(fields),
+            "Motivo_Perda": get_motivo_perda(fields),
+            "Created_At": node.get("created_at"),
+            "Updated_At": node.get("updated_at"),
+            "Historico_Fases": get_historico_fases(node),
         })
 
     return processed

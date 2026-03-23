@@ -35,6 +35,14 @@ query ($pipeId: ID!, $first: Int!, $after: String) {
         assignees { id name email }
         labels { id name color }
         fields { name value }
+        phases_history {
+          phase {
+            id
+            name
+          }
+          firstTimeIn
+          lastTimeOut
+        }
       }
     }
   }
