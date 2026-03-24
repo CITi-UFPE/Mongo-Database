@@ -53,6 +53,12 @@ export default function GoogleAuth() {
       console.log("🔵 [GoogleAuth] 6. Iniciando login no Context...");
       const authenticatedUser = await login(res.data.token, res.data.user);
       console.log("🔵 [GoogleAuth] 7. Login no Context completado");
+      console.log("🔵 [GoogleAuth] User após normalização:", {
+        email: authenticatedUser.email,
+        role: authenticatedUser.role,
+        department: authenticatedUser.department,
+        nivel_acesso: authenticatedUser.nivel_acesso,
+      });
 
       const destination = canAccessAnalytics(authenticatedUser) ? "/analytics" : "/home";
       console.log(`🔵 [GoogleAuth] 8. Redirecionando para ${destination}...`);

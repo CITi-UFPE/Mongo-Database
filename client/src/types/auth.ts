@@ -38,6 +38,23 @@ const DEPARTAMENTOS_ALIAS: Record<string, Departamento> = {
   Negocios: "Negócios",
 };
 
+const toCanonicalKey = (value: string): string => {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+};
+
+const CARGOS_BY_CANONICAL = new Map<string, Cargo>(
+  CARGOS.map((cargo) => [toCanonicalKey(cargo), cargo])
+);
+
+const DEPARTAMENTOS_BY_CANONICAL = new Map<string, Departamento>(
+  DEPARTAMENTOS.map((departamento) => [toCanonicalKey(departamento), departamento])
+);
+
 const normalizeCargo = (value: unknown): Cargo | null => {
   if (typeof value !== "string") {
     return null;
@@ -45,7 +62,11 @@ const normalizeCargo = (value: unknown): Cargo | null => {
 
   const trimmed = value.trim();
   const normalized = CARGOS_ALIAS[trimmed] ?? trimmed;
-  return CARGOS_SET.has(normalized) ? (normalized as Cargo) : null;
+  if (CARGOS_SET.has(normalized)) {
+    return normalized as Cargo;
+  }
+
+  return CARGOS_BY_CANONICAL.get(toCanonicalKey(normalized)) ?? null;
 };
 
 const normalizeDepartamento = (value: unknown): Departamento | null => {
@@ -55,7 +76,11 @@ const normalizeDepartamento = (value: unknown): Departamento | null => {
 
   const trimmed = value.trim();
   const normalized = DEPARTAMENTOS_ALIAS[trimmed] ?? trimmed;
-  return DEPARTAMENTOS_SET.has(normalized) ? (normalized as Departamento) : null;
+  if (DEPARTAMENTOS_SET.has(normalized)) {
+    return normalized as Departamento;
+  }
+
+  return DEPARTAMENTOS_BY_CANONICAL.get(toCanonicalKey(normalized)) ?? null;
 };
 
 const computeNivelAcesso = (cargo: Cargo): NivelAcesso => {
