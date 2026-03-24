@@ -5,14 +5,20 @@ import Dashboard from "@/components/ui/dashboard";
 import { fetchAnalyticsPayload, type AnalyticsPayload } from "@/services/analytics";
 import { apiClient } from "@/services/api";
 import { useAuth } from "./context/AuthContext";
+import { canAccessAnalytics } from "./types/auth";
 
 type ViewMode = "dashboard" | "planilha";
 type SheetRow = Record<string, unknown>;
 
-export default function App() {
+interface AppProps {
+  defaultViewMode?: ViewMode;
+}
+
+export default function App({ defaultViewMode = "planilha" }: AppProps) {
   const navigate = useNavigate();
-  const { logout } = useAuth();
-  const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
+  const { logout, user } = useAuth();
+  const hasAnalyticsAccess = canAccessAnalytics(user);
+  const [viewMode, setViewMode] = useState<ViewMode>(hasAnalyticsAccess ? defaultViewMode : "planilha");
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
@@ -24,6 +30,17 @@ export default function App() {
   const [sheetError, setSheetError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!hasAnalyticsAccess && viewMode === "dashboard") {
+      setViewMode("planilha");
+    }
+  }, [hasAnalyticsAccess, viewMode]);
+
+  useEffect(() => {
+    if (!hasAnalyticsAccess || viewMode !== "dashboard") {
+      setLoadingAnalytics(false);
+      return;
+    }
+
     let cancelled = false;
 
     const load = async () => {
@@ -50,7 +67,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hasAnalyticsAccess, viewMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -158,14 +175,16 @@ export default function App() {
       <div className="mx-auto max-w-7xl space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 p-2 w-fit">
-            <button
-              onClick={() => setViewMode("dashboard")}
-              className={`px-4 py-2 rounded-md text-sm transition ${
-                viewMode === "dashboard" ? "bg-cyan-600 text-white" : "text-slate-300 hover:bg-slate-800"
-              }`}
-            >
-              Dashboard
-            </button>
+            {hasAnalyticsAccess ? (
+              <button
+                onClick={() => setViewMode("dashboard")}
+                className={`px-4 py-2 rounded-md text-sm transition ${
+                  viewMode === "dashboard" ? "bg-cyan-600 text-white" : "text-slate-300 hover:bg-slate-800"
+                }`}
+              >
+                Dashboard
+              </button>
+            ) : null}
             <button
               onClick={() => setViewMode("planilha")}
               className={`px-4 py-2 rounded-md text-sm transition ${
@@ -186,7 +205,7 @@ export default function App() {
           </button>
         </div>
 
-        {viewMode === "dashboard" ? (
+        {viewMode === "dashboard" && hasAnalyticsAccess ? (
           <>
             {analyticsError ? <p className="text-rose-300 text-sm">{analyticsError}</p> : null}
             {loadingAnalytics ? <p className="text-slate-300 text-sm">Carregando Analytics...</p> : null}

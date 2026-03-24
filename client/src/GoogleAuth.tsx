@@ -10,28 +10,34 @@ import {
 import Iridescence from "@/components/Iridescence"
 import AnimatedLogo from "@/components/AnimatedLogo"
 import { apiClient } from "@/services/api"
-import { GoogleLogin } from "@react-oauth/google"
+import { GoogleLogin, type CredentialResponse } from "@react-oauth/google"
 import { useAuth } from "./context/AuthContext";
+import { canAccessAnalytics } from "./types/auth";
+
+interface GoogleLoginResponse {
+  token?: string;
+  user?: unknown;
+}
 
 export default function GoogleAuth() {
   const navigate = useNavigate();
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, isAuthenticated, isLoading, user } = useAuth();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
   // Redireciona usuários já autenticados
   if (!isLoading && isAuthenticated) {
-    navigate("/analytics", { replace: true });
+    navigate(canAccessAnalytics(user) ? "/analytics" : "/home", { replace: true });
     return null;
   }
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     try {
       setIsLoggingIn(true);
       console.log("🔵 [GoogleAuth] 1. Login Google iniciado");
       console.log("🔵 [GoogleAuth] 2. Credential recebido:", credentialResponse.credential?.substring(0, 30));
 
-      const res = await apiClient.post("/auth/google", {
+      const res = await apiClient.post<GoogleLoginResponse>("/auth/google", {
         idToken: credentialResponse.credential,
       });
 
@@ -41,15 +47,16 @@ export default function GoogleAuth() {
 
       if (!res.data.token) {
         console.error("❌ [GoogleAuth] Sem token na resposta!");
-        return;
+        throw new Error("Sem token na resposta do backend");
       }
 
       console.log("🔵 [GoogleAuth] 6. Iniciando login no Context...");
-      await login(res.data.token, res.data.user);
+      const authenticatedUser = await login(res.data.token, res.data.user);
       console.log("🔵 [GoogleAuth] 7. Login no Context completado");
 
-      console.log("🔵 [GoogleAuth] 8. Redirecionando para /analytics...");
-      navigate("/analytics");
+      const destination = canAccessAnalytics(authenticatedUser) ? "/analytics" : "/home";
+      console.log(`🔵 [GoogleAuth] 8. Redirecionando para ${destination}...`);
+      navigate(destination);
       console.log("🔵 [GoogleAuth] 9. Navigate chamado");
 
     } catch (err: any) {
