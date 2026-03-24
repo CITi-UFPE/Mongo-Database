@@ -10,6 +10,7 @@ COLUNAS_FINAIS = [
     "Valor_Final_Negociacao",
     "Fase Atual",
     "ID_Fase_Atual",
+    "Origem",
     "Responsável",
     "Servicos_Interesse",
     "Motivo_Perda",
@@ -105,6 +106,14 @@ def get_servicos_interesse(fields: List[Dict]) -> List[str]:
             return _parse_lista_pipefy(field.get("value"))
     return []
 
+def get_origem(fields: List[Dict]) -> str:
+    for field in fields:
+        nome = field.get("name", "").lower()
+        if "fonte do lead" in nome:
+            valor = _limpar_string_pipefy(field.get("value"))
+            return str(valor).strip() if valor else ""
+    return ""
+
 
 def get_responsavel(node: Dict) -> str:
     for field in node.get("fields", []):
@@ -196,6 +205,7 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
             "Valor_Final_Negociacao": smart_currency_clean(get_valor_final_negociacao(fields)),
             "Fase Atual": node.get("current_phase", {}).get("name"),
             "ID_Fase_Atual": node.get("current_phase", {}).get("id"),
+            "Origem": get_origem(fields),
             "Responsável": get_responsavel(node),
             "Servicos_Interesse": get_servicos_interesse(fields),
             "Motivo_Perda": get_motivo_perda(fields),
