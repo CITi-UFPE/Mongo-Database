@@ -35,6 +35,14 @@ query ($pipeId: ID!, $first: Int!, $after: String) {
         assignees { id name email }
         labels { id name color }
         fields { name value }
+        phases_history {
+          phase {
+            id
+            name
+          }
+          firstTimeIn
+          lastTimeOut
+        }
       }
     }
   }
@@ -110,7 +118,7 @@ def build_raw_output(pages_raw: List[Dict[str, Any]]) -> Dict[str, Any]:
         "pipe": pages_raw[0]["data"]["pipe"] if pages_raw else {"id": PIPEFY_PIPE_ID, "name": None},
         "pages": len(pages_raw),
         "total_cards": total_cards,
-        "pages_raw": pages_raw,  # bruto
+        "pages_raw": pages_raw,
     }
 
 

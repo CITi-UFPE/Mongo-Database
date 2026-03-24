@@ -1,14 +1,56 @@
 import re
+import json
 from typing import List, Dict, Any, Union
 
 
-COLUNAS_FINAIS = ["Pipefy_ID", "Nome do Cliente", "Valor", "Fase Atual", "Responsável"]
+COLUNAS_FINAIS = [
+    "Pipefy_ID",
+    "Nome do Cliente",
+    "Valor",
+    "Valor_Final_Negociacao",
+    "Fase Atual",
+    "ID_Fase_Atual",
+    "Responsável",
+    "Servicos_Interesse",
+    "Motivo_Perda",
+    "Created_At",
+    "Updated_At",
+    "Historico_Fases",
+]
 
 
 def _limpar_string_pipefy(valor: Any) -> Union[str, Any]:
     if isinstance(valor, str) and valor.startswith('["'):
         return valor.replace('["', "").replace('"]', "").replace('"', "").replace("\\", "")
     return valor
+
+
+def _parse_lista_pipefy(valor: Any) -> List[str]:
+    if not valor:
+        return []
+
+    if isinstance(valor, list):
+        return [str(item).strip() for item in valor if str(item).strip()]
+
+    if isinstance(valor, str):
+        valor = valor.strip()
+
+        try:
+            parsed = json.loads(valor)
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        except Exception:
+            pass
+
+        valor_limpo = _limpar_string_pipefy(valor)
+
+        if isinstance(valor_limpo, str):
+            if "," in valor_limpo:
+                return [item.strip() for item in valor_limpo.split(",") if item.strip()]
+            if valor_limpo.strip():
+                return [valor_limpo.strip()]
+
+    return []
 
 
 def load_data_from_payload(payload: Any) -> List[Dict]:
@@ -49,9 +91,25 @@ def get_valor_proposta(fields: List[Dict]) -> Any:
     return None
 
 
+def get_valor_final_negociacao(fields: List[Dict]) -> Any:
+    for field in fields:
+        if "valor final de negociação" in field.get("name", "").lower():
+            return _limpar_string_pipefy(field.get("value"))
+    return None
+
+
+def get_servicos_interesse(fields: List[Dict]) -> List[str]:
+    for field in fields:
+        nome = field.get("name", "").lower()
+        if "serviço de interesse" in nome or "servico de interesse" in nome:
+            return _parse_lista_pipefy(field.get("value"))
+    return []
+
+
 def get_responsavel(node: Dict) -> str:
     for field in node.get("fields", []):
-        if "responsável" in field.get("name", "").lower():
+        nome = field.get("name", "").lower()
+        if "responsável" in nome or "responsavel" in nome:
             return str(_limpar_string_pipefy(field.get("value")))
 
     assignees = node.get("assignees", [])
@@ -92,6 +150,38 @@ def smart_currency_clean(val: Any) -> float:
         return 0.0
 
 
+def get_motivo_perda(fields: List[Dict]) -> str:
+    for field in fields:
+        nome = field.get("name", "").lower()
+        if "motivo da perda" in nome or "motivo de perda" in nome:
+            valor = _limpar_string_pipefy(field.get("value"))
+            return str(valor).strip() if valor else ""
+    return ""
+
+
+def get_historico_fases(node: Dict) -> List[Dict]:
+    historico = node.get("phases_history", [])
+    resultado = []
+
+    if not isinstance(historico, list):
+        return resultado
+
+    for item in historico:
+        if not isinstance(item, dict):
+            continue
+
+        fase_info = item.get("phase", {}) or {}
+
+        resultado.append({
+            "id_fase": fase_info.get("id"),
+            "fase": fase_info.get("name"),
+            "data_entrada": item.get("firstTimeIn"),
+            "data_saida": item.get("lastTimeOut"),
+        })
+
+    return resultado
+
+
 def process_data(raw_data: List[Dict]) -> List[Dict]:
     processed: List[Dict] = []
 
@@ -103,8 +193,15 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
             "Pipefy_ID": node.get("id"),
             "Nome do Cliente": node.get("title"),
             "Valor": smart_currency_clean(get_valor_proposta(fields)),
+            "Valor_Final_Negociacao": smart_currency_clean(get_valor_final_negociacao(fields)),
             "Fase Atual": node.get("current_phase", {}).get("name"),
+            "ID_Fase_Atual": node.get("current_phase", {}).get("id"),
             "Responsável": get_responsavel(node),
+            "Servicos_Interesse": get_servicos_interesse(fields),
+            "Motivo_Perda": get_motivo_perda(fields),
+            "Created_At": node.get("created_at"),
+            "Updated_At": node.get("updated_at"),
+            "Historico_Fases": get_historico_fases(node),
         })
 
     return processed
@@ -112,4 +209,3 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
 
 def clean_pipefy_payload(payload: Any) -> List[Dict]:
     return process_data(load_data_from_payload(payload))
-

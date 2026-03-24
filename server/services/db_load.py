@@ -1,7 +1,8 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 from dotenv import load_dotenv
 import os
 import sys
+from datetime import datetime
 
 # -----------------------------------------------------------------------------
 # Caminhos e import do db (precisa do server no path)
@@ -12,7 +13,7 @@ server_dir = os.path.dirname(services_dir)
 project_root = os.path.dirname(server_dir)
 sys.path.append(server_dir)
 
-env_path = os.path.join(project_root, '.env')
+env_path = os.path.join(project_root, ".env")
 if os.path.exists(env_path):
     load_dotenv(env_path)
 else:
@@ -20,85 +21,130 @@ else:
 
 
 def _should_replace_mongo_host() -> bool:
-    running_in_docker = os.path.exists('/.dockerenv')
-    return os.name == 'nt' and not running_in_docker
+    running_in_docker = os.path.exists("/.dockerenv")
+    return os.name == "nt" and not running_in_docker
+
 
 # Ajuste para rodar local: .env pode ter host do container (mdp-mongo).
-# db.py prioriza MONGO_URI_PROD; garantimos que ambas apontem para localhost.
 raw_uri = os.getenv("MONGO_URI_DEV")
 if raw_uri and "mdp-mongo" in raw_uri and _should_replace_mongo_host():
     os.environ["MONGO_URI_DEV"] = raw_uri.replace("mdp-mongo", "localhost")
+
     prod = os.getenv("MONGO_URI_PROD", "")
     if prod and "mdp-mongo" in prod:
         os.environ["MONGO_URI_PROD"] = prod.replace("mdp-mongo", "localhost")
+
     if os.getenv("MONGODB_URL"):
         del os.environ["MONGODB_URL"]
+
 
 try:
     from services.db import db_client
 except ImportError:
-    print("Erro: Não foi possível importar o db_client em db_loader.")
+    print("Erro: Não foi possível importar o db_client.")
 
-def save_to_mongodb(data_list: List[Dict], collection_name: str = 'leads') -> None:
-    """
-    Persiste uma lista de leads na coleção do MongoDB (upsert por Pipefy_ID).
 
-    Espera itens com chaves no formato do clean.py (ex.: "Nome do Cliente", "Valor").
-    Grava em snake_case na coleção. Rodar várias vezes com os mesmos dados é
-    idempotente: atualiza o documento existente em vez de duplicar.
+def _parse_datetime(value) -> Optional[datetime]:
+    if not value:
+        return None
+
+    if isinstance(value, datetime):
+        return value
+
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def save_to_mongodb(
+    data_list: List[Dict], collection_name: str = "leads"
+) -> Dict[str, int]:
     """
+    Persiste uma lista de leads na coleção MongoDB (upsert por Pipefy_ID).
+
+    Espera dados no formato retornado por clean_pipefy_payload().
+    """
+
     try:
         col = db_client.get_collection(collection_name)
         if col is None:
             raise Exception(f"Coleção '{collection_name}' não encontrada.")
     except Exception as e:
         print(f"❌ Erro de conexão no Loader: {e}")
-        return
+        return {"inserted": 0, "updated": 0}
 
-    inserts, updates = 0, 0
-    
-    # 🔥 PEGANDO O ID DO KANBAN DO .ENV
+    inserts = 0
+    updates = 0
+
     pipe_id_env = os.getenv("PIPE_ID")
 
     for item in data_list:
-        p_id = item.get("Pipefy_ID")
-        if not p_id:
+        pip_id = item.get("Pipefy_ID")
+
+        if not pip_id:
             continue
 
-        # 🔥 AQUI FIZEMOS O "DE/PARA" EXATO PARA BATER COM O CÓDIGO DA ANA
+        servicos = item.get("Servicos_Interesse", [])
+        servico_principal = (
+            servicos[0] if isinstance(servicos, list) and servicos else None
+        )
+
+        created_at = _parse_datetime(item.get("Created_At")) or datetime.utcnow()
+        updated_at = _parse_datetime(item.get("Updated_At"))
+
         payload = {
-            "pipe_id": str(pipe_id_env) if pipe_id_env else "306865718", # Carimbo do Kanban
-            "Pipefy_ID": p_id,
+            # identificação
+            "pipe_id": str(pipe_id_env) if pipe_id_env else "306865718",
+            "Pipefy_ID": pip_id,
             "nome_cliente": item.get("Nome do Cliente"),
-            "valor_estimado": item.get("Valor") or item.get("Budget Estimado"), # <-- ANA LÊ AQUI
-            "id_fase_atual": item.get("Fase Atual"),                            # <-- ANA LÊ AQUI
+
+            # valores financeiros
+            "valor": item.get("Valor", 0.0),
+            "valor_estimado": item.get("Valor", 0.0),
+            "valor_final_negociacao": item.get("Valor_Final_Negociacao", 0.0),
+
+            # status funil
+            "fase": item.get("Fase Atual"),
+            "id_fase_atual": item.get("ID_Fase_Atual"),
+
+            # responsável
             "responsavel": item.get("Responsável"),
-            "servico": item.get("Serviços"),                                    # <-- ANA LÊ AQUI
-            "autoridade": item.get("Autoridade"),
-            "motivo_perda": item.get("Motivo da Perda"),                        # <-- ANA LÊ AQUI
-            "origem": item.get("Origem do Lead"),                               # <-- ANA LÊ AQUI
-            "prazo": item.get("Prazo"),
-            "data_qualificacao": item.get("Data de Qualificação"),
-            "data_diagnostico": item.get("Data de Diagnóstico"),
-            "data_proposta": item.get("Data de Proposta"),
+
+            # serviços
+            "servicos_interesse": servicos,
+            "servico": servico_principal,
+
+            # origem
+            "origem": item.get("Origem"),
+
+            # perda
+            "motivo_perda": item.get("Motivo_Perda", ""),
+
+            # datas
+            "updatedAt": updated_at,
+
+            # histórico pipeline
+            "historico_fases": item.get("Historico_Fases", []),
+
+            # extensível
+            "unidade": item.get("Unidade"),
         }
 
-        # Usamos $set para atualizar/inserir os dados e $setOnInsert para garantir 
-        # que a data de criação (createdAt) seja salva se for um lead novo, 
-        # para o filtro de datas do calendário funcionar perfeitamente!
-        from datetime import datetime
         result = col.update_one(
-            {"Pipefy_ID": p_id},
+            {"Pipefy_ID": pip_id},
             {
                 "$set": payload,
-                "$setOnInsert": {"createdAt": datetime.utcnow()} # Ajuda no filtro do calendário
+                "$setOnInsert": {"createdAt": created_at},
             },
             upsert=True,
         )
-        
+
         if result.upserted_id:
             inserts += 1
         elif result.modified_count > 0:
             updates += 1
 
     print(f"Carga finalizada: 🆕 {inserts} criados | 🔄 {updates} atualizados")
+
+    return {"inserted": inserts, "updated": updates}
