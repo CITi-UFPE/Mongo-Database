@@ -1,21 +1,12 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { apiClient } from "../services/api";
-
-interface User {
-  email?: string;
-  name?: string;
-  picture?: string;
-  role?: string;
-  position?: string;
-  department?: string;
-  [key: string]: unknown;
-}
+import { normalizeUsuarioAutenticado, type UsuarioAutenticado } from "../types/auth";
 
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
-  user: User | null;
-  login: (token: string, user: User) => Promise<void>;
+  user: UsuarioAutenticado | null;
+  login: (token: string, user: unknown) => Promise<UsuarioAutenticado>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -25,29 +16,19 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UsuarioAutenticado | null>(null);
 
-  const normalizeUser = (userData: User | null): User | null => {
-    if (!userData) return null;
-
-    const normalizedRole =
-      typeof userData.role === "string" && userData.role.trim()
-        ? userData.role
-        : (typeof userData.position === "string" ? userData.position : undefined);
-
-    const normalizedPosition =
-      typeof userData.position === "string" && userData.position.trim()
-        ? userData.position
-        : normalizedRole;
-
-    return {
-      ...userData,
-      role: normalizedRole,
-      position: normalizedPosition,
-    };
+  const resetSession = () => {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("authUser");
+    setIsAuthenticated(false);
+    setUser(null);
   };
 
-  const fetchCompleteUser = async (token: string, baseUser: User | null = null): Promise<User | null> => {
+  const fetchCompleteUser = async (
+    token: string,
+    baseUser: UsuarioAutenticado | null = null
+  ): Promise<UsuarioAutenticado | null> => {
     try {
       const response = await apiClient.get("/auth/me", {
         headers: {
@@ -55,10 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
 
-      const mergedUser = normalizeUser({ ...(baseUser ?? {}), ...(response.data ?? {}) });
-      return mergedUser;
+      const mergedPayload = { ...(baseUser ?? {}), ...(response.data ?? {}) };
+      return normalizeUsuarioAutenticado(mergedPayload);
     } catch (_error) {
-      return normalizeUser(baseUser);
+      return baseUser;
     }
   };
 
@@ -70,7 +51,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const savedUser = localStorage.getItem("authUser");
 
         if (savedToken && savedUser) {
-          const parsedUser = normalizeUser(JSON.parse(savedUser));
+          const parsedUser = normalizeUsuarioAutenticado(JSON.parse(savedUser));
+          if (!parsedUser) {
+            resetSession();
+            return;
+          }
+
           setIsAuthenticated(true);
           setUser(parsedUser);
 
@@ -79,10 +65,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (completeUser) {
             setUser(completeUser);
             localStorage.setItem("authUser", JSON.stringify(completeUser));
+          } else {
+            resetSession();
           }
         }
       } catch (e) {
         console.error("❌ [AuthContext] Erro ao inicializar:", e);
+        resetSession();
       } finally {
         setIsLoading(false);
       }
@@ -91,8 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializeUser();
   }, []);
 
-  const login = async (token: string, userData: User) => {
-    const initialUser = normalizeUser(userData);
+  const login = async (token: string, userData: unknown): Promise<UsuarioAutenticado> => {
+    const initialUser = normalizeUsuarioAutenticado(userData);
+    if (!initialUser) {
+      throw new Error("Dados de usuario invalidos para o contrato de autenticacao");
+    }
+
     localStorage.setItem("authToken", token);
     localStorage.setItem("authUser", JSON.stringify(initialUser));
     setIsAuthenticated(true);
@@ -103,14 +96,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (completeUser) {
       setUser(completeUser);
       localStorage.setItem("authUser", JSON.stringify(completeUser));
+      return completeUser;
     }
+
+    throw new Error("Nao foi possivel validar o usuario com os dados do backend");
   };
 
   const logout = () => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("authUser");
-    setIsAuthenticated(false);
-    setUser(null);
+    resetSession();
   };
 
   const refreshUser = async () => {
@@ -125,13 +118,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.data) {
-        const updatedUser = normalizeUser({ ...(user ?? {}), ...response.data });
+        const updatedUser = normalizeUsuarioAutenticado({ ...(user ?? {}), ...response.data });
+        if (!updatedUser) {
+          throw new Error("Payload de /auth/me nao atende ao contrato do usuario autenticado");
+        }
+
         setUser(updatedUser);
         localStorage.setItem("authUser", JSON.stringify(updatedUser));
         console.log("✅ [AuthContext] Dados do utilizador atualizados");
       }
     } catch (e) {
       console.error("❌ [AuthContext] Erro ao atualizar dados:", e);
+      resetSession();
     }
   };
 

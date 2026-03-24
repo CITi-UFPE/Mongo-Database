@@ -5,6 +5,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import App from "./App";
 import GoogleAuth from "./GoogleAuth";
+import { canAccessAnalytics } from "./types/auth";
 import "./index.css";
 
 const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "").trim();
@@ -31,6 +32,20 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminAnalyticsRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+
+  if (!canAccessAnalytics(user)) {
+    window.alert("Acesso Negado");
+    return <Navigate to="/home" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 const root = document.getElementById("root");
 
 if (!root) {
@@ -43,14 +58,22 @@ const appTree = (
       <Routes>
         <Route path="/" element={LoginRouteElement} />
         <Route
-          path="/analytics"
+          path="/home"
           element={
             <ProtectedRoute>
-              <App />
+              <App defaultViewMode="planilha" />
             </ProtectedRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/analytics"
+          element={
+            <AdminAnalyticsRoute>
+              <App defaultViewMode="dashboard" />
+            </AdminAnalyticsRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     </AuthProvider>
   </BrowserRouter>
