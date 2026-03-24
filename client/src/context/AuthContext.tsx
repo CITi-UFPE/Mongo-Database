@@ -50,24 +50,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const savedToken = localStorage.getItem("authToken");
         const savedUser = localStorage.getItem("authUser");
 
-        if (savedToken && savedUser) {
-          const parsedUser = normalizeUsuarioAutenticado(JSON.parse(savedUser));
-          if (!parsedUser) {
+        if (savedToken) {
+          const parsedUser = savedUser ? normalizeUsuarioAutenticado(JSON.parse(savedUser)) : null;
+
+          // Tenta carregar dados completos do servidor, mesmo sem usuário local válido.
+          const completeUser = await fetchCompleteUser(savedToken, parsedUser);
+          if (!completeUser) {
             resetSession();
             return;
           }
 
           setIsAuthenticated(true);
-          setUser(parsedUser);
-
-          // Tenta carregar dados completos do servidor
-          const completeUser = await fetchCompleteUser(savedToken, parsedUser);
-          if (completeUser) {
-            setUser(completeUser);
-            localStorage.setItem("authUser", JSON.stringify(completeUser));
-          } else {
-            resetSession();
-          }
+          setUser(completeUser);
+          localStorage.setItem("authUser", JSON.stringify(completeUser));
         }
       } catch (e) {
         console.error("❌ [AuthContext] Erro ao inicializar:", e);
@@ -82,18 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (token: string, userData: unknown): Promise<UsuarioAutenticado> => {
     const initialUser = normalizeUsuarioAutenticado(userData);
-    if (!initialUser) {
-      throw new Error("Dados de usuario invalidos para o contrato de autenticacao");
-    }
-
     localStorage.setItem("authToken", token);
-    localStorage.setItem("authUser", JSON.stringify(initialUser));
-    setIsAuthenticated(true);
-    setUser(initialUser);
 
-    // Busca role/position e department imediatamente após o login.
+    // Em deploy, /auth/google pode vir sem role/department; tenta recuperar em /auth/me.
     const completeUser = await fetchCompleteUser(token, initialUser);
     if (completeUser) {
+      setIsAuthenticated(true);
       setUser(completeUser);
       localStorage.setItem("authUser", JSON.stringify(completeUser));
       return completeUser;
