@@ -9,6 +9,16 @@ const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, '');
 
 const removeApiSuffix = (value: string): string => value.replace(/\/api\/?$/, '');
 
+const getStoredAuthToken = (): string | null => {
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    return null;
+  }
+
+  const normalized = token.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
 // Centralized axios instance with base URL
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: normalizeBaseUrl(API_URL),
@@ -26,8 +36,10 @@ axiosInstance.interceptors.request.use((config) => {
     config.baseURL = removeApiSuffix(base);
   }
 
-  const token = localStorage.getItem('authToken');
-  if (token) {
+  const token = getStoredAuthToken();
+  const hasAuthorizationHeader = Boolean(config.headers && 'Authorization' in config.headers);
+
+  if (token && !hasAuthorizationHeader) {
     config.headers = config.headers ?? {};
     config.headers['Authorization'] = `Bearer ${token}`;
   }

@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useRef } from "react";
+import axios from "axios";
 import {
   Card,
   CardHeader,
@@ -16,8 +17,39 @@ import { canAccessAnalytics } from "./types/auth";
 
 interface GoogleLoginResponse {
   token?: string;
+  access_token?: string;
+  jwt?: string;
+  id_token?: string;
   user?: unknown;
 }
+
+const resolveJwtToken = (payload: GoogleLoginResponse): string | null => {
+  const candidate = payload.token ?? payload.access_token ?? payload.jwt ?? payload.id_token;
+  if (!candidate) {
+    return null;
+  }
+
+  const normalized = candidate.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const logGoogleAuthError = (error: unknown) => {
+  if (axios.isAxiosError(error)) {
+    console.error("❌ [GoogleAuth] Erro no login:", {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
+    return;
+  }
+
+  if (error instanceof Error) {
+    console.error("❌ [GoogleAuth] Erro no login:", error.message);
+    return;
+  }
+
+  console.error("❌ [GoogleAuth] Erro no login:", error);
+};
 
 export default function GoogleAuth() {
   const navigate = useNavigate();
@@ -41,17 +73,19 @@ export default function GoogleAuth() {
         idToken: credentialResponse.credential,
       });
 
+      const jwtToken = resolveJwtToken(res.data);
+
       console.log("🔵 [GoogleAuth] 3. Resposta do servidor:", res.status);
-      console.log("🔵 [GoogleAuth] 4. Token recebido:", res.data.token?.substring(0, 30));
+      console.log("🔵 [GoogleAuth] 4. Token recebido:", jwtToken?.substring(0, 30));
       console.log("🔵 [GoogleAuth] 5. User recebido:", res.data.user?.email);
 
-      if (!res.data.token) {
+      if (!jwtToken) {
         console.error("❌ [GoogleAuth] Sem token na resposta!");
         throw new Error("Sem token na resposta do backend");
       }
 
       console.log("🔵 [GoogleAuth] 6. Iniciando login no Context...");
-      const authenticatedUser = await login(res.data.token, res.data.user);
+      const authenticatedUser = await login(jwtToken, res.data.user);
       console.log("🔵 [GoogleAuth] 7. Login no Context completado");
       console.log("🔵 [GoogleAuth] User após normalização:", {
         email: authenticatedUser.email,
@@ -65,10 +99,8 @@ export default function GoogleAuth() {
       navigate(destination);
       console.log("🔵 [GoogleAuth] 9. Navigate chamado");
 
-    } catch (err: any) {
-      console.error("❌ [GoogleAuth] Erro no login:", err.message);
-      console.error("❌ [GoogleAuth] Status:", err.response?.status);
-      console.error("❌ [GoogleAuth] Dados erro:", err.response?.data);
+    } catch (err: unknown) {
+      logGoogleAuthError(err);
     } finally {
       setIsLoggingIn(false);
     }
