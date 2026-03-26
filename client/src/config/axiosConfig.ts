@@ -22,6 +22,7 @@ const getStoredAuthToken = (): string | null => {
 // Centralized axios instance with base URL
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: normalizeBaseUrl(API_URL),
+  withCredentials: true, // ✅ Permite enviar cookies + permite receber credenciais em requests cross-origin
 });
 
 axiosInstance.interceptors.request.use((config) => {
@@ -43,6 +44,11 @@ axiosInstance.interceptors.request.use((config) => {
     config.headers = config.headers ?? {};
     config.headers['Authorization'] = `Bearer ${token}`;
   }
+
+  // ✅ Garante que o navegador não faz preflight de credenciais desnecessariamente
+  // Adiciona headers que ajudam a resolver COOP issues
+  config.headers = config.headers ?? {};
+  config.headers['Accept'] = 'application/json';
 
   return config;
 });
