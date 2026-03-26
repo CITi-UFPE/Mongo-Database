@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import axios from "axios";
 import { apiClient } from "../services/api";
 import { normalizeUsuarioAutenticado, type UsuarioAutenticado } from "../types/auth";
 
@@ -38,7 +39,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const mergedPayload = { ...(baseUser ?? {}), ...(response.data ?? {}) };
       return normalizeUsuarioAutenticado(mergedPayload);
-    } catch (_error) {
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        // Token expirado/invalido: deixa o chamador decidir se deve resetar sessao.
+        return null;
+      }
       return baseUser;
     }
   };
@@ -99,7 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return completeUser;
     }
 
-    throw new Error("Nao foi possivel validar o usuario com os dados do backend");
+    // Nao bloqueia login quando /auth/me falha: segue com dados iniciais validados.
+    return initialUser;
   };
 
   const logout = () => {
