@@ -120,7 +120,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (token: string, userData: unknown): Promise<UsuarioAutenticado> => {
     const initialUser = normalizeUsuarioAutenticado(userData);
+    
+    // ✅ Log detalhado para depuração
+    console.log("🔵 [AuthContext] Login - userData recebido:", userData);
+    console.log("🔵 [AuthContext] Login - initialUser após normalização:", initialUser);
+    
     if (!initialUser) {
+      console.error("❌ [AuthContext] Usuário rejeitado! Campos obrigatórios faltando:", {
+        email: (userData as any)?.email,
+        role: (userData as any)?.role,
+        position: (userData as any)?.position,
+        department: (userData as any)?.department,
+      });
       throw new Error("Dados de usuario invalidos para o contrato de autenticacao");
     }
 

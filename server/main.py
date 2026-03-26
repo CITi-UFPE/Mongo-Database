@@ -148,6 +148,28 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],
 )
 
+
+# Security headers middleware para resolver Cross-Origin-Opener-Policy issues
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add security headers to prevent COOP/COEP blocking on Google Auth postMessage."""
+    response = await call_next(request)
+    
+    # COOP: Permite que a janela seja aberta em contexto de terceiros (necessário para Google Auth popup)
+    # "same-origin-allow-popups" permite popups mas mantém isolamento para o resto
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    
+    # COEP: Cross-Origin-Embedder-Policy
+    # "require-corp" exige que recursos cross-origin tenham CORS headers
+    # Para Google Auth, usamos "credentialless" que é menos restritivo
+    response.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
+    
+    # P3P (Platform for Privacy Preferences) header - deprecated mas alguns navegadores ainda respeitam
+    response.headers["P3P"] = 'CP="IDC DSP COR ADM DEVi TAIi PSA PSD IVAi IVDi CONi HIS OUR OTRo SAMi BUS PHY ONL UNI PUR FIN COM NAV INT DEM CNT STA POL HEA PRE LOC GOV"'
+    
+    return response
+
+
 # --- INCLUSÃO DE ROTAS (AQUI ESTÁ A CORREÇÃO) ---
 
 # 1. Auth (Geralmente o prefixo já está dentro do arquivo auth.py)
