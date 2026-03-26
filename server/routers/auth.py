@@ -12,6 +12,15 @@ from services.db import MongoDB
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _resolve_members_collection(db_instance):
+    """Resolve members collection supporting common singular/plural naming variants."""
+    for collection_name in ("mebros", "membros", "membro"):
+        collection = db_instance.get_collection(collection_name)
+        if collection is not None:
+            return collection
+    return None
+
+
 def _normalize_email(value: str | None) -> str:
     return (value or "").strip().lower()
 
@@ -99,6 +108,21 @@ def _find_member_by_email(membros_col, email: str | None):
 
     return None
 
+
+def _first_non_empty(member_doc: dict, keys: tuple[str, ...], default: str = "") -> str:
+    for key in keys:
+        value = member_doc.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return default
+
+
+def _extract_member_auth_fields(member_doc: dict, fallback_name: str = "") -> tuple[str, str, str]:
+    name = _first_non_empty(member_doc, ("nome", "name"), fallback_name)
+    role = _first_non_empty(member_doc, ("role", "cargo", "funcao", "função"), "user")
+    department = _first_non_empty(member_doc, ("department", "departamento", "area", "área"), "")
+    return name, role, department
+
 @router.get("/health")
 async def health():
     return {"status": "ok"}
@@ -130,15 +154,18 @@ async def google_login(payload: dict = Body(...)):
 
         # 2.1 Enriquece com dados da coleção membros quando existir
         db_instance = MongoDB.get_instance()
-        membros_col = db_instance.get_collection('membros')
+        membros_col = _resolve_members_collection(db_instance)
         if membros_col is not None:
             membro = _find_member_by_email(membros_col, user_info.get('email'))
             if membro:
-                resolved_role = membro.get('role', 'user')
-                user_info['name'] = membro.get('nome', user_info.get('name', ''))
+                resolved_name, resolved_role, resolved_department = _extract_member_auth_fields(
+                    membro,
+                    user_info.get('name', ''),
+                )
+                user_info['name'] = resolved_name
                 user_info['role'] = resolved_role
                 user_info['position'] = resolved_role
-                user_info['department'] = membro.get('department', '')
+                user_info['department'] = resolved_department
 
         # 3. Gera nosso JWT
         jwt_token = generate_jwt(user_info)
@@ -199,7 +226,7 @@ async def get_current_user(Authorization: str | None = Header(None)):
         
         # Consulta a BD para encontrar o membro
         db_instance = MongoDB.get_instance()
-        membros_col = db_instance.get_collection('membros')
+        membros_col = _resolve_members_collection(db_instance)
         
         if membros_col is None:
             raise HTTPException(status_code=500, detail="Base de dados não disponível")
@@ -207,15 +234,18 @@ async def get_current_user(Authorization: str | None = Header(None)):
         membro = _find_member_by_email(membros_col, user_email)
         
         if membro:
-            resolved_role = membro.get('role', 'user')
+            resolved_name, resolved_role, resolved_department = _extract_member_auth_fields(
+                membro,
+                payload.get('name', ''),
+            )
             # Se encontrado na BD, retorna dados enriquecidos
             return {
                 'email': user_email,
-                'name': membro.get('nome', payload.get('name', '')),
+                'name': resolved_name,
                 'picture': payload.get('picture'),
                 'role': resolved_role,
                 'position': resolved_role,
-                'department': membro.get('department', ''),
+                'department': resolved_department,
             }
         else:
             # Se não encontrado, retorna dados do Google
@@ -233,3 +263,15 @@ async def get_current_user(Authorization: str | None = Header(None)):
     except Exception as e:
         print(f"❌ Erro ao buscar utilizador: {str(e)}")
         raise HTTPException(status_code=401, detail=f"Erro ao verificar token: {str(e)}")
+
+
+@router.get("/membros")
+async def get_current_member(Authorization: str | None = Header(None)):
+    """Alias de compatibilidade para /auth/me."""
+    return await get_current_user(Authorization)
+
+
+@router.get("/mebros")
+async def get_current_mebros(Authorization: str | None = Header(None)):
+    """Alias de compatibilidade para colecao nomeada como 'mebros'."""
+    return await get_current_user(Authorization)
