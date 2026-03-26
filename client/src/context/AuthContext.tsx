@@ -14,6 +14,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const getStoredToken = (): string | null => {
+  const token = localStorage.getItem("authToken");
+  if (!token) {
+    return null;
+  }
+
+  const normalized = token.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const logAxiosError = (scope: string, error: unknown) => {
+  if (axios.isAxiosError(error)) {
+    console.error(`❌ [AuthContext] ${scope}:`, {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
+    return;
+  }
+
+  console.error(`❌ [AuthContext] ${scope}:`, error);
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,15 +50,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const fetchCompleteUser = async (
-    token: string,
     baseUser: UsuarioAutenticado | null = null
   ): Promise<UsuarioAutenticado | null> => {
+    const token = getStoredToken();
+    if (!token) {
+      return baseUser;
+    }
+
     try {
-      const response = await apiClient.get("/auth/me", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await apiClient.get("/auth/me");
 
       const mergedPayload = { ...(baseUser ?? {}), ...(response.data ?? {}) };
       return normalizeUsuarioAutenticado(mergedPayload);
@@ -44,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Token expirado/invalido: deixa o chamador decidir se deve resetar sessao.
         return null;
       }
+
+      logAxiosError("Erro ao buscar /auth/me", error);
       return baseUser;
     }
   };
@@ -52,25 +77,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeUser = async () => {
       try {
-        const savedToken = localStorage.getItem("authToken");
+        const savedToken = getStoredToken();
         const savedUser = localStorage.getItem("authUser");
 
-        if (savedToken) {
-          const parsedUser = savedUser ? normalizeUsuarioAutenticado(JSON.parse(savedUser)) : null;
+        if (!savedToken) {
+          resetSession();
+          return;
+        }
 
-          // Tenta carregar dados completos do servidor, mesmo sem usuário local válido.
-          const completeUser = await fetchCompleteUser(savedToken, parsedUser);
-          if (!completeUser) {
-            resetSession();
-            return;
-          }
+        const parsedUser = savedUser
+          ? normalizeUsuarioAutenticado(JSON.parse(savedUser))
+          : null;
 
-          setIsAuthenticated(true);
+        if (savedUser && !parsedUser) {
+          resetSession();
+          return;
+        }
+
+        setIsAuthenticated(true);
+        if (parsedUser) {
+          setUser(parsedUser);
+        }
+
+        // /auth/me só é chamado quando há token disponível.
+        const completeUser = await fetchCompleteUser(parsedUser);
+        if (completeUser) {
           setUser(completeUser);
           localStorage.setItem("authUser", JSON.stringify(completeUser));
+        } else {
+          resetSession();
         }
       } catch (e) {
-        console.error("❌ [AuthContext] Erro ao inicializar:", e);
+        logAxiosError("Erro ao inicializar autenticacao", e);
         resetSession();
       } finally {
         setIsLoading(false);
@@ -82,10 +120,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (token: string, userData: unknown): Promise<UsuarioAutenticado> => {
     const initialUser = normalizeUsuarioAutenticado(userData);
-    localStorage.setItem("authToken", token);
+    if (!initialUser) {
+      throw new Error("Dados de usuario invalidos para o contrato de autenticacao");
+    }
 
-    // Em deploy, /auth/google pode vir sem role/department; tenta recuperar em /auth/me.
-    const completeUser = await fetchCompleteUser(token, initialUser);
+    const normalizedToken = token.trim();
+    if (!normalizedToken) {
+      throw new Error("Token JWT ausente ou invalido");
+    }
+
+    localStorage.setItem("authToken", normalizedToken);
+    localStorage.setItem("authUser", JSON.stringify(initialUser));
+    setIsAuthenticated(true);
+    setUser(initialUser);
+
+    // Busca role/position e department imediatamente após o login.
+    const completeUser = await fetchCompleteUser(initialUser);
     if (completeUser) {
       setIsAuthenticated(true);
       setUser(completeUser);
@@ -103,14 +153,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      const token = localStorage.getItem("authToken");
+      const token = getStoredToken();
       if (!token) throw new Error("No token found");
 
-      const response = await apiClient.get("/auth/me", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await apiClient.get("/auth/me");
 
       if (response.data) {
         const updatedUser = normalizeUsuarioAutenticado({ ...(user ?? {}), ...response.data });
@@ -123,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("✅ [AuthContext] Dados do utilizador atualizados");
       }
     } catch (e) {
-      console.error("❌ [AuthContext] Erro ao atualizar dados:", e);
+      logAxiosError("Erro ao atualizar dados", e);
       resetSession();
     }
   };
