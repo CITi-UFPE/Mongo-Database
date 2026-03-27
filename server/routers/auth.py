@@ -1,4 +1,5 @@
 """Authentication routes."""
+import re
 from fastapi import APIRouter, HTTPException, Body, Query, Header
 from services.auth import (
     verify_google_token,
@@ -14,10 +15,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 def _resolve_members_collection(db_instance):
     """Resolve members collection supporting common singular/plural naming variants."""
-    for collection_name in ("mebros", "membros", "membro"):
-        collection = db_instance.get_collection(collection_name)
-        if collection is not None:
-            return collection
+    db = db_instance.get_db()
+    if db is None:
+        return None
+
+    existing_collections = set(db.list_collection_names())
+    for collection_name in ("membros", "mebros", "membro"):
+        if collection_name in existing_collections:
+            return db_instance.get_collection(collection_name)
     return None
 
 
@@ -65,24 +70,29 @@ def _find_member_by_email(membros_col, email: str | None):
     if not variants:
         return None
 
+    canonical_target = _canonical_email(email)
+    variants_set = set(variants)
+    print(f"      🔎 Variantes de email consideradas: {variants}")
+
     # Tentativa 1: match direto para qualquer variante conhecida
     member = membros_col.find_one({'email': {'$in': variants}})
     if member:
         print(f"      ✅ Match (direto): {member.get('email')}")
         return member
 
-    # Tentativa 2: match case-insensitive
+    # Tentativa 2: match case-insensitive com regex escapado
     for candidate in variants:
-        member = membros_col.find_one({'email': {'$regex': f'^{candidate}$', '$options': 'i'}})
+        escaped = re.escape(candidate)
+        member = membros_col.find_one({'email': {'$regex': f'^\\s*{escaped}\\s*$', '$options': 'i'}})
         if member:
             print(f"      ✅ Match (case-insensitive): {member.get('email')}")
             return member
 
     # Tentativa 3: match canônico (ignora pontos e +alias no local-part).
-    canonical_target = _canonical_email(email)
     if canonical_target:
         normalized_domain = canonical_target.split("@", 1)[1] if "@" in canonical_target else ""
-        scope_query = {"email": {"$regex": f"@{normalized_domain}$", "$options": "i"}} if normalized_domain else {}
+        escaped_domain = re.escape(normalized_domain)
+        scope_query = {"email": {"$regex": f"@{escaped_domain}\\s*$", "$options": "i"}} if normalized_domain else {}
         for candidate_member in membros_col.find(scope_query, {"email": 1}):
             if _canonical_email(candidate_member.get("email")) == canonical_target:
                 full_doc = membros_col.find_one({"email": candidate_member.get("email")})
@@ -90,38 +100,25 @@ def _find_member_by_email(membros_col, email: str | None):
                     print(f"      ✅ Match (canônico): {full_doc.get('email')}")
                     return full_doc
 
-    # Tentativa 4: fallback por local-part canônico, ignorando domínio.
-    # Ex.: ana.raquel@citi.org e ana.raquel@citi.org.br.
-    canonical_local = ""
-    if canonical_target and "@" in canonical_target:
-        canonical_local = canonical_target.split("@", 1)[0]
+    # Tentativa 4: varredura normalizada completa (trim/lower/canônico), sem relaxar domínio.
+    # Mantém segurança de correspondência por email e evita falso positivo por nome/local-part apenas.
+    for candidate_member in membros_col.find({}, {"email": 1}):
+        stored_email_raw = candidate_member.get("email")
+        stored_email = _normalize_email(stored_email_raw)
+        if not stored_email:
+            continue
 
-    if canonical_local:
-        candidates = []
-        for candidate_member in membros_col.find({}, {"email": 1}):
-            candidate_canonical = _canonical_email(candidate_member.get("email"))
-            if "@" in candidate_canonical and candidate_canonical.split("@", 1)[0] == canonical_local:
-                candidates.append(candidate_member.get("email"))
-
-        # Só usa fallback se houver candidato único para evitar match incorreto.
-        if len(candidates) == 1:
-            full_doc = membros_col.find_one({"email": candidates[0]})
+        if stored_email in variants_set:
+            full_doc = membros_col.find_one({"email": stored_email_raw})
             if full_doc:
-                print(f"      ✅ Match (local-part): {full_doc.get('email')}")
+                print(f"      ✅ Match (normalizado): {full_doc.get('email')}")
                 return full_doc
 
-    # Tentativa 5: NOVA - busca "fuzzy" por local-part em QUALQUER email
-    # Útil se o domínio é diferente (ex: gmail vs citi.org)
-    if canonical_local:
-        print(f"      🔄 Tentando match fuzzy por local-part: '{canonical_local}'")
-        for candidate_member in membros_col.find({}, {"email": 1, "name": 1}):
-            candidate_canonical = _canonical_email(candidate_member.get("email"))
-            candidate_local = candidate_canonical.split("@", 1)[0] if "@" in candidate_canonical else ""
-            if candidate_local == canonical_local:
-                full_doc = membros_col.find_one({"email": candidate_member.get("email")})
-                if full_doc:
-                    print(f"      ⚠️  Match (fuzzy por local-part): {full_doc.get('email')} (domínios diferentes!)")
-                    return full_doc
+        if canonical_target and _canonical_email(stored_email) == canonical_target:
+            full_doc = membros_col.find_one({"email": stored_email_raw})
+            if full_doc:
+                print(f"      ✅ Match (canônico completo): {full_doc.get('email')}")
+                return full_doc
 
     print(f"      ❌ Nenhum match encontrado para: '{email}'")
     return None
@@ -137,7 +134,7 @@ def _first_non_empty(member_doc: dict, keys: tuple[str, ...], default: str = "")
 
 def _extract_member_auth_fields(member_doc: dict, fallback_name: str = "") -> tuple[str, str, str]:
     name = _first_non_empty(member_doc, ("nome", "name"), fallback_name)
-    role = _first_non_empty(member_doc, ("role", "cargo", "funcao", "função"), "user")
+    role = _first_non_empty(member_doc, ("role", "cargo", "funcao", "função"), "")
     department = _first_non_empty(member_doc, ("department", "departamento", "area", "área"), "")
     return name, role, department
 
@@ -307,9 +304,9 @@ async def get_current_user(Authorization: str | None = Header(None)):
                 'email': user_email,
                 'name': payload.get('name', ''),
                 'picture': payload.get('picture'),
-                'role': 'user',
-                'position': 'user',
-                'department': '',
+                'role': 'Pessoa Desenvolvedora',
+                'position': 'Pessoa Desenvolvedora',
+                'department': 'Desenvolvimento',
             }
     
     except HTTPException:

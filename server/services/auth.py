@@ -56,24 +56,38 @@ def verify_google_token(token: str):
 
 def generate_jwt(payload: dict):
     """Generate JWT token"""
-    jwt_secret = os.getenv('JWT_SECRET_DEV') or os.getenv('JWT_SECRET_PROD')
+    jwt_secret = os.getenv('JWT_SECRET') or os.getenv('JWT_SECRET_DEV') or os.getenv('JWT_SECRET_PROD')
     
     if not jwt_secret:
         raise Exception("JWT_SECRET not configured")
     
-    # Add expiration (24 hours)
-    payload['exp'] = datetime.utcnow() + timedelta(hours=24)
-    payload['iat'] = datetime.utcnow()
-    
-    token = jwt.encode(payload, jwt_secret, algorithm='HS256')
+    # Keep only app-relevant claims to avoid decode issues with provider-specific fields
+    # like "aud" that can trigger InvalidAudienceError in some PyJWT setups.
+    token_payload = {
+        'email': payload.get('email'),
+        'name': payload.get('name'),
+        'picture': payload.get('picture'),
+        'role': payload.get('role'),
+        'position': payload.get('position'),
+        'department': payload.get('department'),
+        'exp': datetime.utcnow() + timedelta(hours=24),
+        'iat': datetime.utcnow(),
+    }
+
+    token = jwt.encode(token_payload, jwt_secret, algorithm='HS256')
     return token
 
 def decode_jwt(token: str):
     """Decode and verify JWT token"""
-    jwt_secret = os.getenv('JWT_SECRET_DEV') or os.getenv('JWT_SECRET_PROD')
+    jwt_secret = os.getenv('JWT_SECRET') or os.getenv('JWT_SECRET_DEV') or os.getenv('JWT_SECRET_PROD')
     
     try:
-        payload = jwt.decode(token, jwt_secret, algorithms=['HS256'])
+        payload = jwt.decode(
+            token,
+            jwt_secret,
+            algorithms=['HS256'],
+            options={'verify_aud': False},
+        )
         return payload
     except jwt.ExpiredSignatureError:
         raise Exception("Token has expired")
