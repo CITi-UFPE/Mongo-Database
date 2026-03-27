@@ -56,34 +56,46 @@ def save_to_mongodb(data_list: List[Dict], collection_name: str = 'leads') -> No
         return
 
     inserts, updates = 0, 0
+    
+    # 🔥 PEGANDO O ID DO KANBAN DO .ENV
+    pipe_id_env = os.getenv("PIPE_ID")
 
     for item in data_list:
         p_id = item.get("Pipefy_ID")
         if not p_id:
             continue
 
+        # 🔥 AQUI FIZEMOS O "DE/PARA" EXATO PARA BATER COM O CÓDIGO DA ANA
         payload = {
+            "pipe_id": str(pipe_id_env) if pipe_id_env else "306865718", # Carimbo do Kanban
             "Pipefy_ID": p_id,
             "nome_cliente": item.get("Nome do Cliente"),
-            "valor": item.get("Valor"),
-            "fase": item.get("Fase Atual"),
+            "valor_estimado": item.get("Valor") or item.get("Budget Estimado"), # <-- ANA LÊ AQUI
+            "id_fase_atual": item.get("Fase Atual"),                            # <-- ANA LÊ AQUI
             "responsavel": item.get("Responsável"),
-            "servicos_interesse": item.get("Serviços"),
-            "budget_estimado": item.get("Budget Estimado"),
+            "servico": item.get("Serviços"),                                    # <-- ANA LÊ AQUI
             "autoridade": item.get("Autoridade"),
-            "motivo_perda": item.get("Motivo da Perda"),
-            "origem_lead": item.get("Origem do Lead"),
+            "motivo_perda": item.get("Motivo da Perda"),                        # <-- ANA LÊ AQUI
+            "origem": item.get("Origem do Lead"),                               # <-- ANA LÊ AQUI
             "prazo": item.get("Prazo"),
             "data_qualificacao": item.get("Data de Qualificação"),
             "data_diagnostico": item.get("Data de Diagnóstico"),
             "data_proposta": item.get("Data de Proposta"),
         }
 
+        # Usamos $set para atualizar/inserir os dados e $setOnInsert para garantir 
+        # que a data de criação (createdAt) seja salva se for um lead novo, 
+        # para o filtro de datas do calendário funcionar perfeitamente!
+        from datetime import datetime
         result = col.update_one(
             {"Pipefy_ID": p_id},
-            {"$set": payload},
+            {
+                "$set": payload,
+                "$setOnInsert": {"createdAt": datetime.utcnow()} # Ajuda no filtro do calendário
+            },
             upsert=True,
         )
+        
         if result.upserted_id:
             inserts += 1
         elif result.modified_count > 0:

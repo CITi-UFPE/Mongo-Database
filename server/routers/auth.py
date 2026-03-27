@@ -114,11 +114,36 @@ def _find_member_by_email(membros_col, email: str | None):
                 print(f"      ✅ Match (normalizado): {full_doc.get('email')}")
                 return full_doc
 
-        if canonical_target and _canonical_email(stored_email) == canonical_target:
-            full_doc = membros_col.find_one({"email": stored_email_raw})
+    # Tentativa 5: busca "fuzzy" por local-part em QUALQUER email
+    # Útil se o domínio é diferente (ex: gmail vs citi.org)
+    if canonical_local:
+        print(f"      🔄 Tentando match fuzzy por local-part: '{canonical_local}'")
+        candidates_fuzzy = []
+        for candidate_member in membros_col.find({}, {"email": 1, "nome": 1}):
+            candidate_canonical = _canonical_email(candidate_member.get("email"))
+            candidate_local = candidate_canonical.split("@", 1)[0] if "@" in candidate_canonical else ""
+            if candidate_local == canonical_local:
+                candidates_fuzzy.append(candidate_member.get("email"))
+        
+        if len(candidates_fuzzy) == 1:
+            full_doc = membros_col.find_one({"email": candidates_fuzzy[0]})
             if full_doc:
-                print(f"      ✅ Match (canônico completo): {full_doc.get('email')}")
+                print(f"      ⚠️  Match (fuzzy por local-part): {full_doc.get('email')} (domínios diferentes!)")
                 return full_doc
+        elif len(candidates_fuzzy) > 1:
+            print(f"      ⚠️  Múltiplos matches fuzzy encontrados: {candidates_fuzzy}. Sem ação.")
+
+    # Tentativa 6: busca por primeiro nome + possível sobrenome (search em "nome" por pattern)
+    # Ex: Se email é "maria.eduardo", procura por "Maria Eduardo*" no nome
+    if canonical_local and "." in canonical_local:
+        parts = canonical_local.split(".")
+        if len(parts) >= 2:
+            first_name = parts[0].capitalize()
+            print(f"      🔄 Tentando match por nome (primeiro nome: '{first_name}')...")
+            member = membros_col.find_one({'nome': {'$regex': f'^{first_name}', '$options': 'i'}})
+            if member:
+                print(f"      ✅ Match (por nome): {member.get('nome')} ({member.get('email')})")
+                return member
 
     print(f"      ❌ Nenhum match encontrado para: '{email}'")
     return None
@@ -133,9 +158,28 @@ def _first_non_empty(member_doc: dict, keys: tuple[str, ...], default: str = "")
 
 
 def _extract_member_auth_fields(member_doc: dict, fallback_name: str = "") -> tuple[str, str, str]:
-    name = _first_non_empty(member_doc, ("nome", "name"), fallback_name)
+    """
+    Extrai campos do documento do membro do banco.
+    
+    Estrutura esperada:
+    {
+      "_id": "...",
+      "nome": "Maria Eduarda Soares",
+      "email": "mariaeduarda.soares@citi.org.br",
+      "username": "mariasoaresm",
+      "role": "Especialista em Dados",
+      "department": "Dados"
+    }
+    """
+    # Procura por nome em múltiplas variantes
+    name = _first_non_empty(member_doc, ("nome", "name", "fullname"), fallback_name)
+    
+    # Procura por role em múltiplas variantes (mas prefere "role" direto)
     role = _first_non_empty(member_doc, ("role", "cargo", "funcao", "função"), "")
+    
+    # Procura por department em múltiplas variantes
     department = _first_non_empty(member_doc, ("department", "departamento", "area", "área"), "")
+    
     return name, role, department
 
 @router.get("/health")
@@ -182,11 +226,14 @@ async def google_login(payload: dict = Body(...)):
             
             # DEBUG: Lista TODOS os emails do banco para ver o que existe
             try:
-                all_members = list(membros_col.find({}, {"email": 1, "_id": 0}).limit(20))
-                print(f"   📋 Primeiros 20 emails no banco:")
+                all_members = list(membros_col.find({}, {"email": 1, "nome": 1, "role": 1, "department": 1, "_id": 0}).limit(20))
+                print(f"   📋 Primeiros 20 membros no banco:")
                 for member in all_members:
                     email_val = member.get('email')
-                    print(f"      - '{email_val}' (tipo: {type(email_val).__name__})")
+                    nome_val = member.get('nome')
+                    role_val = member.get('role')
+                    dept_val = member.get('department')
+                    print(f"      - {nome_val} | {email_val} | Role: {role_val} | Dept: {dept_val}")
             except Exception as e:
                 print(f"   ⚠️  Erro ao listar emails: {e}")
             
@@ -225,7 +272,7 @@ async def google_login(payload: dict = Body(...)):
 
         # 4. RETORNA COM TODOS OS NOMES POSSÍVEIS
         # O frontend está procurando por 'token', então ele TEM que estar aqui.
-        return {
+        response_payload = {
             "token": jwt_token,          # <--- O FRONTEND QUER ESSE
             "access_token": jwt_token,   # <--- Padrão OAuth
             "jwt": jwt_token,            # <--- Padrão alternativo
@@ -234,6 +281,17 @@ async def google_login(payload: dict = Body(...)):
             "redirect_uri": get_google_redirect_uri(),
             "user": user_info
         }
+        
+        # DEBUG: Log dos dados que o frontend vai receber
+        print(f"\n✅ RETORNANDO DO /auth/google:")
+        print(f"   Email: {user_info.get('email')}")
+        print(f"   Name: {user_info.get('name')}")
+        print(f"   Role: {user_info.get('role')}")
+        print(f"   Position: {user_info.get('position')}")
+        print(f"   Department: {user_info.get('department')}")
+        print(f"   Picture: {user_info.get('picture')}\n")
+        
+        return response_payload
         
     except Exception as e:
         print(f"❌ Erro: {str(e)}")
@@ -290,6 +348,11 @@ async def get_current_user(Authorization: str | None = Header(None)):
                 payload.get('name', ''),
             )
             # Se encontrado na BD, retorna dados enriquecidos
+            print(f"\n✅ RETORNANDO DO /auth/me (ENCONTRADO no banco):")
+            print(f"   Email: {user_email}")
+            print(f"   Role: {resolved_role}")
+            print(f"   Department: {resolved_department}\n")
+            
             return {
                 'email': user_email,
                 'name': resolved_name,
@@ -299,7 +362,12 @@ async def get_current_user(Authorization: str | None = Header(None)):
                 'department': resolved_department,
             }
         else:
-            # Se não encontrado, retorna dados do Google
+            # Se não encontrado na BD, usa defaults válidos (compatível com frontend)
+            # ✅ 'Pessoa Desenvolvedora' e 'Desenvolvimento' são valores válidos nas enums do frontend
+            print(f"\n⚠️  RETORNANDO DO /auth/me (NÃO ENCONTRADO no banco):")
+            print(f"   Email: {user_email}")
+            print(f"   Usando defaults: Role='Pessoa Desenvolvedora', Department='Desenvolvimento'\n")
+            
             return {
                 'email': user_email,
                 'name': payload.get('name', ''),
