@@ -53,17 +53,61 @@ function isAnalyticsPayload(value: unknown): value is AnalyticsPayload {
 }
 
 export interface AnalyticsQueryParams {
-  data_inicio?: string;
-  data_fim?: string;
+  data_inicio?: string | Date;
+  data_fim?: string | Date;
   refresh_pipefy?: boolean;
 }
 
+function normalizeDateParam(value?: string | Date): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return undefined;
+    }
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const brDateMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (brDateMatch) {
+    const [, day, month, year] = brDateMatch;
+    return `${year}-${month}-${day}`;
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export async function fetchAnalyticsPayload(params?: AnalyticsQueryParams): Promise<AnalyticsPayload> {
+  const dataInicio = normalizeDateParam(params?.data_inicio);
+  const dataFim = normalizeDateParam(params?.data_fim);
+
   const response = await apiClient.get("/api/analytics/overview/", {
     params: {
       refresh_pipefy: params?.refresh_pipefy ?? false,
-      data_inicio: params?.data_inicio,
-      data_fim: params?.data_fim,
+      data_inicio: dataInicio,
+      data_fim: dataFim,
     },
   });
 

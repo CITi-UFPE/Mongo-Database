@@ -1,4 +1,31 @@
 from typing import List, Dict
+from datetime import datetime
+from services.db import db_client
+
+
+def _parse_datetime(value):
+    if not value:
+        return None
+
+    if isinstance(value, datetime):
+        return value
+
+    if not isinstance(value, str):
+        return None
+
+    text = value.strip()
+    if not text:
+        return None
+
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+def save_to_mongodb(data_list: List[Dict]) -> Dict[str, int]:
+    leads_col = db_client.get_collection("leads")
+    if leads_col is None:
+        raise RuntimeError("Coleção 'leads' não encontrada no banco de dados.")
 from dotenv import load_dotenv
 import os
 import sys

@@ -1,4 +1,5 @@
 export const CARGOS = [
+  "Dados",
   "Especialista em Dados",
   "Gerente de Comercial",
   "Gerente de Contas",
@@ -15,6 +16,8 @@ export const DEPARTAMENTOS = ["Dados", "Comercial", "Negócios", "Desenvolviment
 export type Cargo = (typeof CARGOS)[number];
 export type Departamento = (typeof DEPARTAMENTOS)[number];
 export type NivelAcesso = "admin_dados" | "consultor" | "diretoria";
+export type StatusAcesso = "Nao Cadastrado" | "Pendente" | "Aprovado";
+export type PermissaoNivel = "Comercial" | "Financeiro" | "Ambos";
 
 export interface UsuarioAutenticado {
   email: string;
@@ -23,6 +26,11 @@ export interface UsuarioAutenticado {
   position: Cargo;
   department: Departamento;
   nivel_acesso: NivelAcesso;
+  status: StatusAcesso;
+  acesso_aprovado: boolean;
+  onboarding_required: boolean;
+  permissao_nivel?: PermissaoNivel;
+  is_admin?: boolean;
   picture?: string;
 }
 
@@ -36,6 +44,37 @@ const CARGOS_ALIAS: Record<string, Cargo> = {
 
 const DEPARTAMENTOS_ALIAS: Record<string, Departamento> = {
   Negocios: "Negócios",
+};
+
+const PERMISSOES_NIVEL_SET = new Set<PermissaoNivel>(["Comercial", "Financeiro", "Ambos"]);
+
+const normalizeStatusAcesso = (value: unknown): StatusAcesso => {
+  if (typeof value !== "string") {
+    return "Nao Cadastrado";
+  }
+
+  const normalized = toCanonicalKey(value);
+  if (normalized === "pendente") {
+    return "Pendente";
+  }
+  if (normalized === "aprovado") {
+    return "Aprovado";
+  }
+  return "Nao Cadastrado";
+};
+
+const normalizePermissaoNivel = (value: unknown): PermissaoNivel | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const title = `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1).toLowerCase()}`;
+  return PERMISSOES_NIVEL_SET.has(title as PermissaoNivel) ? (title as PermissaoNivel) : undefined;
 };
 
 const toCanonicalKey = (value: string): string => {
@@ -114,15 +153,21 @@ export const normalizeUsuarioAutenticado = (payload: unknown): UsuarioAutenticad
     return null;
   }
 
-  const cargo = normalizeCargo(payload.role ?? payload.position);
-  const department = normalizeDepartamento(payload.department);
-
-  if (!cargo || !department) {
-    return null;
-  }
+  const cargo = normalizeCargo(payload.role ?? payload.position) ?? "Pessoa Desenvolvedora";
+  const department = normalizeDepartamento(payload.department) ?? "Desenvolvimento";
 
   const name = typeof payload.name === "string" && payload.name.trim() ? payload.name.trim() : email;
   const picture = typeof payload.picture === "string" && payload.picture.trim() ? payload.picture : undefined;
+  const status = normalizeStatusAcesso(payload.status);
+  const acessoAprovadoFromPayload =
+    typeof payload.acesso_aprovado === "boolean" ? payload.acesso_aprovado : undefined;
+  const acessoAprovado = acessoAprovadoFromPayload ?? status === "Aprovado";
+  const onboardingRequired =
+    typeof payload.onboarding_required === "boolean"
+      ? payload.onboarding_required
+      : status === "Nao Cadastrado";
+  const permissaoNivel = normalizePermissaoNivel(payload.permissao_nivel);
+  const isAdmin = typeof payload.is_admin === "boolean" ? payload.is_admin : undefined;
 
   return {
     email,
@@ -131,10 +176,31 @@ export const normalizeUsuarioAutenticado = (payload: unknown): UsuarioAutenticad
     position: cargo,
     department,
     nivel_acesso: computeNivelAcesso(cargo),
+    status,
+    acesso_aprovado: acessoAprovado,
+    onboarding_required: onboardingRequired,
+    permissao_nivel: permissaoNivel,
+    is_admin: isAdmin,
     picture,
   };
 };
 
 export const canAccessAnalytics = (user: UsuarioAutenticado | null): boolean => {
-  return user?.nivel_acesso === "admin_dados";
+  if (!user) {
+    return false;
+  }
+
+  if (!user.acesso_aprovado || user.status !== "Aprovado") {
+    return false;
+  }
+
+  if (user.nivel_acesso === "admin_dados") {
+    return true;
+  }
+
+  return user.permissao_nivel === "Ambos" || user.permissao_nivel === "Financeiro";
+};
+
+export const isPendingAccess = (user: UsuarioAutenticado | null): boolean => {
+  return Boolean(user && (!user.acesso_aprovado || user.status === "Pendente"));
 };

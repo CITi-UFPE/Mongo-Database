@@ -88,7 +88,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: senhasegura123
       MONGO_INITDB_DATABASE: database-comercial
     volumes:
-      - ./server/docker/mongo-data:/data/db
+      - mdp-mongo-data:/data/db
     networks:
       - backend-network
     healthcheck:
@@ -124,3 +124,6 @@ networks:
     name: mdp-backend-network
   frontend-network:
     name: mdp-frontend-network
+
+volumes:
+  mdp-mongo-data:

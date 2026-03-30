@@ -1,6 +1,8 @@
 """Authentication routes."""
 import re
+import os
 from fastapi import APIRouter, HTTPException, Body, Query, Header
+from bson import ObjectId
 from services.auth import (
     verify_google_token,
     generate_jwt,
@@ -11,6 +13,151 @@ from services.auth import (
 from services.db import MongoDB
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+PERMISSOES = {
+    "Diretoria": ["comercial", "financeiro"],
+    "Comercial": ["comercial"],
+    "Financeiro": ["financeiro"],
+    "Dados": ["comercial", "financeiro"],
+}
+
+PERMISSOES_NIVEL_VALIDAS = {"Comercial", "Financeiro", "Ambos"}
+
+
+def _is_citi_email(email: str | None) -> bool:
+    normalized = _normalize_email(email)
+    if not normalized or "@" not in normalized:
+        return False
+    return normalized.endswith("@citi") or "@citi." in normalized
+
+
+def _normalize_status(value: str | None) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized == "aprovado":
+        return "Aprovado"
+    if normalized == "pendente":
+        return "Pendente"
+    return "Pendente"
+
+
+def _is_approved_status(value: str | None) -> bool:
+    return _normalize_status(value) == "Aprovado"
+
+
+def _parse_admin_emails() -> set[str]:
+    raw = (os.getenv("RBAC_ADMIN_EMAILS") or os.getenv("ADMIN_EMAILS") or "").strip()
+    if not raw:
+        return set()
+    separators_normalized = raw.replace(";", ",")
+    return {
+        _normalize_email(item)
+        for item in separators_normalized.split(",")
+        if _normalize_email(item)
+    }
+
+
+def _is_admin_actor(user_payload: dict) -> bool:
+    email = _normalize_email(user_payload.get("email"))
+    role = (user_payload.get("role") or user_payload.get("position") or "").strip().lower()
+    department = (user_payload.get("department") or "").strip().lower()
+
+    if email and email in _parse_admin_emails():
+        return True
+
+    if role == "dados" or department == "dados":
+        return True
+
+    if "dados" in role:
+        return True
+
+    return False
+
+
+def _resolve_member_access(member_doc: dict) -> tuple[str, bool]:
+    raw_status = member_doc.get("status")
+    has_status = isinstance(raw_status, str) and raw_status.strip()
+
+    if has_status:
+        status = _normalize_status(raw_status)
+    else:
+        # Compatibilidade com base legada: membro existente sem status
+        # deve continuar com acesso aprovado por padrão.
+        if isinstance(member_doc.get("acesso_aprovado"), bool):
+            status = "Aprovado" if member_doc.get("acesso_aprovado") else "Pendente"
+        else:
+            status = "Aprovado"
+
+    acesso_aprovado = bool(member_doc.get("acesso_aprovado", status == "Aprovado"))
+    if status == "Pendente":
+        acesso_aprovado = False
+
+    return status, acesso_aprovado
+
+
+def _is_member_admin(member_doc: dict) -> bool:
+    status, acesso_aprovado = _resolve_member_access(member_doc)
+    if status != "Aprovado" or not acesso_aprovado:
+        return False
+
+    email = _normalize_email(member_doc.get("email"))
+    role = _first_non_empty(member_doc, ("role", "cargo", "position", "funcao", "função"), "").strip().lower()
+    department = _first_non_empty(member_doc, ("department", "departamento", "area", "área"), "").strip().lower()
+
+    if email and email in _parse_admin_emails():
+        return True
+
+    # Regra: qualquer pessoa aprovada da área de Dados pode acessar o painel admin.
+    return "dados" in role or "dados" in department
+
+
+def _require_admin_member(authorization: str | None) -> dict:
+    auth_user = _decode_authenticated_user(authorization)
+    user_email = _normalize_email(auth_user.get("email"))
+
+    db_instance = MongoDB.get_instance()
+    membros_col = _resolve_members_collection(db_instance)
+    if membros_col is None:
+        raise HTTPException(status_code=500, detail="Base de dados não disponível")
+
+    member_doc = _find_member_by_email(membros_col, user_email)
+    if not member_doc:
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador")
+
+    if not _is_member_admin(member_doc):
+        raise HTTPException(status_code=403, detail="Acesso restrito ao administrador")
+
+    return member_doc
+
+
+def _extract_bearer_token(authorization: str | None) -> str:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token não fornecido")
+    token = authorization.split("Bearer ", 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Token não fornecido")
+    return token
+
+
+def _decode_authenticated_user(authorization: str | None) -> dict:
+    token = _extract_bearer_token(authorization)
+    payload = decode_jwt(token)
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=401, detail="Token inválido")
+    return payload
+
+
+def _serialize_member_for_admin(member_doc: dict) -> dict:
+    status, acesso_aprovado = _resolve_member_access(member_doc)
+    return {
+        "id": str(member_doc.get("_id")) if member_doc.get("_id") is not None else None,
+        "email": _normalize_email(member_doc.get("email")),
+        "name": _first_non_empty(member_doc, ("nome", "name"), ""),
+        "role": _first_non_empty(member_doc, ("role", "cargo", "funcao", "função"), ""),
+        "department": _first_non_empty(member_doc, ("department", "departamento", "area", "área"), ""),
+        "status": status,
+        "acesso_aprovado": acesso_aprovado,
+        "permissao_nivel": (member_doc.get("permissao_nivel") or "").strip() or None,
+    }
 
 
 def _resolve_members_collection(db_instance):
@@ -182,6 +329,49 @@ def _extract_member_auth_fields(member_doc: dict, fallback_name: str = "") -> tu
     
     return name, role, department
 
+
+def _build_user_response(member_doc: dict | None, base_user_info: dict) -> dict:
+    base_email = _normalize_email(base_user_info.get("email"))
+    base_name = (base_user_info.get("name") or "").strip()
+
+    if not member_doc:
+        response = {
+            "email": base_email,
+            "name": base_name or base_email,
+            "picture": base_user_info.get("picture"),
+            "role": "Pessoa Desenvolvedora",
+            "position": "Pessoa Desenvolvedora",
+            "department": "Desenvolvimento",
+            "status": "Nao Cadastrado",
+            "acesso_aprovado": False,
+            "onboarding_required": True,
+            "permissao_nivel": None,
+            "is_admin": False,
+        }
+        return response
+
+    resolved_name, resolved_role, resolved_department = _extract_member_auth_fields(
+        member_doc,
+        base_name or base_email,
+    )
+    status, acesso_aprovado = _resolve_member_access(member_doc)
+    onboarding_required = status == "Nao Cadastrado"
+
+    response = {
+        "email": _normalize_email(member_doc.get("email") or base_email),
+        "name": resolved_name,
+        "picture": base_user_info.get("picture"),
+        "role": resolved_role or "Pessoa Desenvolvedora",
+        "position": resolved_role or "Pessoa Desenvolvedora",
+        "department": resolved_department or "Desenvolvimento",
+        "status": status,
+        "acesso_aprovado": acesso_aprovado,
+        "onboarding_required": onboarding_required,
+        "permissao_nivel": (member_doc.get("permissao_nivel") or "").strip() or None,
+        "is_admin": _is_member_admin(member_doc),
+    }
+    return response
+
 @router.get("/health")
 async def health():
     return {"status": "ok"}
@@ -211,16 +401,20 @@ async def google_login(payload: dict = Body(...)):
         if not user_info:
             raise HTTPException(status_code=401, detail="Token inválido")
 
-        google_email = user_info.get('email')
+        google_email = _normalize_email(user_info.get('email'))
         print(f"\n🔍 DEBUG GOOGLE AUTH:")
         print(f"   Email do Google: '{google_email}'")
         print(f"   Nome: {user_info.get('name')}")
         print(f"   Picture: {user_info.get('picture')}")
 
+        if not _is_citi_email(google_email):
+            raise HTTPException(status_code=403, detail="Apenas usuários com e-mail @citi podem acessar.")
+
         # 2.1 Enriquece com dados da coleção membros quando existir
         db_instance = MongoDB.get_instance()
         membros_col = _resolve_members_collection(db_instance)
         
+        membro = None
         if membros_col is not None:
             print(f"   🔎 Procurando em collection: {membros_col.name}")
             
@@ -241,29 +435,11 @@ async def google_login(payload: dict = Body(...)):
             
             if membro:
                 print(f"   ✅ Encontrado!")
-                resolved_name, resolved_role, resolved_department = _extract_member_auth_fields(
-                    membro,
-                    user_info.get('name', ''),
-                )
-                user_info['name'] = resolved_name
-                user_info['role'] = resolved_role
-                user_info['position'] = resolved_role
-                user_info['department'] = resolved_department
-                print(f"   ✅ Usuário enriquecido: Role={resolved_role}, Dept={resolved_department}")
             else:
-                print(f"   ❌ NÃO encontrado no banco! Usando defaults...")
+                print(f"   ❌ NÃO encontrado no banco! Cadastro inicial será solicitado.")
 
-        # 2.2 Se ainda não tem role/department, atribui defaults (novo usuário Google)
-        if not user_info.get('role'):
-            user_info['role'] = "Pessoa Desenvolvedora"  # Default role para novos usuários
-            print(f"⚠️  Atribuindo role DEFAULT ao novo usuário: {user_info.get('email')}")
-        
-        if not user_info.get('position'):
-            user_info['position'] = user_info.get('role', "Pessoa Desenvolvedora")
-        
-        if not user_info.get('department'):
-            user_info['department'] = "Desenvolvimento"  # Default department para novos usuários
-            print(f"⚠️  Atribuindo department DEFAULT ao novo usuário: {user_info.get('email')}")
+        user_payload = _build_user_response(membro, user_info)
+        user_info.update(user_payload)
 
         # 3. Gera nosso JWT
         jwt_token = generate_jwt(user_info)
@@ -279,20 +455,12 @@ async def google_login(payload: dict = Body(...)):
             "id_token": jwt_token,       # <--- Padrão alternativo
             "callback_url": get_google_callback_url(),
             "redirect_uri": get_google_redirect_uri(),
-            "user": user_info
+            "user": user_payload,
+            "onboarding_required": bool(user_payload.get("onboarding_required")),
         }
         
-        # DEBUG: Log dos dados que o frontend vai receber
-        print(f"\n✅ RETORNANDO DO /auth/google:")
-        print(f"   Email: {user_info.get('email')}")
-        print(f"   Name: {user_info.get('name')}")
-        print(f"   Role: {user_info.get('role')}")
-        print(f"   Position: {user_info.get('position')}")
-        print(f"   Department: {user_info.get('department')}")
-        print(f"   Picture: {user_info.get('picture')}\n")
-        
-        return response_payload
-        
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ Erro: {str(e)}")
         raise HTTPException(status_code=401, detail=str(e))
@@ -320,14 +488,7 @@ async def get_current_user(Authorization: str | None = Header(None)):
     nome, role, department, email, picture.
     """
     try:
-        if not Authorization or not Authorization.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Token não fornecido")
-        
-        # Extrai o token do header
-        token = Authorization.split("Bearer ")[1]
-        
-        # Descodifica o JWT
-        payload = decode_jwt(token)
+        payload = _decode_authenticated_user(Authorization)
         user_email = _normalize_email(payload.get('email'))
         
         if not user_email:
@@ -341,41 +502,11 @@ async def get_current_user(Authorization: str | None = Header(None)):
             raise HTTPException(status_code=500, detail="Base de dados não disponível")
         
         membro = _find_member_by_email(membros_col, user_email)
-        
-        if membro:
-            resolved_name, resolved_role, resolved_department = _extract_member_auth_fields(
-                membro,
-                payload.get('name', ''),
-            )
-            # Se encontrado na BD, retorna dados enriquecidos
-            print(f"\n✅ RETORNANDO DO /auth/me (ENCONTRADO no banco):")
-            print(f"   Email: {user_email}")
-            print(f"   Role: {resolved_role}")
-            print(f"   Department: {resolved_department}\n")
-            
-            return {
-                'email': user_email,
-                'name': resolved_name,
-                'picture': payload.get('picture'),
-                'role': resolved_role,
-                'position': resolved_role,
-                'department': resolved_department,
-            }
-        else:
-            # Se não encontrado na BD, usa defaults válidos (compatível com frontend)
-            # ✅ 'Pessoa Desenvolvedora' e 'Desenvolvimento' são valores válidos nas enums do frontend
-            print(f"\n⚠️  RETORNANDO DO /auth/me (NÃO ENCONTRADO no banco):")
-            print(f"   Email: {user_email}")
-            print(f"   Usando defaults: Role='Pessoa Desenvolvedora', Department='Desenvolvimento'\n")
-            
-            return {
-                'email': user_email,
-                'name': payload.get('name', ''),
-                'picture': payload.get('picture'),
-                'role': 'Pessoa Desenvolvedora',
-                'position': 'Pessoa Desenvolvedora',
-                'department': 'Desenvolvimento',
-            }
+
+        if not _is_citi_email(user_email):
+            raise HTTPException(status_code=403, detail="Apenas usuários com e-mail @citi podem acessar.")
+
+        return _build_user_response(membro, payload)
     
     except HTTPException:
         raise
@@ -394,3 +525,173 @@ async def get_current_member(Authorization: str | None = Header(None)):
 async def get_current_mebros(Authorization: str | None = Header(None)):
     """Alias de compatibilidade para colecao nomeada como 'mebros'."""
     return await get_current_user(Authorization)
+
+
+@router.post("/register-profile")
+async def register_profile(payload: dict = Body(...), Authorization: str | None = Header(None)):
+    """Cria/atualiza cadastro inicial com status Pendente e acesso_aprovado=False."""
+    try:
+        auth_user = _decode_authenticated_user(Authorization)
+        user_email = _normalize_email(auth_user.get("email"))
+        user_name = (auth_user.get("name") or "").strip()
+
+        if not _is_citi_email(user_email):
+            raise HTTPException(status_code=403, detail="Apenas usuários com e-mail @citi podem acessar.")
+
+        cargo = (payload.get("cargo") or payload.get("role") or "").strip()
+        departamento = (payload.get("departamento") or payload.get("department") or "").strip()
+
+        if not cargo:
+            raise HTTPException(status_code=422, detail="Cargo é obrigatório")
+        if not departamento:
+            raise HTTPException(status_code=422, detail="Departamento é obrigatório")
+
+        db_instance = MongoDB.get_instance()
+        membros_col = _resolve_members_collection(db_instance)
+        if membros_col is None:
+            raise HTTPException(status_code=500, detail="Base de dados não disponível")
+
+        existing = _find_member_by_email(membros_col, user_email)
+
+        if existing:
+            existing_status, existing_approved = _resolve_member_access(existing)
+            if existing_status == "Aprovado" and existing_approved:
+                return {
+                    "ok": True,
+                    "message": "Usuário já aprovado",
+                    "user": _build_user_response(existing, auth_user),
+                }
+
+        doc_payload = {
+            "email": user_email,
+            "nome": user_name or user_email,
+            "role": cargo,
+            "position": cargo,
+            "department": departamento,
+            "departamento": departamento,
+            "status": "Pendente",
+            "acesso_aprovado": False,
+            "permissao_nivel": None,
+        }
+
+        if existing:
+            membros_col.update_one(
+                {"_id": existing.get("_id")},
+                {"$set": doc_payload},
+            )
+            saved = membros_col.find_one({"_id": existing.get("_id")})
+        else:
+            inserted = membros_col.insert_one(doc_payload)
+            saved = membros_col.find_one({"_id": inserted.inserted_id})
+
+        response_user = _build_user_response(saved, auth_user)
+        response_user["status"] = "Pendente"
+        response_user["acesso_aprovado"] = False
+        response_user["onboarding_required"] = False
+
+        return {
+            "ok": True,
+            "message": "Cadastro enviado para aprovação",
+            "user": response_user,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Erro ao registrar perfil: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro interno ao registrar perfil")
+
+
+@router.get("/admin/pending-users")
+async def get_pending_users(Authorization: str | None = Header(None)):
+    """Lista usuários pendentes para aprovação."""
+    try:
+        _require_admin_member(Authorization)
+
+        db_instance = MongoDB.get_instance()
+        membros_col = _resolve_members_collection(db_instance)
+        if membros_col is None:
+            raise HTTPException(status_code=500, detail="Base de dados não disponível")
+
+        query = {
+            "$or": [
+                {"status": {"$regex": "^pendente$", "$options": "i"}},
+                {"acesso_aprovado": False},
+            ]
+        }
+
+        pending_users = [
+            _serialize_member_for_admin(doc)
+            for doc in membros_col.find(query).sort("email", 1)
+        ]
+
+        return {
+            "ok": True,
+            "items": pending_users,
+            "total": len(pending_users),
+            "permissoes": PERMISSOES,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Erro ao listar pendentes: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro ao listar usuários pendentes")
+
+
+@router.post("/admin/approve-user")
+async def approve_user(payload: dict = Body(...), Authorization: str | None = Header(None)):
+    """Aprova usuário pendente e define nível de permissão."""
+    try:
+        _require_admin_member(Authorization)
+
+        user_id = (payload.get("id") or payload.get("user_id") or "").strip()
+        user_email = _normalize_email(payload.get("email"))
+        permissao_nivel = (payload.get("permissao_nivel") or "").strip().title()
+
+        if permissao_nivel not in PERMISSOES_NIVEL_VALIDAS:
+            raise HTTPException(
+                status_code=422,
+                detail="Nível de permissão inválido. Use Comercial, Financeiro ou Ambos.",
+            )
+
+        db_instance = MongoDB.get_instance()
+        membros_col = _resolve_members_collection(db_instance)
+        if membros_col is None:
+            raise HTTPException(status_code=500, detail="Base de dados não disponível")
+
+        target_query = None
+        if user_id:
+            try:
+                target_query = {"_id": ObjectId(user_id)}
+            except Exception:
+                raise HTTPException(status_code=422, detail="ID de usuário inválido")
+        elif user_email:
+            existing = _find_member_by_email(membros_col, user_email)
+            if existing:
+                target_query = {"_id": existing.get("_id")}
+
+        if not target_query:
+            raise HTTPException(status_code=422, detail="Informe id ou email do usuário")
+
+        update_payload = {
+            "status": "Aprovado",
+            "acesso_aprovado": True,
+            "permissao_nivel": permissao_nivel,
+        }
+
+        result = membros_col.update_one(target_query, {"$set": update_payload})
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+        saved = membros_col.find_one(target_query)
+        response_user = _serialize_member_for_admin(saved or {})
+
+        return {
+            "ok": True,
+            "message": "Usuário aprovado com sucesso",
+            "user": response_user,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Erro ao aprovar usuário: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erro ao aprovar usuário")

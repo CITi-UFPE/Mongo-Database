@@ -1,0 +1,24 @@
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Local build artifacts
+build/
+dist/
+
+# Local Mongo data must never go to image context
+docker/mongo-data/
+
+# VCS and editor
+.git/
+.gitignore
+.vscode/
+
+# Logs and dotenv overrides
+*.log
+.env.local

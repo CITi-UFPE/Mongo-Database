@@ -29,6 +29,17 @@ type TogglePopupState = {
   key: number;
 };
 
+function toIsoDate(date?: Date): string | undefined {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function DataVizDashboard() {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
@@ -78,6 +89,8 @@ export default function DataVizDashboard() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsPayload | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [syncingPipefy, setSyncingPipefy] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [analyticsDateRange, setAnalyticsDateRange] = useState<DateRangeSelection | undefined>(undefined);
 
   useEffect(() => {
@@ -140,43 +153,49 @@ export default function DataVizDashboard() {
     };
   }, []);
 
+  const loadAnalytics = useCallback(async () => {
+    setLoadingAnalytics(true);
+    setAnalyticsError(null);
+
+    try {
+      const payload = await fetchAnalyticsPayload({
+        data_inicio: toIsoDate(analyticsDateRange?.from),
+        data_fim: toIsoDate(analyticsDateRange?.to),
+      });
+      setAnalyticsData(payload);
+    } catch (_error) {
+      setAnalyticsData(null);
+      setAnalyticsError("Não foi possível carregar Analytics da API.");
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  }, [analyticsDateRange]);
+
   useEffect(() => {
     if (viewMode !== "dashboard") {
       return;
     }
 
-    let canceled = false;
-
-    const loadAnalytics = async () => {
-      setLoadingAnalytics(true);
-      setAnalyticsError(null);
-
-      try {
-        const payload = await fetchAnalyticsPayload({
-          data_inicio: analyticsDateRange?.from ? analyticsDateRange.from.toISOString().slice(0, 10) : undefined,
-          data_fim: analyticsDateRange?.to ? analyticsDateRange.to.toISOString().slice(0, 10) : undefined,
-        });
-        if (!canceled) {
-          setAnalyticsData(payload);
-        }
-      } catch (_error) {
-        if (!canceled) {
-          setAnalyticsData(null);
-          setAnalyticsError("Não foi possível carregar Analytics da API.");
-        }
-      } finally {
-        if (!canceled) {
-          setLoadingAnalytics(false);
-        }
-      }
-    };
-
     loadAnalytics();
+  }, [viewMode, loadAnalytics]);
 
-    return () => {
-      canceled = true;
-    };
-  }, [viewMode, analyticsDateRange]);
+  const handleSyncPipefy = useCallback(async () => {
+    if (syncingPipefy) {
+      return;
+    }
+
+    setSyncMessage(null);
+    setSyncingPipefy(true);
+    try {
+      await apiClient.post("/api/analytics/sync-pipefy");
+      await loadAnalytics();
+      setSyncMessage("Sincronização concluída e dados atualizados.");
+    } catch (_error) {
+      setSyncMessage("Falha ao sincronizar com Pipefy. Tente novamente.");
+    } finally {
+      setSyncingPipefy(false);
+    }
+  }, [syncingPipefy, loadAnalytics]);
 
   const showTogglePopup = useCallback((mode: ViewMode) => {
     setTogglePopup({ visible: true, mode, key: Date.now() });
@@ -723,6 +742,26 @@ export default function DataVizDashboard() {
   </Card>
 ) : (
       <div className="space-y-4">
+        <Card className="bg-slate-800 border-slate-700">
+          <CardContent className="pt-6 flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              onClick={handleSyncPipefy}
+              disabled={syncingPipefy}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {syncingPipefy ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  A sincronizar...
+                </>
+              ) : (
+                "Atualizar/Sincronizar Pipefy"
+              )}
+            </Button>
+            {syncMessage ? <p className="text-sm text-slate-300">{syncMessage}</p> : null}
+          </CardContent>
+        </Card>
         {analyticsError ? (
           <Card className="bg-slate-800 border-amber-500/40">
             <CardContent className="pt-6 text-sm text-amber-200">{analyticsError}</CardContent>

@@ -74,7 +74,52 @@ def _build_date_match(data_inicio: str = None, data_fim: str = None):
 # SERVIÇOS DE KPI (Agora lendo as fases direto!)
 # ==========================================
 
-def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
+def _build_date_match(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
+    if not data_inicio and not data_fim:
+        return {}
+
+    date_conditions = []
+
+    if data_inicio or data_fim:
+        range_query = {}
+        if data_inicio:
+            range_query["$gte"] = data_inicio
+        if data_fim:
+            range_query["$lte"] = data_fim
+        date_conditions.append({"data_qualificacao": range_query})
+
+    if data_inicio or data_fim:
+        range_query_dt = {}
+        if data_inicio:
+            range_query_dt["$gte"] = datetime.fromisoformat(f"{data_inicio}T00:00:00")
+        if data_fim:
+            range_query_dt["$lte"] = datetime.fromisoformat(f"{data_fim}T23:59:59")
+        date_conditions.append({"createdAt": range_query_dt})
+        date_conditions.append({"created_at": range_query_dt})
+
+    if data_inicio or data_fim:
+        range_query_iso = {}
+        if data_inicio:
+            range_query_iso["$gte"] = data_inicio
+        if data_fim:
+            range_query_iso["$lte"] = data_fim
+        date_conditions.append({"createdAt": range_query_iso})
+        date_conditions.append({"created_at": range_query_iso})
+
+    if not date_conditions:
+        return {}
+
+    return {"$or": date_conditions}
+
+
+def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> int:
+    """
+    Conta o número de leads com alto potencial de fechamento
+    
+    Regra de Negóci:
+    1. O 'valor' da proposta já está definido e é maior que o limite estipulado (Ex: > 10000.0).
+    2. OU o 'budget_estimado' informado é diferente de "< R$10.000,00".
+    """
     try:
         col_leads = db_client.get_collection('leads')
         if col_leads is None: return {"qualificados": 0, "total": 0}
