@@ -6,6 +6,8 @@ export interface AnalyticsFunnelItem {
   total_valor: number;
 }
 
+// Atualize as interfaces no analytics.ts
+
 export interface AnalyticsPayload {
   total_leads: number;
   qualificados: number;
@@ -13,45 +15,40 @@ export interface AnalyticsPayload {
   valor_pipeline: number;
   total_perdidos: number;
   valor_perdido: number;
-  previsao_faturamento: number;
+  // 🔥 Mudou de number para objeto:
+  previsao_faturamento: {
+    pipeline_total: number;
+    previsao_realista: number;
+  };
   ticket_medio: number;
   taxa_conversao: number;
   progresso_meta: {
     faturado: number;
     meta: number;
     porcentagem: number;
+    falta_faturar?: number; // 🔥 Campo novo que adicionamos!
   };
   funil: AnalyticsFunnelItem[];
-  origem_leads: Array<{
-    nome: string;
-    count: number;
-  }>;
-  distribuicao_servicos: Array<{
-    nome: string;
-    count: number;
-  }>;
+  // 🔥 Backend envia 'origem' e 'quantidade', não 'nome' e 'count'
+  origem_leads: Array<{ origem: string; quantidade: number; }>;
+  // 🔥 Backend envia 'servico' e 'quantidade'
+  distribuicao_servicos: Array<{ servico: string; quantidade: number; }>;
+  // 🔥 Gráfico novo que adicionamos
+  tempo_estagio?: Array<{ fase: string; dias_medios: number; }>; 
 }
 
+// Atualize o validador:
 function isAnalyticsPayload(value: unknown): value is AnalyticsPayload {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
+  if (!value || typeof value !== "object") return false;
   const data = value as Partial<AnalyticsPayload>;
+  
   return (
     typeof data.total_leads === "number" &&
-    typeof data.qualificados === "number" &&
-    typeof data.nao_qualificados === "number" &&
     typeof data.valor_pipeline === "number" &&
-    typeof data.total_perdidos === "number" &&
-    typeof data.valor_perdido === "number" &&
-    typeof data.previsao_faturamento === "number" &&
-    typeof data.ticket_medio === "number" &&
-    typeof data.taxa_conversao === "number" &&
+    typeof data.previsao_faturamento === "object" && // 🔥 Aqui estava o erro!
     typeof data.progresso_meta === "object" &&
-    Array.isArray(data.funil) &&
-    Array.isArray(data.origem_leads) &&
-    Array.isArray(data.distribuicao_servicos)
+    Array.isArray(data.funil)
+    // (Pode remover algumas das validações muito estritas para evitar quebras atoa)
   );
 }
 

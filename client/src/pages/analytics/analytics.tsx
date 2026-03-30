@@ -16,6 +16,7 @@ import { Chatbot } from "@/components/Chatbot/Chatbot";
 import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { apiClient } from "@/services/api";
 import { fetchAnalyticsPayload, type AnalyticsPayload } from "@/services/analytics";
+import { useNavigate } from "react-router-dom";
 
 const LOGO_GRADIENT_ID = "analytics-logo-gradient";
 const ROWS_PER_PAGE = 20;
@@ -40,6 +41,7 @@ function toIsoDate(date?: Date): string | undefined {
 }
 
 export default function DataVizDashboard() {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>("dashboard");
   const [sheets, setSheets] = useState<string[]>([]);
   const [loadingSheets, setLoadingSheets] = useState(false);
@@ -54,8 +56,14 @@ export default function DataVizDashboard() {
   const sheetRequestRef = useRef(0);
   const popupTimeoutRef = useRef<number | null>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const { user: authUser, refreshUser } = useAuth();
+  const { user: authUser, refreshUser, isAuthenticated, isLoading } = useAuth();
   const { fullName, initials } = extractNameFromEmail(authUser?.email);
+  useEffect(() => {
+    // Se já terminou de carregar o contexto e a pessoa NÃO está logada, chuta pro Login!
+    if (!isLoading && !isAuthenticated) {
+      navigate("/");
+    }
+  }, [isAuthenticated, isLoading, navigate]);
   const user = {
     name: (typeof authUser?.name === "string" && authUser.name.trim()) ? authUser.name : fullName,
     role:
@@ -662,7 +670,8 @@ export default function DataVizDashboard() {
                   {tableHeaders.map((header) => {
                     const isSortable = isSortableColumn(header);
                     const isSorted = sortColumn === header;
-                    
+
+                   
                     return (
                       <th 
                         key={header} 
