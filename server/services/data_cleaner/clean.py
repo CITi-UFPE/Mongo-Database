@@ -92,6 +92,20 @@ def smart_currency_clean(val: Any) -> float:
         return 0.0
 
 
+def _pipefy_datetime_to_iso_date(value: Any) -> Union[str, None]:
+    if not value:
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    if re.match(r"^\d{4}-\d{2}-\d{2}", text):
+        return text[:10]
+
+    return None
+
+
 def process_data(raw_data: List[Dict]) -> List[Dict]:
     processed: List[Dict] = []
 
@@ -105,6 +119,9 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
             "Valor": smart_currency_clean(get_valor_proposta(fields)),
             "Fase Atual": node.get("current_phase", {}).get("name"),
             "Responsável": get_responsavel(node),
+            "Data de Qualificação": _pipefy_datetime_to_iso_date(node.get("created_at")),
+            "Data de Criação": node.get("created_at"),
+            "Data de Atualização": node.get("updated_at"),
         })
 
     return processed

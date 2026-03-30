@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
 import Dashboard from "@/components/ui/dashboard";
 import { fetchAnalyticsPayload, type AnalyticsPayload } from "@/services/analytics";
 import { apiClient } from "@/services/api";
 import { useAuth } from "./context/AuthContext";
-import { canAccessAnalytics } from "./types/auth";
+import { canAccessAnalytics, isPendingAccess } from "./types/auth";
 
 type ViewMode = "dashboard" | "planilha";
 type SheetRow = Record<string, unknown>;
@@ -18,10 +18,14 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const hasAnalyticsAccess = canAccessAnalytics(user);
+  const accessLocked = isPendingAccess(user);
+  const isAdmin = Boolean(user?.is_admin && user?.acesso_aprovado && user?.status === "Aprovado");
   const [viewMode, setViewMode] = useState<ViewMode>(hasAnalyticsAccess ? defaultViewMode : "planilha");
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [syncingPipefy, setSyncingPipefy] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [sheets, setSheets] = useState<string[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<string>("");
   const [sheetRows, setSheetRows] = useState<SheetRow[]>([]);
@@ -35,41 +39,61 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
     }
   }, [hasAnalyticsAccess, viewMode]);
 
+  const loadAnalytics = useCallback(async () => {
+    setLoadingAnalytics(true);
+    setAnalyticsError(null);
+    try {
+      const payload = await fetchAnalyticsPayload();
+      setData(payload);
+    } catch (_error) {
+      setData(null);
+      setAnalyticsError("Não foi possível carregar Analytics da API.");
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  }, []);
+
   useEffect(() => {
+    if (accessLocked) {
+      setLoadingAnalytics(false);
+      setData(null);
+      return;
+    }
+
     if (!hasAnalyticsAccess || viewMode !== "dashboard") {
       setLoadingAnalytics(false);
       return;
     }
 
-    let cancelled = false;
+    loadAnalytics();
+  }, [hasAnalyticsAccess, viewMode, accessLocked, loadAnalytics]);
 
-    const load = async () => {
-      setLoadingAnalytics(true);
-      setAnalyticsError(null);
-      try {
-        const payload = await fetchAnalyticsPayload();
-        if (!cancelled) {
-          setData(payload);
-        }
-      } catch (_error) {
-        if (!cancelled) {
-          setData(null);
-          setAnalyticsError("Não foi possível carregar Analytics da API.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingAnalytics(false);
-        }
-      }
-    };
+  const handleSyncPipefy = useCallback(async () => {
+    if (syncingPipefy) {
+      return;
+    }
 
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [hasAnalyticsAccess, viewMode]);
+    setSyncMessage(null);
+    setSyncingPipefy(true);
+    try {
+      await apiClient.post("/api/analytics/sync-pipefy");
+      await loadAnalytics();
+      setSyncMessage("Sincronização concluída e dados atualizados.");
+    } catch (_error) {
+      setSyncMessage("Falha ao sincronizar com Pipefy. Tente novamente.");
+    } finally {
+      setSyncingPipefy(false);
+    }
+  }, [syncingPipefy, loadAnalytics]);
 
   useEffect(() => {
+    if (accessLocked) {
+      setSheets([]);
+      setSheetRows([]);
+      setLoadingSheets(false);
+      return;
+    }
+
     let cancelled = false;
 
     const loadSheets = async () => {
@@ -100,9 +124,15 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [accessLocked]);
 
   useEffect(() => {
+    if (accessLocked) {
+      setSheetRows([]);
+      setLoadingRows(false);
+      return;
+    }
+
     if (!selectedSheet) {
       setSheetRows([]);
       return;
@@ -138,7 +168,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
     return () => {
       cancelled = true;
     };
-  }, [selectedSheet]);
+  }, [selectedSheet, accessLocked]);
 
   const tableHeaders = useMemo(() => {
     if (!sheetRows.length) {
@@ -195,23 +225,77 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
             </button>
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800"
-            title="Sair"
-          >
-            <LogOut className="h-4 w-4" />
-            Sair
-          </button>
+          <div className="flex items-center gap-2">
+            {isAdmin ? (
+              <button
+                onClick={() => navigate("/admin")}
+                className="inline-flex items-center gap-2 rounded-xl border border-cyan-700/70 bg-cyan-900/40 px-4 py-2 text-sm text-cyan-100 transition hover:bg-cyan-800/60"
+                title="Painel Admin"
+              >
+                Painel Admin
+              </button>
+            ) : null}
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800"
+              title="Sair"
+            >
+              <LogOut className="h-4 w-4" />
+              Sair
+            </button>
+          </div>
         </div>
 
-        {viewMode === "dashboard" && hasAnalyticsAccess ? (
+        {accessLocked ? (
+          <div className="rounded-2xl border border-amber-400/30 bg-slate-900/80 p-6">
+            <h2 className="text-xl font-semibold text-amber-200">Aguardando Aprovação</h2>
+            <p className="text-slate-300 mt-2">
+              Seu acesso ainda está pendente. Por segurança, os dados dos dashboards e planilhas não são carregados até a aprovação.
+            </p>
+            <div className="mt-4 flex gap-3">
+              {isAdmin ? (
+                <button
+                  onClick={() => navigate("/admin")}
+                  className="rounded-lg bg-cyan-600 px-4 py-2 text-sm text-white hover:bg-cyan-500"
+                >
+                  Abrir Painel Admin
+                </button>
+              ) : null}
+              <button
+                onClick={handleLogout}
+                className="rounded-lg border border-slate-600 px-4 py-2 text-sm hover:bg-slate-800"
+              >
+                Sair
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {!accessLocked && viewMode === "dashboard" && hasAnalyticsAccess ? (
           <>
+            <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+              <button
+                type="button"
+                onClick={handleSyncPipefy}
+                disabled={syncingPipefy}
+                className="inline-flex items-center gap-2 rounded-md bg-cyan-600 px-4 py-2 text-sm text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {syncingPipefy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    A sincronizar...
+                  </>
+                ) : (
+                  "Atualizar/Sincronizar Pipefy"
+                )}
+              </button>
+              {syncMessage ? <p className="mt-2 text-sm text-slate-300">{syncMessage}</p> : null}
+            </div>
             {analyticsError ? <p className="text-rose-300 text-sm">{analyticsError}</p> : null}
             {loadingAnalytics ? <p className="text-slate-300 text-sm">Carregando Analytics...</p> : null}
             {data ? <Dashboard data={data} /> : null}
           </>
-        ) : (
+        ) : !accessLocked ? (
           <div className="space-y-4">
             <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
               <label className="text-sm text-slate-300 mr-3">Planilha:</label>
@@ -263,7 +347,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
               )}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

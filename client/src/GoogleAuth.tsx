@@ -13,7 +13,7 @@ import AnimatedLogo from "@/components/AnimatedLogo"
 import { apiClient } from "@/services/api"
 import { GoogleLogin, type CredentialResponse } from "@react-oauth/google"
 import { useAuth } from "./context/AuthContext";
-import { canAccessAnalytics } from "./types/auth";
+import { canAccessAnalytics, isPendingAccess } from "./types/auth";
 
 interface GoogleLoginResponse {
   token?: string;
@@ -59,6 +59,16 @@ export default function GoogleAuth() {
 
   // Redireciona usuários já autenticados
   if (!isLoading && isAuthenticated) {
+    if (user?.onboarding_required || user?.status === "Nao Cadastrado") {
+      navigate("/onboarding", { replace: true });
+      return null;
+    }
+
+    if (isPendingAccess(user)) {
+      navigate("/pending", { replace: true });
+      return null;
+    }
+
     navigate(canAccessAnalytics(user) ? "/analytics" : "/home", { replace: true });
     return null;
   }
@@ -94,7 +104,16 @@ export default function GoogleAuth() {
         nivel_acesso: authenticatedUser.nivel_acesso,
       });
 
-      const destination = canAccessAnalytics(authenticatedUser) ? "/analytics" : "/home";
+      let destination = "/home";
+
+      if (authenticatedUser.onboarding_required || authenticatedUser.status === "Nao Cadastrado") {
+        destination = "/onboarding";
+      } else if (isPendingAccess(authenticatedUser)) {
+        destination = "/pending";
+      } else if (canAccessAnalytics(authenticatedUser)) {
+        destination = "/analytics";
+      }
+
       console.log(`🔵 [GoogleAuth] 8. Redirecionando para ${destination}...`);
       navigate(destination);
       console.log("🔵 [GoogleAuth] 9. Navigate chamado");

@@ -1,11 +1,13 @@
 """Analytics routes - Versão Híbrida (Suporta banco vazio)."""
 import os
 import json
+import re
 from typing import Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Header, HTTPException
 from services.db import db_client
 from services import analytics_service
 from services.pipefy_sync import sync_pipefy_to_mongo
+from services.auth import decode_jwt
 
 # Tenta importar ML, se falhar, usa mock
 try:
@@ -15,6 +17,103 @@ except ImportError:
 
 # Removemos o prefixo daqui para definir no main.py
 router = APIRouter(tags=["analytics"])
+
+
+def _normalize_email(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def _canonical_email(email: str | None) -> str:
+    normalized = _normalize_email(email)
+    if "@" not in normalized:
+        return normalized
+
+    local, domain = normalized.split("@", 1)
+    local = local.split("+", 1)[0].replace(".", "")
+    return f"{local}@{domain}"
+
+
+def _email_variants(email: str | None) -> list[str]:
+    normalized = _normalize_email(email)
+    if not normalized:
+        return []
+
+    variants = [normalized]
+    if "@" in normalized:
+        local, domain = normalized.split("@", 1)
+        no_dots_local = local.replace(".", "")
+        if no_dots_local and no_dots_local != local:
+            variants.append(f"{no_dots_local}@{domain}")
+
+    unique = []
+    seen = set()
+    for item in variants:
+        if item not in seen:
+            seen.add(item)
+            unique.append(item)
+    return unique
+
+
+def _find_member_by_email(members_col, email: str | None):
+    variants = _email_variants(email)
+    if not variants:
+        return None
+
+    direct = members_col.find_one({"email": {"$in": variants}})
+    if direct:
+        return direct
+
+    for candidate in variants:
+        escaped = re.escape(candidate)
+        regex_match = members_col.find_one({"email": {"$regex": f"^\\s*{escaped}\\s*$", "$options": "i"}})
+        if regex_match:
+            return regex_match
+
+    canonical_target = _canonical_email(email)
+    if canonical_target:
+        for candidate_member in members_col.find({}, {"email": 1}):
+            if _canonical_email(candidate_member.get("email")) == canonical_target:
+                return members_col.find_one({"email": candidate_member.get("email")})
+
+    return None
+
+
+def _resolve_members_collection():
+    db = db_client.get_db()
+    if db is None:
+        return None
+
+    for collection_name in ("membros", "mebros", "membro"):
+        if collection_name in set(db.list_collection_names()):
+            return db[collection_name]
+    return None
+
+
+def _assert_user_can_view_analytics(authorization: str | None) -> None:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token não fornecido")
+
+    token = authorization.split("Bearer ", 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Token não fornecido")
+
+    payload = decode_jwt(token)
+    user_email = _normalize_email(payload.get("email")) if isinstance(payload, dict) else ""
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+    members_col = _resolve_members_collection()
+    if members_col is None:
+        raise HTTPException(status_code=500, detail="Base de dados indisponível")
+
+    member = _find_member_by_email(members_col, user_email)
+    if not member:
+        raise HTTPException(status_code=403, detail="Acesso não autorizado para Analytics")
+
+    status = str(member.get("status") or "").strip().lower()
+    acesso_aprovado = bool(member.get("acesso_aprovado", status == "aprovado"))
+    if status == "pendente" or not acesso_aprovado:
+        raise HTTPException(status_code=403, detail="Aguardando aprovação")
 
 
 def _safe_text(value, default: str = "") -> str:
@@ -229,8 +328,11 @@ async def get_overview(
     refresh_pipefy: bool = Query(False),
     data_inicio: Optional[str] = Query(None),
     data_fim: Optional[str] = Query(None),
+    Authorization: str | None = Header(None),
 ):
     try:
+        _assert_user_can_view_analytics(Authorization)
+
         if refresh_pipefy:
             sync_pipefy_to_mongo()
 
@@ -294,9 +396,11 @@ def get_mock_kpis():
     }
 
 @router.get("/kpis")
-async def get_kpis():
+async def get_kpis(Authorization: str | None = Header(None)):
     """Tenta buscar KPIs reais. Se o banco estiver vazio, retorna Mocks."""
     try:
+        _assert_user_can_view_analytics(Authorization)
+
         db = db_client.get_db()
         leads = db["leads"]
         

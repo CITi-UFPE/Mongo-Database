@@ -5,7 +5,10 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import App from "./App";
 import GoogleAuth from "./GoogleAuth";
-import { canAccessAnalytics } from "./types/auth";
+import { canAccessAnalytics, isPendingAccess } from "./types/auth";
+import OnboardingForm from "./pages/Auth/OnboardingForm";
+import PendingApproval from "./pages/Auth/PendingApproval";
+import AdminApprovalPanel from "./pages/Auth/AdminApprovalPanel";
 import "./index.css";
 
 const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "").trim();
@@ -46,6 +49,53 @@ function AdminAnalyticsRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function OnboardingRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+
+  if (!user?.onboarding_required && user?.status !== "Nao Cadastrado") {
+    if (isPendingAccess(user)) {
+      return <Navigate to="/pending" replace />;
+    }
+    return <Navigate to="/home" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function PendingRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+
+  if (user?.onboarding_required || user?.status === "Nao Cadastrado") {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  if (!isPendingAccess(user)) {
+    return <Navigate to="/home" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function AdminApprovalRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+
+  const isAdmin = Boolean(user?.is_admin && user?.acesso_aprovado && user?.status === "Aprovado");
+  if (!isAdmin) {
+    return <Navigate to="/home" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 const root = document.getElementById("root");
 
 if (!root) {
@@ -71,6 +121,30 @@ const appTree = (
             <AdminAnalyticsRoute>
               <App defaultViewMode="dashboard" />
             </AdminAnalyticsRoute>
+          }
+        />
+        <Route
+          path="/onboarding"
+          element={
+            <OnboardingRoute>
+              <OnboardingForm />
+            </OnboardingRoute>
+          }
+        />
+        <Route
+          path="/pending"
+          element={
+            <PendingRoute>
+              <PendingApproval />
+            </PendingRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <AdminApprovalRoute>
+              <AdminApprovalPanel />
+            </AdminApprovalRoute>
           }
         />
         <Route path="*" element={<Navigate to="/home" replace />} />
