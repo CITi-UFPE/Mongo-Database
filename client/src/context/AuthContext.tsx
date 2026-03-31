@@ -148,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Busca role/position e department imediatamente após o login.
     const completeUser = await fetchCompleteUser(initialUser);
     if (completeUser) {
+      setIsAuthenticated(true);
       setUser(completeUser);
       localStorage.setItem("authUser", JSON.stringify(completeUser));
       return completeUser;

@@ -11,7 +11,7 @@ load_dotenv(env_path)
 
 PIPEFY_URL = "https://api.pipefy.com/graphql"
 PIPEFY_TOKEN = os.getenv("PIPEFY_TOKEN")
-PIPEFY_PIPE_ID = os.getenv("PIPEFY_PIPE_ID")
+PIPEFY_PIPE_ID = os.getenv("PIPE_ID") or os.getenv("PIPEFY_PIPE_ID")
 
 QUERY = """
 query ($pipeId: ID!, $first: Int!, $after: String) {
