@@ -358,8 +358,8 @@ def get_motivos_perda(
 
                 distribuicao[motivo_final] = distribuicao.get(motivo_final, 0) + 1
 
-        resultado = [{"motivo": nome, "quantidade": qtd} for nome, qtd in distribuicao.items()]
-        resultado.sort(key=lambda x: x["quantidade"], reverse=True)
+        resultado = [{"reason": nome, "count": qtd} for nome, qtd in distribuicao.items()]
+        resultado.sort(key=lambda x: x["count"], reverse=True)
         return resultado
     except Exception:
         return []

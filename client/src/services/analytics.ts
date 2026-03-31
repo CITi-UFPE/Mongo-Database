@@ -6,7 +6,12 @@ export interface AnalyticsFunnelItem {
   total_valor: number;
 }
 
-// Atualize as interfaces no analytics.ts
+export interface LostReason {
+  reason: string;
+  count: number;
+  percentage: number;
+  icon: "price" | "time" | "competitor" | "other";
+}
 
 export interface AnalyticsPayload {
   total_leads: number;
@@ -15,7 +20,6 @@ export interface AnalyticsPayload {
   valor_pipeline: number;
   total_perdidos: number;
   valor_perdido: number;
-  // 🔥 Mudou de number para objeto:
   previsao_faturamento: {
     pipeline_total: number;
     previsao_realista: number;
@@ -26,29 +30,47 @@ export interface AnalyticsPayload {
     faturado: number;
     meta: number;
     porcentagem: number;
-    falta_faturar?: number; // 🔥 Campo novo que adicionamos!
+    falta_faturar?: number;
   };
   funil: AnalyticsFunnelItem[];
-  // 🔥 Backend envia 'origem' e 'quantidade', não 'nome' e 'count'
-  origem_leads: Array<{ origem: string; quantidade: number; }>;
-  // 🔥 Backend envia 'servico' e 'quantidade'
-  distribuicao_servicos: Array<{ servico: string; quantidade: number; }>;
-  // 🔥 Gráfico novo que adicionamos
-  tempo_estagio?: Array<{ fase: string; dias_medios: number; }>; 
+  origem_leads: Array<{
+    origem: string;
+    quantidade: number;
+  }>;
+  distribuicao_servicos: Array<{
+    servico: string;
+    quantidade: number;
+  }>;
+  motivos_perda: LostReason[];
+  tempo_estagio?: Array<{
+    fase: string;
+    dias_medios: number;
+    quantidade: number;
+  }>;
 }
 
-// Atualize o validador:
 function isAnalyticsPayload(value: unknown): value is AnalyticsPayload {
   if (!value || typeof value !== "object") return false;
+
   const data = value as Partial<AnalyticsPayload>;
-  
+
   return (
     typeof data.total_leads === "number" &&
+    typeof data.qualificados === "number" &&
+    typeof data.nao_qualificados === "number" &&
     typeof data.valor_pipeline === "number" &&
-    typeof data.previsao_faturamento === "object" && // 🔥 Aqui estava o erro!
+    typeof data.total_perdidos === "number" &&
+    typeof data.valor_perdido === "number" &&
+    typeof data.previsao_faturamento === "object" &&
+    data.previsao_faturamento !== null &&
+    typeof data.ticket_medio === "number" &&
+    typeof data.taxa_conversao === "number" &&
     typeof data.progresso_meta === "object" &&
-    Array.isArray(data.funil)
-    // (Pode remover algumas das validações muito estritas para evitar quebras atoa)
+    data.progresso_meta !== null &&
+    Array.isArray(data.funil) &&
+    Array.isArray(data.origem_leads) &&
+    Array.isArray(data.distribuicao_servicos) &&
+    Array.isArray(data.motivos_perda)
   );
 }
 
@@ -58,7 +80,9 @@ export interface AnalyticsQueryParams {
   refresh_pipefy?: boolean;
 }
 
-export async function fetchAnalyticsPayload(params?: AnalyticsQueryParams): Promise<AnalyticsPayload> {
+export async function fetchAnalyticsPayload(
+  params?: AnalyticsQueryParams
+): Promise<AnalyticsPayload> {
   const response = await apiClient.get("/api/analytics/overview/", {
     params: {
       refresh_pipefy: params?.refresh_pipefy ?? false,
@@ -68,6 +92,7 @@ export async function fetchAnalyticsPayload(params?: AnalyticsQueryParams): Prom
   });
 
   const data = response.data;
+
   if (!isAnalyticsPayload(data)) {
     throw new Error("Resposta de analytics em formato inválido");
   }
