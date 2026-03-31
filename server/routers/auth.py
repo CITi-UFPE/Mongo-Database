@@ -459,6 +459,8 @@ async def google_login(payload: dict = Body(...)):
             "onboarding_required": bool(user_payload.get("onboarding_required")),
         }
         
+        return response_payload
+        
     except HTTPException:
         raise
     except Exception as e:
