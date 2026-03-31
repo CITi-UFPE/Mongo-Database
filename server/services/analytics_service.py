@@ -43,10 +43,15 @@ except ImportError:
 
 print("✅ Analytics Service iniciado.")
 
-#  Funções Auxiliares
-# Serviços de KPI (Métricas e Analytics)
 
-def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict:
+def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> int:
+    """
+    Conta o número de leads com alto potencial de fechamento
+    
+    Regra de Negóci:
+    1. O 'valor' da proposta já está definido e é maior que o limite estipulado (Ex: > 10000.0).
+    2. OU o 'budget_estimado' informado é diferente de "< R$10.000,00".
+    """
     try:
         col_leads = db_client.get_collection('leads')
         col_fases = db_client.get_collection('fase_funils')

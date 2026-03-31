@@ -461,6 +461,8 @@ async def google_login(payload: dict = Body(...)):
 
         return response_payload
         
+        return response_payload
+        
     except HTTPException:
         raise
     except Exception as e:

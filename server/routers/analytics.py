@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import traceback
 from typing import Optional
 from fastapi import APIRouter, Query, Header, HTTPException
 from services.db import db_client
@@ -98,7 +99,11 @@ def _assert_user_can_view_analytics(authorization: str | None) -> None:
     if not token:
         raise HTTPException(status_code=401, detail="Token não fornecido")
 
-    payload = decode_jwt(token)
+    try:
+        payload = decode_jwt(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
     user_email = _normalize_email(payload.get("email")) if isinstance(payload, dict) else ""
     if not user_email:
         raise HTTPException(status_code=401, detail="Token inválido")
@@ -231,8 +236,12 @@ async def get_overview(
             sync_pipefy()
         payload = _build_overview_payload(data_inicio=data_inicio, data_fim=data_fim)
         return payload
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"⚠️ Erro no overview analytics: {str(e)}")
+        print(f"⚠️ Tipo de erro: {type(e).__name__} | repr: {repr(e)}")
+        print(traceback.format_exc())
         return _default_overview_payload()
 
 @router.post("/sync-pipefy")
