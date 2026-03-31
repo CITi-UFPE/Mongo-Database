@@ -458,6 +458,8 @@ async def google_login(payload: dict = Body(...)):
             "user": user_payload,
             "onboarding_required": bool(user_payload.get("onboarding_required")),
         }
+
+        return response_payload
         
         return response_payload
         

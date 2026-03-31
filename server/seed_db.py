@@ -33,7 +33,7 @@ def seed_database():
         {"nome": "Rafael Xavier", "email": "rafael.xavier@citi.org.br", "role": "Gerente de Dados", "department": "Dados"},
         {"nome": "Felipe C. Coutinho", "email": "felipeccoutinho@citi.org.br", "role": "Analista de Dados", "department": "Dados"},
         {"nome": "Theo Barza", "email": "theo.barza@citi.org.br", "role": "Analista de Dados", "department": "Dados"},
-        {"nome": "Gustavo Leão", "email": "gustavo.leao@citi.org.br", "role": "Pessoa Desenvolvedora", "department": "Desenvolvimento"},
+        {"nome": "Gustavo Leão", "email": "gustavo.leao@citi.org.br", "role": "Analista de Dados", "department": "Dados"},
         {"nome": "Lourdes Castro", "email": "lourdes.castro@citi.org.br", "role": "Analista de Marketing", "department": "Marketing"},
         {"nome": "Sofia Sakovitz", "email": "sofia.sakovitz@citi.org.br", "role": "Pessoa Desenvolvedora", "department": "Desenvolvimento"}
     ]

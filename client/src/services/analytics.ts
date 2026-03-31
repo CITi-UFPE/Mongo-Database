@@ -6,8 +6,6 @@ export interface AnalyticsFunnelItem {
   total_valor: number;
 }
 
-// Atualize as interfaces no analytics.ts
-
 export interface AnalyticsPayload {
   total_leads: number;
   qualificados: number;
@@ -15,7 +13,6 @@ export interface AnalyticsPayload {
   valor_pipeline: number;
   total_perdidos: number;
   valor_perdido: number;
-  // 🔥 Mudou de number para objeto:
   previsao_faturamento: {
     pipeline_total: number;
     previsao_realista: number;
@@ -26,18 +23,14 @@ export interface AnalyticsPayload {
     faturado: number;
     meta: number;
     porcentagem: number;
-    falta_faturar?: number; // 🔥 Campo novo que adicionamos!
+    falta_faturar?: number; 
   };
   funil: AnalyticsFunnelItem[];
-  // 🔥 Backend envia 'origem' e 'quantidade', não 'nome' e 'count'
   origem_leads: Array<{ origem: string; quantidade: number; }>;
-  // 🔥 Backend envia 'servico' e 'quantidade'
   distribuicao_servicos: Array<{ servico: string; quantidade: number; }>;
-  // 🔥 Gráfico novo que adicionamos
   tempo_estagio?: Array<{ fase: string; dias_medios: number; }>; 
 }
 
-// Atualize o validador:
 function isAnalyticsPayload(value: unknown): value is AnalyticsPayload {
   if (!value || typeof value !== "object") return false;
   const data = value as Partial<AnalyticsPayload>;
@@ -45,10 +38,9 @@ function isAnalyticsPayload(value: unknown): value is AnalyticsPayload {
   return (
     typeof data.total_leads === "number" &&
     typeof data.valor_pipeline === "number" &&
-    typeof data.previsao_faturamento === "object" && // 🔥 Aqui estava o erro!
+    typeof data.previsao_faturamento === "object" && 
     typeof data.progresso_meta === "object" &&
     Array.isArray(data.funil)
-    // (Pode remover algumas das validações muito estritas para evitar quebras atoa)
   );
 }
 
@@ -103,12 +95,19 @@ export async function fetchAnalyticsPayload(params?: AnalyticsQueryParams): Prom
   const dataInicio = normalizeDateParam(params?.data_inicio);
   const dataFim = normalizeDateParam(params?.data_fim);
 
+  // 1. Pegamos o token que foi salvo lá no Login
+  const token = localStorage.getItem("authToken");
+
   const response = await apiClient.get("/api/analytics/overview/", {
     params: {
       refresh_pipefy: params?.refresh_pipefy ?? false,
       data_inicio: dataInicio,
       data_fim: dataFim,
     },
+    // 2. Enviamos o token no cabeçalho da requisição
+    headers: {
+      Authorization: token ? `Bearer ${token}` : "",
+    }
   });
 
   const data = response.data;
