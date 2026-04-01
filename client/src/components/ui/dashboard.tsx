@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Users,
   TrendingUp,
@@ -24,6 +24,8 @@ import type { AnalyticsPayload, AnalyticsFunnelItem } from "../../services/analy
 interface DashboardProps {
   data: AnalyticsPayload;
   onDateFilterChange?: (range: DateRangeValue, dates?: DateRangeSelection) => void;
+  headerAction?: ReactNode;
+  headerStatusMessage?: string | null;
 }
 
 const FUNNEL_COLORS = [
@@ -36,12 +38,12 @@ const FUNNEL_COLORS = [
 
 const TOTAL_PAGES = 2;
 
-const Dashboard = ({ data, onDateFilterChange }: DashboardProps) => {
+const Dashboard = ({ data, onDateFilterChange, headerAction, headerStatusMessage }: DashboardProps) => {
   const [analysisPage, setAnalysisPage] = useState(1);
 
   const totalLeads = data.total_leads;
   const valorPipeline = data.valor_pipeline;
-  const faturamentoTotal = data.previsao_faturamento;
+  const faturamentoTotal = data.previsao_faturamento.pipeline_total;
   const funnelStages = data.funil.map((item: AnalyticsFunnelItem, index: number) => ({
     name: item.fase,
     count: item.count,
@@ -70,18 +72,18 @@ const Dashboard = ({ data, onDateFilterChange }: DashboardProps) => {
   });
 
   const leadSourcesData = data.origem_leads
-    .filter((item) => item.count > 0)
+    .filter((item) => item.quantidade > 0)
     .map((item, index) => ({
-      name: item.nome,
-      value: item.count,
+      name: item.origem,
+      value: item.quantidade,
       color: FUNNEL_COLORS[index % FUNNEL_COLORS.length],
     }));
 
   const serviceDistributionData = data.distribuicao_servicos
-    .filter((item) => item.count > 0)
+    .filter((item) => item.quantidade > 0)
     .map((item, index) => ({
-      name: item.nome,
-      value: item.count,
+      name: item.servico,
+      value: item.quantidade,
       color: FUNNEL_COLORS[index % FUNNEL_COLORS.length],
     }));
 
@@ -119,7 +121,13 @@ const Dashboard = ({ data, onDateFilterChange }: DashboardProps) => {
                 Visão gerencial de vendas e leads.
               </p>
             </div>
-            <DateFilter onChange={onDateFilterChange} />
+            <div className="flex flex-col items-stretch gap-2 sm:items-end">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <DateFilter onChange={onDateFilterChange} />
+                {headerAction ? headerAction : null}
+              </div>
+              {headerStatusMessage ? <p className="text-xs text-slate-300 sm:text-right">{headerStatusMessage}</p> : null}
+            </div>
           </div>
 
           <div className="mt-4">
