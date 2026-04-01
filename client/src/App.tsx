@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
+import axios from "axios";
 import Dashboard from "@/components/ui/dashboard";
+import { PipefySyncButton } from "@/components/ui/pipefy-sync-button";
 import { fetchAnalyticsPayload, getAnalyticsErrorMessage, type AnalyticsPayload } from "@/services/analytics";
 import { apiClient } from "@/services/api";
 import { useAuth } from "./context/AuthContext";
@@ -14,6 +16,26 @@ interface AppProps {
   defaultViewMode?: ViewMode;
 }
 
+function getPipefySyncErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    const detail =
+      typeof error.response?.data?.detail === "string" && error.response.data.detail.trim()
+        ? error.response.data.detail.trim()
+        : null;
+
+    if (status === 503) {
+      return "Pipefy está temporariamente indisponível. Tente novamente em instantes.";
+    }
+
+    if (detail) {
+      return detail;
+    }
+  }
+
+  return "Falha ao sincronizar com o Pipefy. Tente novamente.";
+}
+
 export default function App({ defaultViewMode = "planilha" }: AppProps) {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
@@ -24,7 +46,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-  const [syncingPipefy, setSyncingPipefy] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [sheets, setSheets] = useState<string[]>([]);
   const [selectedSheet, setSelectedSheet] = useState<string>("");
@@ -69,22 +91,24 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
   }, [hasAnalyticsAccess, viewMode, accessLocked, loadAnalytics]);
 
   const handleSyncPipefy = useCallback(async () => {
-    if (syncingPipefy) {
+    if (isSyncing) {
       return;
     }
 
     setSyncMessage(null);
-    setSyncingPipefy(true);
+    setIsSyncing(true);
     try {
-      await apiClient.post("/api/analytics/sync-pipefy");
+      await apiClient.post("https://mongo-database-backend.onrender.com/api/integrations/pipefy/sync");
       await loadAnalytics();
       setSyncMessage("Sincronização concluída e dados atualizados.");
-    } catch (_error) {
-      setSyncMessage("Falha ao sincronizar com Pipefy. Tente novamente.");
+    } catch (error) {
+      const message = getPipefySyncErrorMessage(error);
+      setSyncMessage(message);
+      window.alert(message);
     } finally {
-      setSyncingPipefy(false);
+      setIsSyncing(false);
     }
-  }, [syncingPipefy, loadAnalytics]);
+  }, [isSyncing, loadAnalytics]);
 
   useEffect(() => {
     let cancelled = false;
@@ -260,27 +284,15 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
 
         {viewMode === "dashboard" && hasAnalyticsAccess && !accessLocked ? (
           <>
-            <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
-              <button
-                type="button"
-                onClick={handleSyncPipefy}
-                disabled={syncingPipefy}
-                className="inline-flex items-center gap-2 rounded-md bg-cyan-600 px-4 py-2 text-sm text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {syncingPipefy ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    A sincronizar...
-                  </>
-                ) : (
-                  "Atualizar/Sincronizar Pipefy"
-                )}
-              </button>
-              {syncMessage ? <p className="mt-2 text-sm text-slate-300">{syncMessage}</p> : null}
-            </div>
             {analyticsError ? <p className="text-rose-300 text-sm">{analyticsError}</p> : null}
             {loadingAnalytics ? <p className="text-slate-300 text-sm">Carregando Analytics...</p> : null}
-            {data ? <Dashboard data={data} /> : null}
+            {data ? (
+              <Dashboard
+                data={data}
+                headerAction={<PipefySyncButton isSyncing={isSyncing} onClick={handleSyncPipefy} />}
+                headerStatusMessage={syncMessage}
+              />
+            ) : null}
           </>
         ) : (
           <div className="space-y-4">
