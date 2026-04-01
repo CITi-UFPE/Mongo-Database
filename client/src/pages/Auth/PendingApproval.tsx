@@ -3,7 +3,7 @@ import { useAuth } from "../../context/AuthContext";
 
 export default function PendingApproval() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 flex items-center justify-center">
@@ -15,10 +15,10 @@ export default function PendingApproval() {
         <p className="text-sm text-slate-400">Conta: {user?.email ?? "-"}</p>
         <div className="flex gap-3">
           <button
-            onClick={() => navigate("/home", { replace: true })}
+            onClick={refreshUser}
             className="rounded-lg border border-slate-600 px-4 py-2 text-sm hover:bg-slate-800"
           >
-            Ir para tela segura
+            Atualizar status
           </button>
           <button
             onClick={logout}

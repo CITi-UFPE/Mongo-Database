@@ -248,7 +248,7 @@ def _find_member_by_email(membros_col, email: str | None):
                     return full_doc
 
     # Tentativa 4: varredura normalizada completa (trim/lower/canônico), sem relaxar domínio.
-    # Mantém segurança de correspondência por email e evita falso positivo por nome/local-part apenas.
+    # Mantém segurança de correspondência por email.
     for candidate_member in membros_col.find({}, {"email": 1}):
         stored_email_raw = candidate_member.get("email")
         stored_email = _normalize_email(stored_email_raw)
@@ -260,37 +260,6 @@ def _find_member_by_email(membros_col, email: str | None):
             if full_doc:
                 print(f"      ✅ Match (normalizado): {full_doc.get('email')}")
                 return full_doc
-
-    # Tentativa 5: busca "fuzzy" por local-part em QUALQUER email
-    # Útil se o domínio é diferente (ex: gmail vs citi.org)
-    if canonical_local:
-        print(f"      🔄 Tentando match fuzzy por local-part: '{canonical_local}'")
-        candidates_fuzzy = []
-        for candidate_member in membros_col.find({}, {"email": 1, "nome": 1}):
-            candidate_canonical = _canonical_email(candidate_member.get("email"))
-            candidate_local = candidate_canonical.split("@", 1)[0] if "@" in candidate_canonical else ""
-            if candidate_local == canonical_local:
-                candidates_fuzzy.append(candidate_member.get("email"))
-        
-        if len(candidates_fuzzy) == 1:
-            full_doc = membros_col.find_one({"email": candidates_fuzzy[0]})
-            if full_doc:
-                print(f"      ⚠️  Match (fuzzy por local-part): {full_doc.get('email')} (domínios diferentes!)")
-                return full_doc
-        elif len(candidates_fuzzy) > 1:
-            print(f"      ⚠️  Múltiplos matches fuzzy encontrados: {candidates_fuzzy}. Sem ação.")
-
-    # Tentativa 6: busca por primeiro nome + possível sobrenome (search em "nome" por pattern)
-    # Ex: Se email é "maria.eduardo", procura por "Maria Eduardo*" no nome
-    if canonical_local and "." in canonical_local:
-        parts = canonical_local.split(".")
-        if len(parts) >= 2:
-            first_name = parts[0].capitalize()
-            print(f"      🔄 Tentando match por nome (primeiro nome: '{first_name}')...")
-            member = membros_col.find_one({'nome': {'$regex': f'^{first_name}', '$options': 'i'}})
-            if member:
-                print(f"      ✅ Match (por nome): {member.get('nome')} ({member.get('email')})")
-                return member
 
     print(f"      ❌ Nenhum match encontrado para: '{email}'")
     return None
@@ -458,8 +427,6 @@ async def google_login(payload: dict = Body(...)):
             "user": user_payload,
             "onboarding_required": bool(user_payload.get("onboarding_required")),
         }
-
-        return response_payload
         
         return response_payload
         
