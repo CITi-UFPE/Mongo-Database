@@ -15,7 +15,7 @@ import AnimatedLogo from "@/components/AnimatedLogo";
 import { Chatbot } from "@/components/Chatbot/Chatbot";
 import { BarChart, Building2, Loader2, User, Briefcase, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { apiClient } from "@/services/api";
-import { fetchAnalyticsPayload, type AnalyticsPayload } from "@/services/analytics";
+import { fetchAnalyticsPayload, getAnalyticsErrorMessage, type AnalyticsPayload } from "@/services/analytics";
 import { useNavigate } from "react-router-dom";
 
 const LOGO_GRADIENT_ID = "analytics-logo-gradient";
@@ -163,9 +163,9 @@ export default function DataVizDashboard() {
         data_fim: toIsoDate(analyticsDateRange?.to),
       });
       setAnalyticsData(payload);
-    } catch (_error) {
+    } catch (error) {
       setAnalyticsData(null);
-      setAnalyticsError("Não foi possível carregar Analytics da API.");
+      setAnalyticsError(getAnalyticsErrorMessage(error));
     } finally {
       setLoadingAnalytics(false);
     }

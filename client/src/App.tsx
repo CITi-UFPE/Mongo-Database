@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, LogOut } from "lucide-react";
 import Dashboard from "@/components/ui/dashboard";
-import { fetchAnalyticsPayload, type AnalyticsPayload } from "@/services/analytics";
+import { fetchAnalyticsPayload, getAnalyticsErrorMessage, type AnalyticsPayload } from "@/services/analytics";
 import { apiClient } from "@/services/api";
 import { useAuth } from "./context/AuthContext";
 import { canAccessAnalytics, isPendingAccess } from "./types/auth";
@@ -45,9 +45,9 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
     try {
       const payload = await fetchAnalyticsPayload();
       setData(payload);
-    } catch (_error) {
+    } catch (error) {
       setData(null);
-      setAnalyticsError("Não foi possível carregar Analytics da API.");
+      setAnalyticsError(getAnalyticsErrorMessage(error));
     } finally {
       setLoadingAnalytics(false);
     }
