@@ -87,13 +87,6 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
   }, [syncingPipefy, loadAnalytics]);
 
   useEffect(() => {
-    if (accessLocked) {
-      setSheets([]);
-      setSheetRows([]);
-      setLoadingSheets(false);
-      return;
-    }
-
     let cancelled = false;
 
     const loadSheets = async () => {
@@ -124,15 +117,9 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
     return () => {
       cancelled = true;
     };
-  }, [accessLocked]);
+  }, []);
 
   useEffect(() => {
-    if (accessLocked) {
-      setSheetRows([]);
-      setLoadingRows(false);
-      return;
-    }
-
     if (!selectedSheet) {
       setSheetRows([]);
       return;
@@ -168,7 +155,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
     return () => {
       cancelled = true;
     };
-  }, [selectedSheet, accessLocked]);
+  }, [selectedSheet]);
 
   const tableHeaders = useMemo(() => {
     if (!sheetRows.length) {
@@ -250,7 +237,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
           <div className="rounded-2xl border border-amber-400/30 bg-slate-900/80 p-6">
             <h2 className="text-xl font-semibold text-amber-200">Aguardando Aprovação</h2>
             <p className="text-slate-300 mt-2">
-              Seu acesso ainda está pendente. Por segurança, os dados dos dashboards e planilhas não são carregados até a aprovação.
+              Sua conta aguarda aprovação do administrador para liberar o Dashboard Analytics. Enquanto isso, a visualização de planilhas continua disponível.
             </p>
             <div className="mt-4 flex gap-3">
               {isAdmin ? (
@@ -271,7 +258,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
           </div>
         ) : null}
 
-        {!accessLocked && viewMode === "dashboard" && hasAnalyticsAccess ? (
+        {viewMode === "dashboard" && hasAnalyticsAccess && !accessLocked ? (
           <>
             <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
               <button
@@ -295,7 +282,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
             {loadingAnalytics ? <p className="text-slate-300 text-sm">Carregando Analytics...</p> : null}
             {data ? <Dashboard data={data} /> : null}
           </>
-        ) : !accessLocked ? (
+        ) : (
           <div className="space-y-4">
             <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
               <label className="text-sm text-slate-300 mr-3">Planilha:</label>
@@ -347,7 +334,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
               )}
             </div>
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
