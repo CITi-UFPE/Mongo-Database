@@ -132,6 +132,8 @@ def _build_local_origins():
 default_origins = [*_build_local_origins()]
 
 env_origins = [
+    _safe_origin("CLIENT_URL"),
+    _safe_origin("CLIENT_URL_DEV"),
     _safe_origin("CLIENT_URL_PROD"),
     *_parse_allowed_origins(),
 ]
@@ -144,8 +146,10 @@ app.add_middleware(
     # Covers: localhost/127.0.0.1 on any port (dev) + any *.onrender.com subdomain (prod)
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.onrender\.com$",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"],
+    # Keep methods/headers permissive to avoid blocked preflight when browsers add extra request headers.
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Type", "Authorization"],
 )
 
 

@@ -1,4 +1,5 @@
 import { apiClient } from "@/services/api";
+import axios from "axios";
 
 export interface AnalyticsFunnelItem {
   fase: string;
@@ -48,6 +49,26 @@ export interface AnalyticsQueryParams {
   data_inicio?: string | Date;
   data_fim?: string | Date;
   refresh_pipefy?: boolean;
+}
+
+export function getAnalyticsErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    const detail =
+      typeof error.response?.data?.detail === "string"
+        ? error.response.data.detail.trim().toLowerCase()
+        : "";
+
+    if (status === 403 && detail.includes("aguardando aprovação")) {
+      return "Sua conta aguarda aprovação do administrador para acessar o dashboard.";
+    }
+
+    if (status === 401) {
+      return "Sua sessão expirou. Faça login novamente.";
+    }
+  }
+
+  return "Não foi possível carregar Analytics da API.";
 }
 
 function normalizeDateParam(value?: string | Date): string | undefined {
