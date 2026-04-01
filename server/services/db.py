@@ -5,6 +5,7 @@ import os
 from typing import Optional
 import threading
 import time
+from urllib.parse import urlparse
 
 class MongoDB:
     """MongoDB connection singleton"""
@@ -48,6 +49,22 @@ class MongoDB:
             if isinstance(uri, str) and uri.strip():
                 return uri.strip()
         return None
+
+    def _resolve_database_name(self, mongo_uri: str) -> str:
+        configured_name = (os.getenv("MONGO_DB_NAME") or "").strip()
+        if configured_name:
+            return configured_name
+
+        try:
+            parsed = urlparse(mongo_uri)
+            db_from_path = (parsed.path or "").lstrip("/").split("/", 1)[0].strip()
+            if db_from_path:
+                return db_from_path
+        except Exception:
+            pass
+
+        # Fallback para compatibilidade local/legada.
+        return "database-comercial"
     
     def connect(self):
         """Connect to MongoDB"""
@@ -64,8 +81,10 @@ class MongoDB:
                 
                 # Test connection
                 self.client.admin.command('ping')
-                
-                self.db = self.client['database-comercial']
+
+                database_name = self._resolve_database_name(mongo_uri)
+                self.db = self.client[database_name]
+                print(f"✓ MongoDB database selected: {database_name}")
                 print("✓ MongoDB connected")
                 return True
             except ServerSelectionTimeoutError:

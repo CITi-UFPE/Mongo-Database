@@ -91,6 +91,27 @@ def _resolve_members_collection():
     return None
 
 
+def _resolve_member_access(member_doc: dict) -> tuple[str, bool]:
+    raw_status = member_doc.get("status")
+    has_status = isinstance(raw_status, str) and raw_status.strip()
+
+    if has_status:
+        status = str(raw_status).strip().lower()
+        status = "aprovado" if status == "aprovado" else "pendente"
+    else:
+        # Compatibilidade com base legada: membros sem status explícito devem seguir aprovados.
+        if isinstance(member_doc.get("acesso_aprovado"), bool):
+            status = "aprovado" if member_doc.get("acesso_aprovado") else "pendente"
+        else:
+            status = "aprovado"
+
+    acesso_aprovado = bool(member_doc.get("acesso_aprovado", status == "aprovado"))
+    if status == "pendente":
+        acesso_aprovado = False
+
+    return status, acesso_aprovado
+
+
 def _assert_user_can_view_analytics(authorization: str | None) -> None:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Token não fornecido")
@@ -116,8 +137,7 @@ def _assert_user_can_view_analytics(authorization: str | None) -> None:
     if not member:
         raise HTTPException(status_code=403, detail="Acesso não autorizado para Analytics")
 
-    status = str(member.get("status") or "").strip().lower()
-    acesso_aprovado = bool(member.get("acesso_aprovado", status == "aprovado"))
+    status, acesso_aprovado = _resolve_member_access(member)
     if status == "pendente" or not acesso_aprovado:
         raise HTTPException(status_code=403, detail="Aguardando aprovação")
 
