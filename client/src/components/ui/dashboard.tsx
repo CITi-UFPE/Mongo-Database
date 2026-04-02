@@ -112,7 +112,7 @@ const Dashboard = ({ data, onDateFilterChange, headerAction, headerStatusMessage
 
   return (
     <div className="bg-gradient-to-br from-[#0B1120] via-[#0D1929] to-[#0F172A] text-slate-100 min-h-screen">
-      <div className="sticky top-0 z-40 border-b border-slate-700/30 bg-slate-900/80 backdrop-blur-xl">
+      <div className="border-b border-slate-700/30 bg-slate-900/80 backdrop-blur-xl">
         <div className="container mx-auto px-4 py-4">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>

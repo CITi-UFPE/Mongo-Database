@@ -128,7 +128,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
       return;
     }
 
-    loadAnalytics();
+    loadAnalytics(getCurrentYearRange());
   }, [hasAnalyticsAccess, viewMode, accessLocked, loadAnalytics]);
 
   const handleSyncPipefy = useCallback(async () => {
