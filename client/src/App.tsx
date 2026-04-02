@@ -5,6 +5,7 @@ import axios from "axios";
 import Dashboard from "@/components/ui/dashboard";
 import { PipefySyncButton } from "@/components/ui/pipefy-sync-button";
 import { fetchAnalyticsPayload, getAnalyticsErrorMessage, type AnalyticsPayload } from "@/services/analytics";
+import type { DateRangeSelection, DateRangeValue } from "@/components/ui/date-filter";
 import { apiClient } from "@/services/api";
 import { useAuth } from "./context/AuthContext";
 import { canAccessAnalytics, isPendingAccess } from "./types/auth";
@@ -14,6 +15,14 @@ type SheetRow = Record<string, unknown>;
 
 interface AppProps {
   defaultViewMode?: ViewMode;
+}
+
+function getCurrentYearRange(): DateRangeSelection {
+  const now = new Date();
+  return {
+    from: new Date(now.getFullYear(), 0, 1),
+    to: new Date(now.getFullYear(), 11, 31),
+  };
 }
 
 function getPipefySyncErrorMessage(error: unknown): string {
@@ -36,12 +45,31 @@ function getPipefySyncErrorMessage(error: unknown): string {
   return "Falha ao sincronizar com o Pipefy. Tente novamente.";
 }
 
+function parseBRLToNumber(input: string): number | null {
+  const text = (input || "").trim();
+  if (!text) return null;
+
+  const normalized = text
+    .replace(/R\$/gi, "")
+    .replace(/\s+/g, "")
+    .replace(/\./g, "")
+    .replace(/,/g, ".");
+
+  const value = Number(normalized);
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return value;
+}
+
 export default function App({ defaultViewMode = "planilha" }: AppProps) {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const hasAnalyticsAccess = canAccessAnalytics(user);
   const accessLocked = isPendingAccess(user);
   const isAdmin = Boolean(user?.is_admin && user?.acesso_aprovado && user?.status === "Aprovado");
+  const canSeeManualRevenueAction = hasAnalyticsAccess;
   const [viewMode, setViewMode] = useState<ViewMode>(hasAnalyticsAccess ? defaultViewMode : "planilha");
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
@@ -54,6 +82,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
   const [loadingSheets, setLoadingSheets] = useState(false);
   const [loadingRows, setLoadingRows] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRangeSelection>(getCurrentYearRange);
 
   useEffect(() => {
     if (!hasAnalyticsAccess && viewMode === "dashboard") {
@@ -61,11 +90,15 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
     }
   }, [hasAnalyticsAccess, viewMode]);
 
-  const loadAnalytics = useCallback(async () => {
+  const loadAnalytics = useCallback(async (range?: DateRangeSelection) => {
+    const activeRange = range ?? dateRange;
     setLoadingAnalytics(true);
     setAnalyticsError(null);
     try {
-      const payload = await fetchAnalyticsPayload();
+      const payload = await fetchAnalyticsPayload({
+        data_inicio: activeRange.from,
+        data_fim: activeRange.to,
+      });
       setData(payload);
     } catch (error) {
       setData(null);
@@ -73,7 +106,15 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
     } finally {
       setLoadingAnalytics(false);
     }
-  }, []);
+  }, [dateRange]);
+
+  const handleDateFilterChange = useCallback((_range: DateRangeValue, dates?: DateRangeSelection) => {
+    if (!dates) {
+      return;
+    }
+    setDateRange(dates);
+    loadAnalytics(dates);
+  }, [loadAnalytics]);
 
   useEffect(() => {
     if (accessLocked) {
@@ -109,6 +150,56 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
       setIsSyncing(false);
     }
   }, [isSyncing, loadAnalytics]);
+
+  const handleAddManualRevenue = useCallback(async () => {
+    if (!isAdmin) {
+      window.alert("Somente administradores podem lançar faturamento manual.");
+      return;
+    }
+
+    const rawValue = window.prompt("Digite o valor manual para somar ao faturamento (ex: 15000 ou 15.000,00):");
+    if (!rawValue) {
+      return;
+    }
+
+    const valor = parseBRLToNumber(rawValue);
+    if (!valor) {
+      window.alert("Valor inválido. Informe um número positivo.");
+      return;
+    }
+
+    const descricao = window.prompt("Descrição do lançamento manual (opcional):", "Entrada fora do Pipefy") ?? "";
+    const today = new Date();
+    const defaultDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const dataReferencia = window.prompt("Data de referência (YYYY-MM-DD):", defaultDate) ?? defaultDate;
+
+    const token = localStorage.getItem("authToken");
+
+    try {
+      await apiClient.post(
+        "/api/analytics/manual-faturamento",
+        {
+          valor,
+          descricao,
+          data_referencia: dataReferencia,
+        },
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+        }
+      );
+
+      await loadAnalytics();
+      setSyncMessage("Lançamento manual adicionado ao faturamento com sucesso.");
+    } catch (error) {
+      const message = axios.isAxiosError(error)
+        ? (typeof error.response?.data?.detail === "string" ? error.response.data.detail : "Falha ao lançar faturamento manual.")
+        : "Falha ao lançar faturamento manual.";
+      setSyncMessage(message);
+      window.alert(message);
+    }
+  }, [isAdmin, loadAnalytics]);
 
   useEffect(() => {
     let cancelled = false;
@@ -237,6 +328,15 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            {hasAnalyticsAccess ? (
+              <button
+                onClick={handleAddManualRevenue}
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-700/70 bg-emerald-900/40 px-4 py-2 text-sm text-emerald-100 transition hover:bg-emerald-800/60"
+                title="Adicionar faturamento manual"
+              >
+                + Faturamento Manual
+              </button>
+            ) : null}
             {isAdmin ? (
               <button
                 onClick={() => navigate("/admin")}
@@ -289,7 +389,21 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
             {data ? (
               <Dashboard
                 data={data}
-                headerAction={<PipefySyncButton isSyncing={isSyncing} onClick={handleSyncPipefy} />}
+                onDateFilterChange={handleDateFilterChange}
+                headerAction={
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canSeeManualRevenueAction ? (
+                      <button
+                        onClick={handleAddManualRevenue}
+                        className="inline-flex items-center gap-2 rounded-xl border border-emerald-700/70 bg-emerald-900/40 px-3 py-2 text-xs text-emerald-100 transition hover:bg-emerald-800/60"
+                        title="Adicionar faturamento manual"
+                      >
+                        + Faturamento Manual
+                      </button>
+                    ) : null}
+                    <PipefySyncButton isSyncing={isSyncing} onClick={handleSyncPipefy} />
+                  </div>
+                }
                 headerStatusMessage={syncMessage}
               />
             ) : null}

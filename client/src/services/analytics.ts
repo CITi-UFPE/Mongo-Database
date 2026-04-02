@@ -29,6 +29,7 @@ export interface AnalyticsPayload {
   funil: AnalyticsFunnelItem[];
   origem_leads: Array<{ origem: string; quantidade: number; }>;
   distribuicao_servicos: Array<{ servico: string; quantidade: number; }>;
+  motivos_perda?: Array<{ motivo: string; quantidade: number; }>;
   tempo_estagio?: Array<{ fase: string; dias_medios: number; }>; 
 }
 

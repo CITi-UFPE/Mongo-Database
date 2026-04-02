@@ -3,7 +3,9 @@ import json
 import re
 import traceback
 from typing import Optional
+from datetime import date
 from fastapi import APIRouter, Query, Header, HTTPException
+from pydantic import BaseModel, Field
 from services.db import db_client
 from services import analytics_service
 from services.pipefy_sync import sync_pipefy_to_mongo
@@ -19,6 +21,12 @@ except ImportError:
     performPrediction = None
 
 router = APIRouter(tags=["analytics"])
+
+
+class ManualFaturamentoInput(BaseModel):
+    valor: float = Field(..., gt=0)
+    descricao: str = ""
+    data_referencia: Optional[str] = None
 
 
 def _normalize_email(value: str | None) -> str:
@@ -142,6 +150,45 @@ def _assert_user_can_view_analytics(authorization: str | None) -> None:
         raise HTTPException(status_code=403, detail="Aguardando aprovação")
 
 
+def _resolve_member_from_authorization(authorization: str | None) -> tuple[dict, dict]:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token não fornecido")
+
+    token = authorization.split("Bearer ", 1)[1].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Token não fornecido")
+
+    try:
+        payload = decode_jwt(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+    user_email = _normalize_email(payload.get("email")) if isinstance(payload, dict) else ""
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+    members_col = _resolve_members_collection()
+    if members_col is None:
+        raise HTTPException(status_code=500, detail="Base de dados indisponível")
+
+    member = _find_member_by_email(members_col, user_email)
+    if not member:
+        raise HTTPException(status_code=403, detail="Acesso não autorizado")
+
+    status, acesso_aprovado = _resolve_member_access(member)
+    if status == "pendente" or not acesso_aprovado:
+        raise HTTPException(status_code=403, detail="Aguardando aprovação")
+
+    return payload, member
+
+
+def _assert_admin_user(authorization: str | None) -> dict:
+    payload, member = _resolve_member_from_authorization(authorization)
+    if not bool(member.get("is_admin")):
+        raise HTTPException(status_code=403, detail="Apenas administradores podem lançar faturamento manual")
+    return payload
+
+
 def _safe_text(value, default: str = "") -> str:
     if isinstance(value, str): return value
     if value is None: return default
@@ -159,7 +206,8 @@ def _default_overview_payload():
     return {
         "total_leads": 0, "qualificados": 0, "nao_qualificados": 0,
         "valor_pipeline": 0.0, "total_perdidos": 0, "valor_perdido": 0.0,
-        "previsao_faturamento": {"cenario_20": 0.0, "cenario_25": 0.0, "cenario_35": 0.0},
+        "faturamento_manual": 0.0,
+        "previsao_faturamento": {"pipeline_total": 0.0, "previsao_realista": 0.0},
         "ticket_medio": 0.0, "taxa_conversao": 0.0,
         "progresso_meta": {"faturado": 0.0, "meta": 0.0, "porcentagem": 0.0, "falta_faturar": 0.0},
         "funil": [], "origem_leads": [], "distribuicao_servicos": [], "motivos_perda": [],
@@ -173,7 +221,7 @@ def _build_overview_payload(data_inicio: Optional[str] = None, data_fim: Optiona
     info_leads = analytics_service.get_leads_qualificados(data_inicio=data_inicio, data_fim=data_fim)
     if not isinstance(info_leads, dict): info_leads = {}
     qualificados = _safe_int(info_leads.get("qualificados", 0), 0)
-    total_leads = _safe_int(info_leads.get("total", 0), 0)
+    total_leads = _safe_int(analytics_service.get_total_leads_periodo(data_inicio=data_inicio, data_fim=data_fim), 0)
     nao_qualificados = max(total_leads - qualificados, 0)
 
     # 2. Taxas
@@ -195,9 +243,11 @@ def _build_overview_payload(data_inicio: Optional[str] = None, data_fim: Optiona
         for item in funil_raw if isinstance(item, dict)
     ]
 
-    # 🔥 5. META CALCULADA LOCALMENTE (Lendo do .env)
+    # 5. META CALCULADA COM FATURAMENTO REALIZADO (fases ganhas)
     meta = _safe_float(os.getenv("META_FATURAMENTO", 407000), 407000.0)
-    faturado = round(sum(item["total_valor"] for item in funil), 2)
+    faturamento_real = _safe_float(faturamento_info.get("faturamento", 0.0), 0.0)
+    faturamento_manual = _safe_float(analytics_service.get_total_faturamento_manual(data_inicio=data_inicio, data_fim=data_fim), 0.0)
+    faturado = round(faturamento_real + faturamento_manual, 2)
     porcentagem = round((faturado / meta) * 100) if meta > 0 else 0
     falta_faturar = max(meta - faturado, 0)
 
@@ -212,26 +262,23 @@ def _build_overview_payload(data_inicio: Optional[str] = None, data_fim: Optiona
     origem_leads = analytics_service.get_origem_dados(data_inicio=data_inicio, data_fim=data_fim)
     distribuicao_servicos = analytics_service.get_distribuicao_servicos(data_inicio=data_inicio, data_fim=data_fim)
     motivos_perda = analytics_service.get_motivos_perda(data_inicio=data_inicio, data_fim=data_fim)
+    resumo_perdas = analytics_service.get_resumo_perdas(data_inicio=data_inicio, data_fim=data_fim)
     tempo_estagio = analytics_service.get_tempo_por_estagio()
-
-    def _is_lost_phase(phase_value):
-        phase = _safe_text(phase_value).lower()
-        return ("perd" in phase or "desqual" in phase or "lost" in phase or "cancel" in phase)
-
-    total_lost = sum(item["count"] for item in funil if _is_lost_phase(item.get("fase")))
-    total_lost_value = round(sum(item["total_valor"] for item in funil if _is_lost_phase(item.get("fase"))), 2)
+    total_lost = _safe_int(resumo_perdas.get("total_perdidos", 0), 0)
+    total_lost_value = _safe_float(resumo_perdas.get("valor_perdido", 0.0), 0.0)
 
     payload = {
         "total_leads": total_leads,
         "qualificados": qualificados,
         "nao_qualificados": nao_qualificados,
-        "valor_pipeline": faturado,
+        "valor_pipeline": round(sum(item["total_valor"] for item in funil), 2),
         "total_perdidos": total_lost,
         "valor_perdido": total_lost_value,
+        "faturamento_manual": round(faturamento_manual, 2),
         "previsao_faturamento": previsao_detalhada,
         "ticket_medio": ticket_medio,
         "taxa_conversao": taxa_conversao,
-        "progresso_meta": progresso_meta, # 🟢 Meta local embutida!
+        "progresso_meta": progresso_meta,
         "funil": funil,
         "origem_leads": origem_leads,
         "distribuicao_servicos": distribuicao_servicos,
@@ -252,6 +299,11 @@ async def get_overview(
     try:
         _assert_user_can_view_analytics(Authorization)
 
+        if not data_inicio and not data_fim:
+            current_year = date.today().year
+            data_inicio = f"{current_year}-01-01"
+            data_fim = f"{current_year}-12-31"
+
         if refresh_pipefy:
             sync_pipefy()
         payload = _build_overview_payload(data_inicio=data_inicio, data_fim=data_fim)
@@ -270,6 +322,37 @@ async def trigger_sync():
         return sync_pipefy()
     except Exception as e:
         return {"ok": False, "synced": 0, "reason": f"error: {str(e)}"}
+
+
+@router.post("/manual-faturamento")
+async def add_manual_faturamento(
+    payload: ManualFaturamentoInput,
+    Authorization: str | None = Header(None),
+):
+    user_payload = _assert_admin_user(Authorization)
+    created_by = _normalize_email(user_payload.get("email")) if isinstance(user_payload, dict) else None
+
+    created = analytics_service.add_faturamento_manual(
+        valor=payload.valor,
+        descricao=payload.descricao,
+        data_referencia=payload.data_referencia,
+        criado_por=created_by,
+    )
+
+    return {"ok": True, "manual": created}
+
+
+@router.get("/manual-faturamento")
+async def list_manual_faturamento(
+    data_inicio: Optional[str] = Query(None),
+    data_fim: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    Authorization: str | None = Header(None),
+):
+    _assert_user_can_view_analytics(Authorization)
+    items = analytics_service.list_faturamento_manual(data_inicio=data_inicio, data_fim=data_fim, limit=limit)
+    total = analytics_service.get_total_faturamento_manual(data_inicio=data_inicio, data_fim=data_fim)
+    return {"ok": True, "total": total, "items": items}
 
 def get_mock_kpis():
     return {
