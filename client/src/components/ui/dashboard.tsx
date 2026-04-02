@@ -16,8 +16,8 @@ import { StageTimeMetrics } from "./stage-time-metrics";
 import { LostLeadsBreakdown } from "./lost-leads-breakdown";
 import { DateFilter } from "./date-filter";
 import type { DateRangeSelection, DateRangeValue } from "./date-filter";
-import { FunnelChart } from "./funnel-chart";
 import { LeadSourcesChart } from "./lead-sources-chart";
+import { ServiceDistributionChart } from "./service-distribution-chart";
 import { InsightsCard } from "./insights-card";
 import type { AnalyticsPayload, AnalyticsFunnelItem } from "../../services/analytics";
 
@@ -43,7 +43,7 @@ const Dashboard = ({ data, onDateFilterChange, headerAction, headerStatusMessage
 
   const totalLeads = data.total_leads;
   const valorPipeline = data.valor_pipeline;
-  const faturamentoTotal = data.previsao_faturamento.pipeline_total;
+  const faturamentoTotal = data.progresso_meta.faturado;
   const funnelStages = data.funil.map((item: AnalyticsFunnelItem, index: number) => ({
     name: item.fase,
     count: item.count,
@@ -87,14 +87,14 @@ const Dashboard = ({ data, onDateFilterChange, headerAction, headerStatusMessage
       color: FUNNEL_COLORS[index % FUNNEL_COLORS.length],
     }));
 
-  const lossPhases = data.funil.filter((item) => /(perd|desqual|lost|cancel)/i.test(item.fase));
   const totalLost = data.total_perdidos;
   const totalLostValue = data.valor_perdido;
   const icons: Array<"price" | "time" | "competitor" | "other"> = ["price", "time", "competitor", "other"];
-  const lossReasons = (lossPhases.length ? lossPhases : [{ fase: "Sem perdas mapeadas", count: 0, total_valor: 0 }]).map((item, index) => ({
-    reason: item.fase,
-    count: item.count,
-    percentage: totalLost > 0 ? Math.round((item.count / totalLost) * 100) : 0,
+  const motivosPerda = (data.motivos_perda ?? []).filter((item) => item.quantidade > 0);
+  const lossReasons = (motivosPerda.length ? motivosPerda : [{ motivo: "Sem perdas mapeadas", quantidade: 0 }]).map((item, index) => ({
+    reason: item.motivo,
+    count: item.quantidade,
+    percentage: totalLost > 0 ? Math.round((item.quantidade / totalLost) * 100) : 0,
     icon: icons[index % icons.length],
   }));
 
@@ -233,12 +233,11 @@ const Dashboard = ({ data, onDateFilterChange, headerAction, headerStatusMessage
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-blue-600/15 to-cyan-600/10 border border-blue-500/30 rounded-2xl p-5 backdrop-blur-sm">
               <h3 className="text-sm font-semibold text-blue-200 mb-4">✦ Análise de Clusters (IA)</h3>
-              <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <FunnelChart stages={funnelStages} />
+              <section className="grid grid-cols-1 gap-4">
                 <LeadSourcesChart data={leadSourcesData} title="Origem dos Leads" />
               </section>
               <section className="grid grid-cols-1 gap-4 mt-4">
-                <LeadSourcesChart data={serviceDistributionData} title="Distribuição por Tipo de Serviço" />
+                <ServiceDistributionChart data={serviceDistributionData} title="Distribuição por Tipo de Serviço" />
               </section>
             </div>
             <LostLeadsBreakdown

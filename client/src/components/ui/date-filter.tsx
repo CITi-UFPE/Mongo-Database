@@ -15,7 +15,7 @@ interface DateFilterProps {
 }
 
 export function DateFilter({ onChange, className }: DateFilterProps) {
-  const [selectedRange, setSelectedRange] = useState<DateRange>("month");
+  const [selectedRange, setSelectedRange] = useState<DateRange>("year");
   const [customFrom, setCustomFrom] = useState<string>("");
   const [customTo, setCustomTo] = useState<string>("");
 

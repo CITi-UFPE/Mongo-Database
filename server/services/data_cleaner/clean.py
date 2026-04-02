@@ -49,6 +49,14 @@ def get_valor_proposta(fields: List[Dict]) -> Any:
     return None
 
 
+def _get_field_value_by_keywords(fields: List[Dict], keywords: List[str]) -> Any:
+    for field in fields:
+        field_name = str(field.get("name", "")).strip().lower()
+        if any(keyword in field_name for keyword in keywords):
+            return _limpar_string_pipefy(field.get("value"))
+    return None
+
+
 def get_responsavel(node: Dict) -> str:
     for field in node.get("fields", []):
         if "responsável" in field.get("name", "").lower():
@@ -119,6 +127,10 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
             "Valor": smart_currency_clean(get_valor_proposta(fields)),
             "Fase Atual": node.get("current_phase", {}).get("name"),
             "Responsável": get_responsavel(node),
+            "Origem do Lead": _get_field_value_by_keywords(fields, ["origem do lead", "fonte do lead", "origem", "fonte"]),
+            "Serviços": _get_field_value_by_keywords(fields, ["servi", "tipo de servi", "servico"]),
+            "Motivo da Perda": _get_field_value_by_keywords(fields, ["motivo da perda", "motivo perda"]),
+            "Autoridade": _get_field_value_by_keywords(fields, ["autoridade"]),
             "Data de Qualificação": _pipefy_datetime_to_iso_date(node.get("created_at")),
             "Data de Criação": node.get("created_at"),
             "Data de Atualização": node.get("updated_at"),
