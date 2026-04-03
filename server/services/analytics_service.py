@@ -111,12 +111,19 @@ def _is_closed_lost_phase(phase_name: object) -> bool:
 
 
 def _is_forecastable_phase(phase_name: object) -> bool:
+    normalized = _normalize_phase_text(phase_name)
+    if not normalized:
+        return False
+        
+    # Trava de segurança: se já estiver ganho ou perdido, não entra na previsão
+    if _is_closed_won_phase(normalized) or _is_closed_lost_phase(normalized):
+        return False
+
+    # Pega apenas as fases de negociação e fechado/fechamento
     return _phase_contains_any(
-        phase_name,
-        ["proposta", "negoci", "apresent", "orcament", "follow"],
+        normalized,
+        ["negoci", "fechad", "fechament"]
     )
-
-
 def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> int:
     """
     Conta o número de leads com alto potencial de fechamento
