@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { BarChart3, Lightbulb } from "lucide-react";
+import { BarChart3, Lightbulb, Code2, Palette, Database } from "lucide-react";
 
 interface ServiceDistributionItem {
   name: string;
@@ -40,34 +40,63 @@ export function ServiceDistributionChart({
   const hasData = chartData.length > 0;
   const maxValue = Math.max(1, ...chartData.map((item) => item.value));
 
-  // --- LÓGICA DO INSIGHT INTELIGENTE ---
-  const getInsight = () => {
-    // Busca o primeiro item que não seja "Outros"
-    const topService = normalized.find(item => item.name.toLowerCase() !== 'outros');
-    if (!topService) return null;
+  // --- LÓGICA DE AGRUPAMENTO (CLUSTERS) PARA O INSIGHT ---
+  const getGroupedInsight = () => {
+    if (normalized.length === 0) return null;
 
-    const name = topService.name.toLowerCase();
-    let category = "soluções personalizadas";
-    let message = "apresenta uma demanda latente e alta taxa de interesse.";
+    // Inicializamos os contadores das áreas
+    let stats = {
+      dev: { total: 0, label: "Desenvolvimento (Dev)", icon: <Code2 className="w-4 h-4 text-blue-400" /> },
+      design: { total: 0, label: "Design & UX", icon: <Palette className="w-4 h-4 text-pink-400" /> },
+      dados: { total: 0, label: "Data Intelligence", icon: <Database className="w-4 h-4 text-cyan-400" /> }
+    };
 
-    if (name.includes("desenvolvimento") || name.includes("dev") || name.includes("web") || name.includes("mobile") || name.includes("institucional")) {
-      category = "Desenvolvimento (Dev)";
-      message = "é o pilar central de captação, indicando forte maturidade digital dos leads que buscam sua empresa.";
-    } else if (name.includes("ux") || name.includes("ui") || name.includes("design") || name.includes("discovery")) {
-      category = "Design & Produto";
-      message = "demonstra que seu mercado valoriza a experiência do usuário e a validação de ideias como diferenciais competitivos.";
-    } else if (name.includes("dados") || name.includes("ciência") || name.includes("análise") || name.includes("engenharia")) {
-      category = "Data Intelligence";
-      message = "revela uma audiência qualificada que busca decisões baseadas em evidências e otimização de performance.";
-    }
+    normalized.forEach(item => {
+      const name = item.name.toLowerCase();
+      // Lógica de Soma por Cluster
+      if (name.includes("desenvolvimento") || name.includes("dev") || name.includes("site") || name.includes("institucional") || name.includes("mobile")) {
+        stats.dev.total += item.value;
+      } else if (name.includes("ux") || name.includes("ui") || name.includes("design") || name.includes("discovery")) {
+        stats.design.total += item.value;
+      } else if (name.includes("dados") || name.includes("ciência") || name.includes("análise") || name.includes("engenharia") || name.includes("data")) {
+        stats.dados.total += item.value;
+      }
+    });
+
+    // Descobrimos qual área ganhou na soma total
+    const winnerKey = (Object.keys(stats) as Array<keyof typeof stats>).reduce((a, b) => 
+      stats[a].total > stats[b].total ? a : b
+    );
+    
+    const winner = stats[winnerKey];
+
+    // Textos personalizados por área campeã
+    const messages = {
+      dev: "Sua operação possui um perfil focado em construção e escala tecnológica. A alta demanda por desenvolvimento indica que seus leads buscam transformar ideias em produtos robustos e prontos para o mercado.",
+      design: "O foco em UX/UI e Discovery revela que sua empresa é percebida como uma parceira estratégica de produto. Seus clientes priorizam a validação e a experiência do usuário antes da codificação.",
+      dados: "A área de Dados é o seu maior motor de atração. Isso demonstra um posicionamento premium, onde os leads buscam inteligência competitiva, automação e decisões baseadas em evidências."
+    };
 
     return (
-      <div className="mt-6 flex items-start gap-3 p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
-        <Lightbulb className="h-5 w-5 text-cyan-400 shrink-0 mt-0.5" />
-        <p className="text-sm text-slate-300 leading-relaxed">
-          <strong className="text-cyan-300">{topService.name}</strong> ({category}) é o serviço mais requisitado. Esta tendência indica que sua marca é autoridade nesta área, atraindo leads com alto potencial de conversão.
-          <span className="block mt-1 text-xs text-slate-400 italic">{message}</span>
-        </p>
+      <div className="mt-8 p-5 rounded-2xl bg-slate-900/50 border border-white/5 backdrop-blur-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <Lightbulb className="h-5 w-5 text-yellow-400 animate-pulse" />
+          <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Insight de Performance</span>
+        </div>
+        
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+            {winner.icon}
+          </div>
+          <div>
+            <p className="text-sm text-slate-200 leading-relaxed">
+              A área de <strong className="text-white">{winner.label}</strong> é o seu principal pilar comercial atualmente, somando <span className="text-cyan-400 font-bold">{winner.total} leads</span> qualificados.
+            </p>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+              {messages[winnerKey]}
+            </p>
+          </div>
+        </div>
       </div>
     );
   };
@@ -99,9 +128,9 @@ export function ServiceDistributionChart({
                     </span>
                     <span className="text-cyan-200 font-semibold">{item.value}</span>
                   </div>
-                  <div className="h-2.5 rounded-full bg-slate-900/70 overflow-hidden border border-slate-700/50">
+                  <div className="h-2 rounded-full bg-slate-900/70 overflow-hidden border border-slate-700/50">
                     <div
-                      className="h-full rounded-full transition-all duration-700 ease-out"
+                      className="h-full rounded-full transition-all duration-1000 ease-in-out"
                       style={{ 
                         width: `${width}%`, 
                         backgroundColor: isOther ? "hsl(215, 15%, 50%)" : BAR_COLORS[index % BAR_COLORS.length] 
@@ -113,8 +142,8 @@ export function ServiceDistributionChart({
             })}
           </div>
           
-          {/* Renderização do Insight */}
-          {getInsight()}
+          {/* Insight Baseado na Soma dos Clusters */}
+          {getGroupedInsight()}
         </>
       ) : (
         <div className="h-[260px] flex items-center justify-center text-sm text-slate-400 border border-dashed border-slate-600 rounded-xl bg-slate-900/30">
