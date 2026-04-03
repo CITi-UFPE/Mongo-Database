@@ -1,15 +1,12 @@
 import re
 from typing import List, Dict, Any, Union
 
-
 COLUNAS_FINAIS = ["Pipefy_ID", "Nome do Cliente", "Valor", "Fase Atual", "Responsável"]
-
 
 def _limpar_string_pipefy(valor: Any) -> Union[str, Any]:
     if isinstance(valor, str) and valor.startswith('["'):
         return valor.replace('["', "").replace('"]', "").replace('"', "").replace("\\", "")
     return valor
-
 
 def load_data_from_payload(payload: Any) -> List[Dict]:
     if payload is None:
@@ -41,26 +38,11 @@ def load_data_from_payload(payload: Any) -> List[Dict]:
 
     return []
 
-
 def get_valor_proposta(fields: List[Dict]) -> Any:
-    # Criamos um dicionário para mapear o que achamos
-    achados = {}
-    
     for field in fields:
-        nome = field.get("name", "").lower()
-        valor = field.get("value")
-        if not valor: continue
-
-        # Identificamos os campos sem parar o loop no primeiro
-        if "final" in nome or "negociação" in nome:
-            achados['final'] = valor
-        elif any(p in nome for p in ["valor", "proposta", "estimado", "ticket"]):
-            achados['estimado'] = valor
-
-    # PRIORIDADE: Se tiver o final, usa. Se não, usa o estimado. 
-    # Se não tiver nenhum, retorna 0.0 mas mantém o lead (para não sumir do gráfico)
-    return achados.get('final') or achados.get('estimado') or "0"
-
+        if "valor da proposta" in field.get("name", "").lower():
+            return _limpar_string_pipefy(field.get("value"))
+    return None
 
 def _get_field_value_by_keywords(fields: List[Dict], keywords: List[str]) -> Any:
     for field in fields:
@@ -68,7 +50,6 @@ def _get_field_value_by_keywords(fields: List[Dict], keywords: List[str]) -> Any
         if any(keyword in field_name for keyword in keywords):
             return _limpar_string_pipefy(field.get("value"))
     return None
-
 
 def get_responsavel(node: Dict) -> str:
     for field in node.get("fields", []):
@@ -80,7 +61,6 @@ def get_responsavel(node: Dict) -> str:
         return ", ".join([p.get("name", "") for p in assignees if isinstance(p, dict)])
 
     return "Não informado"
-
 
 def smart_currency_clean(val: Any) -> float:
     if not val:
@@ -112,7 +92,6 @@ def smart_currency_clean(val: Any) -> float:
     except ValueError:
         return 0.0
 
-
 def _pipefy_datetime_to_iso_date(value: Any) -> Union[str, None]:
     if not value:
         return None
@@ -125,7 +104,6 @@ def _pipefy_datetime_to_iso_date(value: Any) -> Union[str, None]:
         return text[:10]
 
     return None
-
 
 def process_data(raw_data: List[Dict]) -> List[Dict]:
     processed: List[Dict] = []
@@ -152,7 +130,5 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
 
     return processed
 
-
 def clean_pipefy_payload(payload: Any) -> List[Dict]:
     return process_data(load_data_from_payload(payload))
-
