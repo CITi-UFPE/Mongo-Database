@@ -43,12 +43,23 @@ def load_data_from_payload(payload: Any) -> List[Dict]:
 
 
 def get_valor_proposta(fields: List[Dict]) -> Any:
+    # Criamos um dicionário para mapear o que achamos
+    achados = {}
+    
     for field in fields:
-        nome_campo = field.get("name", "").lower()
-        # Ampliamos a busca para achar o dinheiro, não importa como esteja escrito no Pipefy
-        if any(palavra in nome_campo for palavra in ["valor", "proposta", "estimado", "ticket"]):
-            return _limpar_string_pipefy(field.get("value"))
-    return None
+        nome = field.get("name", "").lower()
+        valor = field.get("value")
+        if not valor: continue
+
+        # Identificamos os campos sem parar o loop no primeiro
+        if "final" in nome or "negociação" in nome:
+            achados['final'] = valor
+        elif any(p in nome for p in ["valor", "proposta", "estimado", "ticket"]):
+            achados['estimado'] = valor
+
+    # PRIORIDADE: Se tiver o final, usa. Se não, usa o estimado. 
+    # Se não tiver nenhum, retorna 0.0 mas mantém o lead (para não sumir do gráfico)
+    return achados.get('final') or achados.get('estimado') or "0"
 
 
 def _get_field_value_by_keywords(fields: List[Dict], keywords: List[str]) -> Any:
