@@ -44,7 +44,9 @@ def load_data_from_payload(payload: Any) -> List[Dict]:
 
 def get_valor_proposta(fields: List[Dict]) -> Any:
     for field in fields:
-        if "valor da proposta" in field.get("name", "").lower():
+        nome_campo = field.get("name", "").lower()
+        # Ampliamos a busca para achar o dinheiro, não importa como esteja escrito no Pipefy
+        if any(palavra in nome_campo for palavra in ["valor", "proposta", "estimado", "ticket"]):
             return _limpar_string_pipefy(field.get("value"))
     return None
 
@@ -127,9 +129,10 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
             "Valor": smart_currency_clean(get_valor_proposta(fields)),
             "Fase Atual": node.get("current_phase", {}).get("name"),
             "Responsável": get_responsavel(node),
-            "Origem do Lead": _get_field_value_by_keywords(fields, ["origem do lead", "fonte do lead", "origem", "fonte"]),
-            "Serviços": _get_field_value_by_keywords(fields, ["servi", "tipo de servi", "servico"]),
-            "Motivo da Perda": _get_field_value_by_keywords(fields, ["motivo da perda", "motivo perda"]),
+            
+            "Origem do Lead": _get_field_value_by_keywords(fields, ["origem do lead", "fonte do lead", "origem", "fonte", "origem","canal", "indicação" ]),
+            "Serviços": _get_field_value_by_keywords(fields, ["serviço de interesse", "serviço", "interesse", "produto", "servi" ]),
+            "Motivo da Perda": _get_field_value_by_keywords(fields, ["motivo da perda", "motivo", "perda", "lost", "razão", "Motivo da Perda"]),
             "Autoridade": _get_field_value_by_keywords(fields, ["autoridade"]),
             "Data de Qualificação": _pipefy_datetime_to_iso_date(node.get("created_at")),
             "Data de Criação": node.get("created_at"),
