@@ -98,6 +98,11 @@ const Dashboard = ({ data, onDateFilterChange, headerAction, headerStatusMessage
     icon: icons[index % icons.length],
   }));
 
+  // Pega os nomes das fases ativas que vieram da API e junta com vírgulas
+  const fasesAtivas = data.funil.length > 0 
+    ? data.funil.map(item => item.fase).join(", ") 
+    : "Nenhuma fase ativa";
+
   const insights = [
     { type: "info" as const, message: `Taxa de conversão atual: ${data.taxa_conversao.toFixed(1)}%` },
     {
@@ -106,7 +111,8 @@ const Dashboard = ({ data, onDateFilterChange, headerAction, headerStatusMessage
     },
     {
       type: "warning" as const,
-      message: `${totalLeads.toLocaleString("pt-BR")} leads no funil com potencial de ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(valorPipeline)}`,
+      // 👇 Texto alterado para exibir qualificados + nomes das fases
+      message: `${data.qualificados} leads ativos distribuídos nas fases: ${fasesAtivas}.`,
     },
   ];
 
@@ -148,9 +154,9 @@ const Dashboard = ({ data, onDateFilterChange, headerAction, headerStatusMessage
 
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
-            title="Leads no Funil"
-            value={totalLeads.toLocaleString("pt-BR")}
-            subtitle="Dados da API"
+            title="Leads Ativos" // 👇 Título atualizado
+            value={data.qualificados.toLocaleString("pt-BR")} // 👇 Mostrando apenas os ativos
+            subtitle={`De ${totalLeads} capturados no total`} // 👇 Exibindo o bruto no subtítulo
             icon={<Users className="w-5 h-5" />}
             variant="highlight"
             className="border-blue-400/50 bg-gradient-to-br from-blue-600/20 to-cyan-600/10"
