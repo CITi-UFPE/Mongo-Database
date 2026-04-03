@@ -124,13 +124,13 @@ def _is_forecastable_phase(phase_name: object) -> bool:
         normalized,
         ["negoci", "fechad", "fechament"]
     )
-def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> int:
+def get_leads_qualificados(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> dict:
     """
-    Conta o número de leads com alto potencial de fechamento
+    Conta o número de leads qualificados ativos.
     
-    Regra de Negóci:
-    1. O 'valor' da proposta já está definido e é maior que o limite estipulado (Ex: > 10000.0).
-    2. OU o 'budget_estimado' informado é diferente de "< R$10.000,00".
+    Regra de Negócio:
+    1. O lead não pode estar em fase 'Ganho' ou 'Perdido'.
+    2. O 'valor_estimado' preenchido precisa ser maior que zero.
     """
     try:
         col_leads = db_client.get_collection('leads')
@@ -160,11 +160,10 @@ def get_leads_qualificados(limite_valor: float = 10000.0, data_inicio: Optional[
         return {"qualificados": qualificados, "total": total_ativos}
     except Exception as e:
         return {"qualificados": 0, "total": 0}
-
 def get_previsao_faturamento(fator_conversao: float = 0.25, data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> float:
     try:
         col_leads = db_client.get_collection('leads')
-        col_fases = db_client.get_collection('fase_funils') # CORRIGIDO
+        col_fases = db_client.get_collection('fase_funils') 
         if col_leads is None or col_fases is None: return 0.0
         
         fases_docs = list(col_fases.find({}, {"_id": 1, "nome_fase": 1}))
@@ -176,13 +175,18 @@ def get_previsao_faturamento(fator_conversao: float = 0.25, data_inicio: Optiona
         total_bruto = 0.0
         for lead in leads:
             nome_fase = _lead_phase_name(lead, fase_map, "")
+            
+            # Se a fase for de previsão (negociação/fechado)
             if _is_forecastable_phase(nome_fase):
-                try: total_bruto += float(lead.get("valor_estimado") or 0.0)
+                try: 
+                    valor = float(lead.get("valor_estimado") or 0.0)
+                    # Só entra na soma se o valor for maior que zero
+                    if valor > 0:
+                        total_bruto += valor
                 except: pass
 
         return total_bruto * fator_conversao
     except Exception: return 0.0
-
 
 def get_total_leads_periodo(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> int:
     """Conta todos os leads do período, independentemente de fase."""
