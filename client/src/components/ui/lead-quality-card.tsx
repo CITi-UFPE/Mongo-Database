@@ -5,6 +5,8 @@ interface LeadQualityData {
   qualificados: number;
   naoQualificados: number;
   outros: number;
+  regraQualificacao?: string; // Adicionado
+  regraNaoQualificacao?: string; // Adicionado
 }
 
 interface LeadQualityCardProps {
@@ -39,11 +41,13 @@ export function LeadQualityCard({ data, className }: LeadQualityCardProps) {
       <div className="mt-3 pt-3 border-t border-slate-600/30 text-xs text-slate-400 space-y-1">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-emerald-400" />
-          <span><strong>Qualificado:</strong> Orçamento ≥ R$ 10.000</span>
+          {/* 👇 Texto agora é dinâmico ou mostra o novo padrão */}
+          <span><strong>Qualificado:</strong> {data.regraQualificacao || "Leads em fases ativas do funil"}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-orange-400" />
-          <span><strong>Não qualificado:</strong> Abaixo do orçamento mínimo</span>
+          {/* 👇 Texto agora é dinâmico */}
+          <span><strong>Não qualificado:</strong> {data.regraNaoQualificacao || "Leads sem movimentação ou perdidos"}</span>
         </div>
       </div>
     </div>
