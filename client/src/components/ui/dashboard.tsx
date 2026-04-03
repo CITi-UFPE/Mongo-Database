@@ -112,7 +112,11 @@ const Dashboard = ({ data, onDateFilterChange, headerAction, headerStatusMessage
     {
       type: "warning" as const,
       // 👇 Texto alterado para exibir qualificados + nomes das fases
-      message: `${data.qualificados} leads ativos distribuídos nas fases: ${fasesAtivas}.`,
+     message: `${data.qualificados} leads ativos com potencial de ${new Intl.NumberFormat("pt-BR", { 
+        style: "currency", 
+        currency: "BRL", 
+        maximumFractionDigits: 0 
+      }).format(valorPipeline)}`,
     },
   ];
 
