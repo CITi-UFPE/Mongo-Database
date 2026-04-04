@@ -55,10 +55,12 @@ class MongoDB:
         if configured_name:
             return configured_name
 
+        reserved_db_names = {"admin", "local", "config"}
+
         try:
             parsed = urlparse(mongo_uri)
             db_from_path = (parsed.path or "").lstrip("/").split("/", 1)[0].strip()
-            if db_from_path:
+            if db_from_path and db_from_path.lower() not in reserved_db_names:
                 return db_from_path
         except Exception:
             pass
