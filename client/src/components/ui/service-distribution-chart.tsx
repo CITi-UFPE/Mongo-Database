@@ -90,7 +90,7 @@ export function ServiceDistributionChart({
           </div>
           <div>
             <p className="text-sm text-slate-200 leading-relaxed">
-              A área de <strong className="text-white">{winner.label}</strong> é o seu principal pilar comercial atualmente, somando <span className="text-cyan-400 font-bold">{winner.total} leads</span> qualificados.
+              A área de <strong className="text-white">{winner.label}</strong> é o seu principal pilar comercial atualmente, somando <span className="text-cyan-400 font-bold">{winner.total} leads</span> registrados.
             </p>
             <p className="text-xs text-slate-400 mt-2 leading-relaxed">
               {messages[winnerKey]}

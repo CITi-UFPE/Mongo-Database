@@ -38,18 +38,32 @@ def load_data_from_payload(payload: Any) -> List[Dict]:
 
     return []
 
-def get_valor_proposta(fields: List[Dict]) -> Any:
-    for field in fields:
-        if "valor da proposta" in field.get("name", "").lower():
-            return _limpar_string_pipefy(field.get("value"))
-    return None
-
 def _get_field_value_by_keywords(fields: List[Dict], keywords: List[str]) -> Any:
     for field in fields:
         field_name = str(field.get("name", "")).strip().lower()
         if any(keyword in field_name for keyword in keywords):
             return _limpar_string_pipefy(field.get("value"))
     return None
+
+# 👇 FUNÇÃO ATUALIZADA COM AS 3 PRIORIDADES
+def get_valor_correto(fields: List[Dict], fase_atual: str) -> Any:
+    fase_lower = str(fase_atual).lower() if fase_atual else ""
+
+    # Se a fase indicar que foi ganho/finalizado
+    if any(palavra in fase_lower for palavra in ["ganho", "finaliz", "won", "fechado"]):
+        
+        # Prioridade 1: Valor do contrato
+        valor_contrato = _get_field_value_by_keywords(fields, ["valor de contrato", "valor do contrato", "valor fechado"])
+        if valor_contrato is not None and str(valor_contrato).strip() != "":
+            return valor_contrato
+            
+        # Prioridade 2: Valor final de negociação
+        valor_negociacao = _get_field_value_by_keywords(fields, ["valor final de negociação", "valor final", "negociação"])
+        if valor_negociacao is not None and str(valor_negociacao).strip() != "":
+            return valor_negociacao
+
+    # Prioridade 3 / Fallback: Usa a proposta (seja porque não é ganho, ou porque os campos acima estavam vazios)
+    return _get_field_value_by_keywords(fields, ["valor da proposta", "valor proposta"])
 
 def get_responsavel(node: Dict) -> str:
     for field in node.get("fields", []):
@@ -111,12 +125,14 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
     for item in raw_data:
         node = item.get("node", item) if isinstance(item, dict) else {}
         fields = node.get("fields", [])
+        
+        fase_atual = node.get("current_phase", {}).get("name")
 
         processed.append({
             "Pipefy_ID": node.get("id"),
             "Nome do Cliente": node.get("title"),
-            "Valor": smart_currency_clean(get_valor_proposta(fields)),
-            "Fase Atual": node.get("current_phase", {}).get("name"),
+            "Valor": smart_currency_clean(get_valor_correto(fields, fase_atual)),
+            "Fase Atual": fase_atual,
             "Responsável": get_responsavel(node),
             
             "Origem do Lead": _get_field_value_by_keywords(fields, ["origem do lead", "fonte do lead", "origem", "fonte", "origem","canal", "indicação" ]),
