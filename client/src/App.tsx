@@ -139,8 +139,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
     setSyncMessage(null);
     setIsSyncing(true);
     try {
-      await apiClient.post("https://mongo-database-backend.onrender.com/api/integrations/pipefy/sync");
-      await loadAnalytics();
+      await apiClient.post("https://mongo-database-backend.onrender.com/api/integrations/pipefy/sync", {});
       setSyncMessage("Sincronização concluída e dados atualizados.");
     } catch (error) {
       const message = getPipefySyncErrorMessage(error);
