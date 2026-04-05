@@ -45,8 +45,7 @@ def _get_field_value_by_keywords(fields: List[Dict], keywords: List[str]) -> Any
             return _limpar_string_pipefy(field.get("value"))
     return None
 
-# 👇 FUNÇÃO ATUALIZADA COM AS 3 PRIORIDADES
-
+# 👇 FUNÇÃO ATUALIZADA COM AS 3 PRIORIDADES CORRIGIDAS (SEM BLOQUEIO DE FASE)
 def get_valor_correto(fields: List[Dict], fase_atual: str, cliente_nome: str) -> Any:
     fase_lower = str(fase_atual).lower() if fase_atual else ""
 
@@ -77,6 +76,18 @@ def get_valor_correto(fields: List[Dict], fase_atual: str, cliente_nome: str) ->
     v_inicial = _get_field_value_by_keywords(fields, ["valor estimado", "valor"])
     print(f"[DEBUG] Não achou Contrato, Negociação ou Proposta. Usando Valor Inicial: {v_inicial}")
     return v_inicial
+
+def get_responsavel(node: Dict) -> str:
+    for field in node.get("fields", []):
+        if "responsável" in field.get("name", "").lower():
+            return str(_limpar_string_pipefy(field.get("value")))
+
+    assignees = node.get("assignees", [])
+    if assignees:
+        return ", ".join([p.get("name", "") for p in assignees if isinstance(p, dict)])
+
+    return "Não informado"
+
 def smart_currency_clean(val: Any) -> float:
     if not val:
         return 0.0
