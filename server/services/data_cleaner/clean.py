@@ -47,36 +47,53 @@ def _get_field_value_by_keywords(fields: List[Dict], keywords: List[str]) -> Any
 
 # 👇 FUNÇÃO ATUALIZADA COM AS 3 PRIORIDADES CORRIGIDAS (SEM BLOQUEIO DE FASE)
 def get_valor_correto(fields: List[Dict], fase_atual: str, cliente_nome: str) -> Any:
-    fase_lower = str(fase_atual).lower() if fase_atual else ""
+    val_contrato = None
+    val_negociacao = None
+    val_proposta = None
+    val_inicial = None
 
-    # DEBUG: Vamos ver todos os campos que estão chegando para este cliente
-    nomes_dos_campos = [str(f.get("name", "")).strip().lower() for f in fields]
-    print(f"\n[DEBUG] Cliente: {cliente_nome} | Fase: {fase_atual}")
-    print(f"[DEBUG] Campos disponíveis: {nomes_dos_campos}")
-
-    # Prioridade 1: Valor do contrato (Maior peso, preenchido quando fecha/ganha)
-    v_contrato = _get_field_value_by_keywords(fields, ["valor de contrato", "valor do contrato", "valor fechado", "contrato"])
-    if v_contrato is not None and smart_currency_clean(v_contrato) > 0:
-        print(f"[DEBUG] Achou Prioridade 1 (Contrato válido): {v_contrato}")
-        return v_contrato
+    # 1. BUSCA AGRESSIVA: Varremos os campos tirando acentos e espaços para evitar bugs do Pipefy
+    for f in fields:
+        name_raw = str(f.get("name", "")).strip().lower()
+        # Limpamos os acentos para a busca não falhar
+        name_clean = name_raw.replace("ã", "a").replace("ç", "c").replace("õ", "o").replace("á", "a")
+        val = f.get("value")
         
-    # Prioridade 2: Valor final de negociação (Usado muito na fase de Negociação e Fechado)
-    v_negociacao = _get_field_value_by_keywords(fields, ["valor final de negociação", "valor final", "negociação", "negociado"])
-    if v_negociacao is not None and smart_currency_clean(v_negociacao) > 0:
-        print(f"[DEBUG] Achou Prioridade 2 (Negociação válida): {v_negociacao}")
-        return v_negociacao
-        
-    # Prioridade 3: Usa a Proposta
-    v_proposta = _get_field_value_by_keywords(fields, ["valor da proposta", "valor proposta"])
-    if v_proposta is not None and smart_currency_clean(v_proposta) > 0:
-        print(f"[DEBUG] Achou Prioridade 3 (Proposta válida): {v_proposta}")
-        return v_proposta
+        # Mapeando os valores encontrados nas imagens
+        if "contrato" in name_clean:
+            val_contrato = val
+        elif "negociacao" in name_clean or "valor final" in name_clean:
+            val_negociacao = val
+        elif "proposta" in name_clean:
+            val_proposta = val
+        elif "estimado" in name_clean or name_clean == "valor":
+            val_inicial = val
 
-    # SE CHEGOU AQUI: Significa que todos os valores acima eram "0,00" ou estavam em branco.
-    # Se os campos existem no Pipefy mas o vendedor botou zero, vamos respeitar e retornar ZERO.
-    if v_contrato is not None or v_negociacao is not None or v_proposta is not None:
-        print(f"[DEBUG] Os campos de prioridade existem, mas estão zerados. Retornando 0.")
+    # O Log agora vai te mostrar exatamente o que ele conseguiu extrair de cada campo!
+    print(f"\n[DEBUG] Cliente: {cliente_nome}")
+    print(f"[DEBUG] Valores extraídos do Pipefy -> Contrato: '{val_contrato}' | Negociação: '{val_negociacao}' | Proposta: '{val_proposta}'")
+
+    # 2. LÓGICA DE PRIORIDADES: Da esquerda para a direita
+    if val_contrato is not None and smart_currency_clean(val_contrato) > 0:
+        print(f"[DEBUG] -> Escolheu Prioridade 1: Contrato")
+        return val_contrato
+        
+    if val_negociacao is not None and smart_currency_clean(val_negociacao) > 0:
+        print(f"[DEBUG] -> Escolheu Prioridade 2: Negociação")
+        return val_negociacao
+        
+    if val_proposta is not None and smart_currency_clean(val_proposta) > 0:
+        print(f"[DEBUG] -> Escolheu Prioridade 3: Proposta")
+        return val_proposta
+
+    # 3. LÓGICA DO ZERADO: Se preencheu com zero, retorna 0.0 para não somar no pipeline
+    if val_contrato is not None or val_negociacao is not None or val_proposta is not None:
+        print(f"[DEBUG] -> Campos existem, mas estão zerados. Retornando 0.0")
         return 0.0
+
+    # 4. FALLBACK: Pega o inicial se o card for muito novo e não tiver os outros
+    print(f"[DEBUG] -> Usando valor inicial de fallback: {val_inicial}")
+    return val_inicial if val_inicial is not None else 0.0
 
     # Prioridade 4 (Fallback): Se os campos acima nem existirem no card, pega o Valor Inicial
     v_inicial = _get_field_value_by_keywords(fields, ["valor estimado", "valor"])
