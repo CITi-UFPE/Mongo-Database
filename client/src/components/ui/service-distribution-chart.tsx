@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { BarChart3, Lightbulb, Code2, Palette, Database } from "lucide-react";
+import { ResponsiveContainer, Treemap, Tooltip } from "recharts";
 
 interface ServiceDistributionItem {
   name: string;
@@ -12,16 +13,98 @@ interface ServiceDistributionChartProps {
   className?: string;
 }
 
-const BAR_COLORS = [
-  "hsl(199, 89%, 48%)",
-  "hsl(174, 72%, 56%)",
-  "hsl(160, 72%, 50%)",
-  "hsl(45, 93%, 58%)",
-  "hsl(262, 83%, 58%)",
-  "hsl(20, 88%, 60%)",
-  "hsl(340, 82%, 60%)",
-  "hsl(210, 90%, 62%)",
+const SERVICE_COLORS = [
+  "#2dd4bf",
+  "#3b82f6",
+  "#22c55e",
+  "#facc15",
+  "#8b5cf6",
+  "#2dd4bf",
+  "#f97316",
+  "#ec4899",
 ];
+
+const ROOT_COLOR = "#111827";
+
+type TreemapNode = ServiceDistributionItem & {
+  color: string;
+  children?: TreemapNode[];
+  [key: string]: string | number | TreemapNode[] | undefined;
+};
+
+function splitServiceName(name: string) {
+  const trimmed = name.trim();
+  if (trimmed.length <= 14) {
+    return [trimmed];
+  }
+
+  const words = trimmed.split(/\s+/);
+  if (words.length === 1) {
+    return [trimmed.slice(0, 14), trimmed.slice(14)];
+  }
+
+  const midpoint = Math.ceil(words.length / 2);
+  const firstLine = words.slice(0, midpoint).join(" ");
+  const secondLine = words.slice(midpoint).join(" ");
+
+  return secondLine ? [firstLine, secondLine] : [trimmed];
+}
+
+function renderTreemapNode(props: any) {
+  const { x, y, width, height, name, value, color, depth } = props;
+
+  if (depth === 0 || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  const isSmall = width < 110 || height < 70;
+  const fontSize = isSmall ? 12 : 14;
+  const lines = splitServiceName(String(name));
+  const showValue = width > 120 && height > 64;
+  const labelY = y + height / 2 - (showValue ? 10 : 6);
+
+  return (
+    <g>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        rx={10}
+        ry={10}
+        fill={color}
+        stroke={ROOT_COLOR}
+        strokeWidth={2}
+      />
+      <text
+        x={x + width / 2}
+        y={labelY}
+        textAnchor="middle"
+        fill="#ffffff"
+        fontSize={fontSize}
+        fontWeight={700}
+        dominantBaseline="middle"
+        stroke="none"
+        strokeWidth={0}
+        style={{ textShadow: "none" }}
+      >
+        <tspan x={x + width / 2} dy="0" stroke="none" strokeWidth={0}>
+          {lines[0]}
+        </tspan>
+        {lines[1] ? (
+          <tspan x={x + width / 2} dy="14" fontWeight={700} stroke="none" strokeWidth={0}>
+            {lines[1]}
+          </tspan>
+        ) : null}
+        {showValue ? (
+          <tspan x={x + width / 2} dy="14" fontWeight={700} fontSize={Math.max(11, fontSize - 1)} stroke="none" strokeWidth={0}>
+            {value}
+          </tspan>
+        ) : null}
+      </text>
+    </g>
+  );
+}
 
 export function ServiceDistributionChart({
   data,
@@ -38,7 +121,17 @@ export function ServiceDistributionChart({
 
   const chartData = othersTotal > 0 ? [...topItems, { name: "Outros", value: othersTotal }] : topItems;
   const hasData = chartData.length > 0;
-  const maxValue = Math.max(1, ...chartData.map((item) => item.value));
+  const treemapData: TreemapNode[] = [
+    {
+      name: "Total",
+      value: chartData.reduce((acc, item) => acc + item.value, 0),
+      color: ROOT_COLOR,
+      children: chartData.map((item, index) => ({
+        ...item,
+        color: item.name === "Outros" ? "#475569" : SERVICE_COLORS[index % SERVICE_COLORS.length],
+      })),
+    },
+  ];
 
   // --- LÓGICA DE AGRUPAMENTO (CLUSTERS) PARA O INSIGHT ---
   const getGroupedInsight = () => {
@@ -115,38 +208,35 @@ export function ServiceDistributionChart({
       
       {hasData ? (
         <>
-          <div className="space-y-4">
-            {chartData.map((item, index) => {
-              const width = Math.max(8, Math.round((item.value / maxValue) * 100));
-              const isOther = item.name === "Outros";
-              
-              return (
-                <div key={item.name} className="space-y-2">
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className={cn("text-slate-100 truncate", isOther && "text-slate-400")}>
-                      {item.name}
-                    </span>
-                    <span className="text-cyan-200 font-semibold">{item.value}</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-900/70 overflow-hidden border border-slate-700/50">
-                    <div
-                      className="h-full rounded-full transition-all duration-1000 ease-in-out"
-                      style={{ 
-                        width: `${width}%`, 
-                        backgroundColor: isOther ? "hsl(215, 15%, 50%)" : BAR_COLORS[index % BAR_COLORS.length] 
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+          <div className="h-[360px] w-full overflow-hidden rounded-2xl border border-slate-700/60 bg-transparent">
+            <ResponsiveContainer width="100%" height="100%">
+              <Treemap
+                data={treemapData as any}
+                dataKey="value"
+                aspectRatio={4 / 3}
+                stroke={ROOT_COLOR}
+                content={renderTreemapNode}
+              >
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: ROOT_COLOR,
+                    border: "1px solid rgba(34, 211, 238, 0.35)",
+                    borderRadius: "12px",
+                    color: "#f8fafc",
+                  }}
+                  labelStyle={{ color: "#67e8f9", fontWeight: 600 }}
+                  itemStyle={{ color: "#e2e8f0" }}
+                  formatter={(value: number, name: string) => [value, name]}
+                />
+              </Treemap>
+            </ResponsiveContainer>
           </div>
           
           {/* Insight Baseado na Soma dos Clusters */}
           {getGroupedInsight()}
         </>
       ) : (
-        <div className="h-[260px] flex items-center justify-center text-sm text-slate-400 border border-dashed border-slate-600 rounded-xl bg-slate-900/30">
+        <div className="h-[360px] flex items-center justify-center text-sm text-slate-400 border border-dashed border-slate-600 rounded-xl bg-slate-900/30">
           Sem dados suficientes para exibir este gráfico.
         </div>
       )}
