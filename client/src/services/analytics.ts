@@ -120,7 +120,7 @@ export async function fetchAnalyticsPayload(params?: AnalyticsQueryParams): Prom
   // 1. Pegamos o token que foi salvo lá no Login
   const token = localStorage.getItem("authToken");
 
-  const response = await apiClient.get("/api/analytics/overview/", {
+  const response = await apiClient.get("/api/analytics/overview", {
     params: {
       refresh_pipefy: params?.refresh_pipefy ?? false,
       data_inicio: dataInicio,
