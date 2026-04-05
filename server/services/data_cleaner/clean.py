@@ -52,28 +52,28 @@ def get_valor_correto(fields: List[Dict], fase_atual: str, cliente_nome: str) ->
     val_proposta = None
     val_inicial = None
 
-    # 1. BUSCA AGRESSIVA: Varremos os campos tirando acentos e espaços para evitar bugs do Pipefy
+    # 1. BUSCA BLINDADA
     for f in fields:
         name_raw = str(f.get("name", "")).strip().lower()
-        # Limpamos os acentos para a busca não falhar
         name_clean = name_raw.replace("ã", "a").replace("ç", "c").replace("õ", "o").replace("á", "a")
         val = f.get("value")
         
-        # Mapeando os valores encontrados nas imagens
-        if "contrato" in name_clean:
-            val_contrato = val
-        elif "negociacao" in name_clean or "valor final" in name_clean:
-            val_negociacao = val
-        elif "proposta" in name_clean:
-            val_proposta = val
-        elif "estimado" in name_clean or name_clean == "valor":
-            val_inicial = val
+        # SÓ SALVA se o campo não estiver vazio. Assim um campo em branco não apaga o que já achamos!
+        if val is not None and str(val).strip() != "":
+            # Exigimos a palavra "valor" junto para não pegar campos de texto como "resumo da negociação"
+            if "valor" in name_clean and ("contrato" in name_clean or "fechado" in name_clean):
+                val_contrato = val
+            elif ("valor" in name_clean and "negociacao" in name_clean) or "valor final" in name_clean:
+                val_negociacao = val
+            elif "valor" in name_clean and "proposta" in name_clean:
+                val_proposta = val
+            elif "estimado" in name_clean or name_clean == "valor":
+                val_inicial = val
 
-    # O Log agora vai te mostrar exatamente o que ele conseguiu extrair de cada campo!
     print(f"\n[DEBUG] Cliente: {cliente_nome}")
-    print(f"[DEBUG] Valores extraídos do Pipefy -> Contrato: '{val_contrato}' | Negociação: '{val_negociacao}' | Proposta: '{val_proposta}'")
+    print(f"[DEBUG] Valores extraídos -> Contrato: '{val_contrato}' | Negociação: '{val_negociacao}' | Proposta: '{val_proposta}'")
 
-    # 2. LÓGICA DE PRIORIDADES: Da esquerda para a direita
+    # 2. LÓGICA DE PRIORIDADES
     if val_contrato is not None and smart_currency_clean(val_contrato) > 0:
         print(f"[DEBUG] -> Escolheu Prioridade 1: Contrato")
         return val_contrato
@@ -86,19 +86,14 @@ def get_valor_correto(fields: List[Dict], fase_atual: str, cliente_nome: str) ->
         print(f"[DEBUG] -> Escolheu Prioridade 3: Proposta")
         return val_proposta
 
-    # 3. LÓGICA DO ZERADO: Se preencheu com zero, retorna 0.0 para não somar no pipeline
+    # 3. LÓGICA DO ZERADO
     if val_contrato is not None or val_negociacao is not None or val_proposta is not None:
         print(f"[DEBUG] -> Campos existem, mas estão zerados. Retornando 0.0")
         return 0.0
 
-    # 4. FALLBACK: Pega o inicial se o card for muito novo e não tiver os outros
+    # 4. FALLBACK
     print(f"[DEBUG] -> Usando valor inicial de fallback: {val_inicial}")
     return val_inicial if val_inicial is not None else 0.0
-
-    # Prioridade 4 (Fallback): Se os campos acima nem existirem no card, pega o Valor Inicial
-    v_inicial = _get_field_value_by_keywords(fields, ["valor estimado", "valor"])
-    print(f"[DEBUG] Não achou Contrato, Negociação ou Proposta. Usando Valor Inicial: {v_inicial}")
-    return v_inicial
 def get_responsavel(node: Dict) -> str:
     for field in node.get("fields", []):
         if "responsável" in field.get("name", "").lower():
