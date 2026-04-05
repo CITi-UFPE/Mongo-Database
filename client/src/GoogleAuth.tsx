@@ -84,10 +84,11 @@ export default function GoogleAuth() {
       });
 
       const jwtToken = resolveJwtToken(res.data);
+      const responseUser = res.data.user as { email?: string } | null;
 
       console.log("🔵 [GoogleAuth] 3. Resposta do servidor:", res.status);
       console.log("🔵 [GoogleAuth] 4. Token recebido:", jwtToken?.substring(0, 30));
-      console.log("🔵 [GoogleAuth] 5. User recebido:", res.data.user?.email);
+      console.log("🔵 [GoogleAuth] 5. User recebido:", responseUser?.email);
 
       if (!jwtToken) {
         console.error("❌ [GoogleAuth] Sem token na resposta!");
