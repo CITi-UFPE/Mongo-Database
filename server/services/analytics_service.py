@@ -309,11 +309,46 @@ def get_distribuicao_servicos(data_inicio: Optional[str] = None, data_fim: Optio
         return resultado
     except Exception: return []
 
+def _clusterizar_motivo(motivo_bruto: str) -> str:
+    """Função auxiliar para padronizar e agrupar os motivos de perda/desqualificação."""
+    texto = str(motivo_bruto).lower().strip()
+
+    if not texto or texto == "none" or texto == "não informado":
+        return "Não informado"
+
+    # 1. Agrupando todos os que "Sumiram"
+    if "sumiu" in texto or "no-response" in texto:
+        return "Lead sumiu (No-Response)"
+
+    # 2. Agrupando todos os "Sem Fit Técnico"
+    if "fit" in texto or "inviável" in texto:
+        return "Sem fit técnico"
+
+    # 3. Agrupando "Preço / Orçamento"
+    if "preço" in texto or "caro" in texto or "orçamento" in texto:
+        return "Preço (Fora do orçamento)"
+
+    # 4. Agrupando "Desistência"
+    if "desistiu" in texto or "interno" in texto:
+        return "Lead desistiu (Motivo interno)"
+        
+    # 5. Agrupando "Falta de Necessidade"
+    if "necessidade" in texto:
+        return "Falta de necessidade"
+
+    # 6. Agrupando textos gigantes (como a justificativa do edital)
+    if len(texto) > 45:
+        return "Timing / Outros motivos"
+
+    # Se não cair em nenhuma regra acima, retorna a primeira letra maiúscula para ficar bonito
+    return motivo_bruto.capitalize()
+
+
 def get_motivos_perda(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> List[Dict]:
     try:
         col_leads = db_client.get_collection('leads')
-        col_fases = db_client.get_collection('fase_funils') # CORRIGIDO
-        col_motivos = db_client.get_collection('motivos_perda') # NOVO: Mapeia os motivos!
+        col_fases = db_client.get_collection('fase_funils') 
+        col_motivos = db_client.get_collection('motivos_perda') 
         
         if col_leads is None or col_fases is None: return []
         
@@ -326,25 +361,49 @@ def get_motivos_perda(data_inicio: Optional[str] = None, data_fim: Optional[str]
             motivo_map = {str(m["_id"]): m.get("nome", m.get("motivo", "Desconhecido")) for m in motivos_docs}
 
         date_match = _build_date_match(data_inicio, data_fim)
-        leads = list(col_leads.find(date_match if date_match else {}, {"id_fase_atual": 1, "fase": 1, "motivo_perda": 1}))
+        
+        # ATENÇÃO AQUI: Adicionei os campos de "não qualificação" na busca do banco
+        leads = list(col_leads.find(
+            date_match if date_match else {}, 
+            {
+                "id_fase_atual": 1, 
+                "fase": 1, 
+                "motivo_perda": 1,
+                "motivo_da_nao_qualificacao": 1, 
+                "motivo_nao_qualificacao": 1
+            }
+        ))
         
         distribuicao = {}
         for lead in leads:
             nome_fase = _lead_phase_name(lead, fase_map, "").lower()
             
+            # Pega tanto os Perdidos quanto os Desqualificados
             if _is_closed_lost_phase(nome_fase):
-                motivo_id_ou_texto = str(lead.get("motivo_perda") or "Não informado").strip()
-                motivo_final = motivo_map.get(motivo_id_ou_texto, motivo_id_ou_texto)
                 
-                if not motivo_final: motivo_final = "Não informado"
+                # Tenta pegar o motivo da perda normal, se não achar, tenta pegar o de desqualificação
+                motivo_bruto = (
+                    lead.get("motivo_perda") or 
+                    lead.get("motivo_da_nao_qualificacao") or 
+                    lead.get("motivo_nao_qualificacao") or 
+                    "Não informado"
+                )
+                motivo_id_ou_texto = str(motivo_bruto).strip()
+                
+                # Traduz do banco de motivos (se for um ID)
+                motivo_resolvido = motivo_map.get(motivo_id_ou_texto, motivo_id_ou_texto)
+                
+                # Joga no nosso Clusterizador para juntar as palavras iguais
+                motivo_final = _clusterizar_motivo(motivo_resolvido)
+                
                 distribuicao[motivo_final] = distribuicao.get(motivo_final, 0) + 1
             
         resultado = [{"motivo": nome, "quantidade": qtd} for nome, qtd in distribuicao.items()]
         resultado.sort(key=lambda x: x["quantidade"], reverse=True)
         return resultado
-    except Exception: return []
-
-
+    except Exception as e: 
+        print(f"Erro em get_motivos_perda: {e}")
+        return []
 def get_resumo_perdas(data_inicio: Optional[str] = None, data_fim: Optional[str] = None) -> Dict[str, float]:
     """Retorna quantidade e valor total de leads em fases perdidas."""
     try:
