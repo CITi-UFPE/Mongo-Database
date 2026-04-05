@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Lightbulb } from "lucide-react"; // Adicionado Lightbulb
 
 interface LostReason {
   reason: string;
@@ -30,10 +30,34 @@ export function LostLeadsBreakdown({ total, reasons, totalValue, className }: Lo
   const hasData = chartData.length > 0;
   const maxValue = Math.max(1, ...chartData.map((item) => item.value));
 
+  // --- LÓGICA DO INSIGHT DINÂMICO ---
+  let topReasonName = "";
+  let topPercentage = 0;
+  let recommendedAction = "";
+
+  if (hasData && total > 0) {
+    const topReason = chartData[0];
+    topReasonName = topReason.name;
+    topPercentage = Math.round((topReason.value / total) * 100);
+
+    // Dicionário de ações corretivas
+    const actionsMap: Record<string, string> = {
+      "Lead sumiu (No-Response)": "Revise o SLA de resposta inicial e implemente réguas de follow-up multicanal (WhatsApp + Email).",
+      "Sem fit técnico": "Alinhe o Perfil de Cliente Ideal (ICP) com o Marketing para qualificar melhor a entrada.",
+      "Preço (Fora do orçamento)": "Ajuste o discurso para focar no Retorno sobre Investimento (ROI) ou revise o porte das empresas.",
+      "Lead desistiu (Motivo interno)": "Reforce a etapa de 'Implicação' nas calls para criar senso de urgência.",
+      "Falta de necessidade": "Mova esses contatos para um fluxo de nutrição de marketing para educá-los.",
+      "Timing / Outros motivos": "Coloque esses leads em um pipeline de 'Reengajamento' para retomada futura.",
+    };
+
+    recommendedAction = actionsMap[topReasonName] || "Reúna o time para mapear a causa raiz e ajustar o roteiro de vendas.";
+  }
+  // ----------------------------------
+
   return (
     <div
       className={cn(
-        "rounded-2xl bg-gradient-to-br from-slate-800/40 to-slate-900/30 backdrop-blur-md border border-cyan-500/30 p-5 hover:border-cyan-400/50 transition-all duration-300 shadow-lg",
+        "rounded-2xl bg-gradient-to-br from-slate-800/40 to-slate-900/30 backdrop-blur-md border border-cyan-500/30 p-5 hover:border-cyan-400/50 transition-all duration-300 shadow-lg flex flex-col h-full",
         className,
       )}
     >
@@ -45,7 +69,7 @@ export function LostLeadsBreakdown({ total, reasons, totalValue, className }: Lo
       </div>
 
       {hasData ? (
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 flex-grow">
           {chartData.map((item) => {
             const width = Math.max(8, Math.round((item.value / maxValue) * 100));
             return (
@@ -65,16 +89,33 @@ export function LostLeadsBreakdown({ total, reasons, totalValue, className }: Lo
           })}
         </div>
       ) : (
-        <div className="h-[280px] flex items-center justify-center text-sm text-slate-400 border border-dashed border-slate-600 rounded-xl bg-transparent">
+        <div className="h-[280px] flex items-center justify-center text-sm text-slate-400 border border-dashed border-slate-600 rounded-xl bg-transparent flex-grow">
           Sem dados suficientes para exibir este gráfico.
         </div>
       )}
 
-      <div className="mt-5 p-4 bg-gradient-to-r from-slate-900/35 to-slate-800/20 border border-cyan-400/20 rounded-xl backdrop-blur-sm shadow-lg">
+      {/* BLOCO DE INSIGHT DINÂMICO */}
+      {hasData && (
+        <div className="mt-5 p-3.5 bg-cyan-950/30 border border-cyan-500/20 rounded-xl">
+          <div className="flex items-start gap-2.5">
+            <Lightbulb className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-xs text-slate-200 leading-relaxed">
+                <span className="font-semibold text-cyan-300">{topReasonName}</span> representa <span className="font-bold text-amber-400">{topPercentage}%</span> das suas perdas neste período.
+              </p>
+              <p className="text-xs text-slate-400 mt-1.5 font-medium border-t border-cyan-500/20 pt-1.5">
+                <span className="text-cyan-400">Ação:</span> {recommendedAction}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 p-4 bg-gradient-to-r from-slate-900/35 to-slate-800/20 border border-cyan-400/20 rounded-xl backdrop-blur-sm shadow-lg">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm text-cyan-100 font-semibold">⚠️ Total de Leads Perdidos</p>
-            <p className="text-xs text-slate-300 mt-1">Ação necessária para recuperar oportunidades</p>
+            <p className="text-xs text-slate-300 mt-1">Impacto no pipeline atual</p>
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold text-cyan-200">{total}</p>
