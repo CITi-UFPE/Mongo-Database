@@ -36,6 +36,19 @@ const FUNNEL_COLORS = [
   "hsl(262, 83%, 58%)",
 ];
 
+const LEAD_SOURCE_COLORS = [
+  "#22d3ee",
+  "#3b82f6",
+  "#22c55e",
+  "#facc15",
+  "#8b5cf6",
+  "#2dd4bf",
+  "#f97316",
+  "#ec4899",
+  "#d946ef",
+  "#a3e635",
+];
+
 const TOTAL_PAGES = 2;
 
 const Dashboard = ({ data, onDateFilterChange, headerAction, headerStatusMessage }: DashboardProps) => {
@@ -76,7 +89,7 @@ const Dashboard = ({ data, onDateFilterChange, headerAction, headerStatusMessage
     .map((item, index) => ({
       name: item.origem,
       value: item.quantidade,
-      color: FUNNEL_COLORS[index % FUNNEL_COLORS.length],
+      color: LEAD_SOURCE_COLORS[index % LEAD_SOURCE_COLORS.length],
     }));
 
   const serviceDistributionData = data.distribuicao_servicos
