@@ -54,10 +54,10 @@ export function LeadSourcesChart({ data, title = "Origens de Leads", className }
   );
 
   return (
-    <div className={cn("rounded-2xl bg-[#111827] border border-slate-700/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)] transition-all duration-300 hover:border-cyan-400/40", className)}>
+    <div className={cn("rounded-2xl bg-gradient-to-br from-slate-800/40 to-slate-900/30 backdrop-blur-md border border-cyan-500/30 p-6 hover:border-cyan-400/50 transition-all duration-300 shadow-lg", className)}>
       <div className="flex items-center gap-2 mb-5">
         <BarChart3 className="h-5 w-5 text-cyan-300" />
-        <h3 className="text-xl font-semibold text-slate-100">{title}</h3>
+        <h3 className="text-xl font-semibold text-cyan-100">{title}</h3>
       </div>
       {hasData ? (
         <div className="flex flex-col gap-4">
@@ -66,7 +66,7 @@ export function LeadSourcesChart({ data, title = "Origens de Leads", className }
               <PieChart>
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "#111827",
+                    backgroundColor: "#0f172a",
                     border: "1px solid rgba(34, 211, 238, 0.35)",
                     borderRadius: "12px",
                     color: "#f8fafc",
@@ -87,7 +87,7 @@ export function LeadSourcesChart({ data, title = "Origens de Leads", className }
                   cornerRadius={4}
                   startAngle={90}
                   endAngle={450}
-                  stroke="#111827"
+                  stroke="#0f172a"
                   strokeWidth={2}
                 >
                   {chartData.map((item) => (
@@ -103,7 +103,7 @@ export function LeadSourcesChart({ data, title = "Origens de Leads", className }
           </div>
         </div>
       ) : (
-        <div className="h-[280px] flex items-center justify-center text-sm text-slate-400 border border-dashed border-slate-600 rounded-xl bg-slate-900/30">
+        <div className="h-[280px] flex items-center justify-center text-sm text-slate-400 border border-dashed border-slate-600 rounded-xl bg-transparent">
           Sem dados suficientes para exibir este gráfico.
         </div>
       )}
