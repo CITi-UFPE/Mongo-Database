@@ -46,23 +46,34 @@ def _get_field_value_by_keywords(fields: List[Dict], keywords: List[str]) -> Any
     return None
 
 # 👇 FUNÇÃO ATUALIZADA COM AS 3 PRIORIDADES
-def get_valor_correto(fields: List[Dict], fase_atual: str) -> Any:
+def get_valor_correto(fields: List[Dict], fase_atual: str, cliente_nome: str) -> Any:
     fase_lower = str(fase_atual).lower() if fase_atual else ""
 
+    # DEBUG: Vamos ver todos os campos que estão chegando para este cliente
+    nomes_dos_campos = [str(f.get("name", "")).strip().lower() for f in fields]
+    
     # Se a fase indicar que foi ganho/finalizado
-    if any(palavra in fase_lower for palavra in ["ganho", "finaliz", "won", "fechado"]):
+    if any(palavra in fase_lower for palavra in ["ganho", "finaliz", "won", "fechado", "assinado"]):
         
+        # DEBUG: Printa no terminal para você ver
+        print(f"\n[DEBUG] Cliente: {cliente_nome} | Fase: {fase_atual}")
+        print(f"[DEBUG] Campos disponíveis: {nomes_dos_campos}")
+
         # Prioridade 1: Valor do contrato
-        valor_contrato = _get_field_value_by_keywords(fields, ["valor de contrato", "valor do contrato", "valor fechado"])
+        valor_contrato = _get_field_value_by_keywords(fields, ["valor de contrato", "valor do contrato", "valor fechado", "contrato"])
         if valor_contrato is not None and str(valor_contrato).strip() != "":
+            print(f"[DEBUG] Achou Prioridade 1 (Contrato): {valor_contrato}")
             return valor_contrato
             
         # Prioridade 2: Valor final de negociação
-        valor_negociacao = _get_field_value_by_keywords(fields, ["valor final de negociação", "valor final", "negociação"])
+        valor_negociacao = _get_field_value_by_keywords(fields, ["valor final de negociação", "valor final", "negociação", "negociado"])
         if valor_negociacao is not None and str(valor_negociacao).strip() != "":
+            print(f"[DEBUG] Achou Prioridade 2 (Negociação): {valor_negociacao}")
             return valor_negociacao
+            
+        print("[DEBUG] Não achou nem Contrato nem Negociação. Vai cair para Proposta.")
 
-    # Prioridade 3 / Fallback: Usa a proposta (seja porque não é ganho, ou porque os campos acima estavam vazios)
+    # Prioridade 3 / Fallback: Usa a proposta
     return _get_field_value_by_keywords(fields, ["valor da proposta", "valor proposta"])
 
 def get_responsavel(node: Dict) -> str:
@@ -127,11 +138,11 @@ def process_data(raw_data: List[Dict]) -> List[Dict]:
         fields = node.get("fields", [])
         
         fase_atual = node.get("current_phase", {}).get("name")
+        nome_cliente = node.get("title", "Desconhecido")
 
         processed.append({
             "Pipefy_ID": node.get("id"),
-            "Nome do Cliente": node.get("title"),
-            "Valor": smart_currency_clean(get_valor_correto(fields, fase_atual)),
+            "Valor": smart_currency_clean(get_valor_correto(fields, fase_atual, nome_cliente)),"Nome do Cliente": nome_cliente,
             "Fase Atual": fase_atual,
             "Responsável": get_responsavel(node),
             
