@@ -57,26 +57,31 @@ def get_valor_correto(fields: List[Dict], fase_atual: str, cliente_nome: str) ->
     # Prioridade 1: Valor do contrato (Maior peso, preenchido quando fecha/ganha)
     v_contrato = _get_field_value_by_keywords(fields, ["valor de contrato", "valor do contrato", "valor fechado", "contrato"])
     if v_contrato is not None and smart_currency_clean(v_contrato) > 0:
-        print(f"[DEBUG] Achou Prioridade 1 (Contrato): {v_contrato}")
+        print(f"[DEBUG] Achou Prioridade 1 (Contrato válido): {v_contrato}")
         return v_contrato
         
     # Prioridade 2: Valor final de negociação (Usado muito na fase de Negociação e Fechado)
     v_negociacao = _get_field_value_by_keywords(fields, ["valor final de negociação", "valor final", "negociação", "negociado"])
     if v_negociacao is not None and smart_currency_clean(v_negociacao) > 0:
-        print(f"[DEBUG] Achou Prioridade 2 (Negociação): {v_negociacao}")
+        print(f"[DEBUG] Achou Prioridade 2 (Negociação válida): {v_negociacao}")
         return v_negociacao
         
     # Prioridade 3: Usa a Proposta
     v_proposta = _get_field_value_by_keywords(fields, ["valor da proposta", "valor proposta"])
     if v_proposta is not None and smart_currency_clean(v_proposta) > 0:
-        print(f"[DEBUG] Achou Prioridade 3 (Proposta): {v_proposta}")
+        print(f"[DEBUG] Achou Prioridade 3 (Proposta válida): {v_proposta}")
         return v_proposta
 
-    # Prioridade 4 (Fallback): Se tudo falhar ou estiver zerado, pega o Valor Inicial
+    # SE CHEGOU AQUI: Significa que todos os valores acima eram "0,00" ou estavam em branco.
+    # Se os campos existem no Pipefy mas o vendedor botou zero, vamos respeitar e retornar ZERO.
+    if v_contrato is not None or v_negociacao is not None or v_proposta is not None:
+        print(f"[DEBUG] Os campos de prioridade existem, mas estão zerados. Retornando 0.")
+        return 0.0
+
+    # Prioridade 4 (Fallback): Se os campos acima nem existirem no card, pega o Valor Inicial
     v_inicial = _get_field_value_by_keywords(fields, ["valor estimado", "valor"])
     print(f"[DEBUG] Não achou Contrato, Negociação ou Proposta. Usando Valor Inicial: {v_inicial}")
     return v_inicial
-
 def get_responsavel(node: Dict) -> str:
     for field in node.get("fields", []):
         if "responsável" in field.get("name", "").lower():
