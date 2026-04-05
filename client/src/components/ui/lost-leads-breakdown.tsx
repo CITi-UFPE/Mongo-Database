@@ -41,13 +41,14 @@ export function LostLeadsBreakdown({ total, reasons, totalValue, className }: Lo
     topPercentage = Math.round((topReason.value / total) * 100);
 
     // Dicionário de ações corretivas
+    // Dicionário de ações corretivas e insights estratégicos
     const actionsMap: Record<string, string> = {
-      "Lead sumiu (No-Response)": "Revise o SLA de resposta inicial e implemente réguas de follow-up multicanal (WhatsApp + Email).",
-      "Sem fit técnico": "Alinhe o Perfil de Cliente Ideal (ICP) com o Marketing para qualificar melhor a entrada.",
-      "Preço (Fora do orçamento)": "Ajuste o discurso para focar no Retorno sobre Investimento (ROI) ou revise o porte das empresas.",
-      "Lead desistiu (Motivo interno)": "Reforce a etapa de 'Implicação' nas calls para criar senso de urgência.",
-      "Falta de necessidade": "Mova esses contatos para um fluxo de nutrição de marketing para educá-los.",
-      "Timing / Outros motivos": "Coloque esses leads em um pipeline de 'Reengajamento' para retomada futura.",
+      "Lead sumiu (No-Response)": "Sumiços (ghosting) indicam perda de urgência. Analise em qual etapa ocorre o abandono (ex: após o envio da proposta?). Para evitar: exija micro-comprometimentos. Nunca encerre um contato sem o próximo passo ter data e hora marcadas na agenda (Acordo Prévio).",
+      "Sem fit técnico": "Alinhe o Perfil de Cliente Ideal (ICP) com o Marketing para qualificar melhor a entrada e evitar perda de tempo do time comercial.",
+      "Preço (Fora do orçamento)": "Ajuste o discurso para focar no Retorno sobre Investimento (ROI) e no custo da inação (o que o lead perde se não fechar).",
+      "Lead desistiu (Motivo interno)": "Reforce a etapa de 'Implicação' nas reuniões para criar senso de necessidade e ancorar o projeto em um decisor forte.",
+      "Falta de necessidade": "Mova esses contatos para um fluxo de nutrição de marketing para educá-los até que o momento de compra amadureça.",
+      "Timing / Outros motivos": "Coloque esses leads em um pipeline de 'Reengajamento' (ex: follow-up a cada 3 ou 6 meses) para retomada futura.",
     };
 
     recommendedAction = actionsMap[topReasonName] || "Reúna o time para mapear a causa raiz e ajustar o roteiro de vendas.";
