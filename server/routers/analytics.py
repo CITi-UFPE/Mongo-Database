@@ -397,3 +397,25 @@ async def get_crm_data():
 @router.get("/")
 async def analytics_health():
     return {"status": "ok"}
+
+@router.get("/auditoria-pipeline")
+async def auditoria_pipeline():
+    try:
+        db = db_client.get_db()
+        # Busca todos os leads do banco
+        todos_leads = list(db["leads"].find({}, {"_id": 0, "Nome do Cliente": 1, "Fase Atual": 1, "Valor": 1}))
+        
+        ativos = []
+        for lead in todos_leads:
+            fase = str(lead.get("Fase Atual", "")).lower()
+            # Ignora os ganhos e os perdidos, pegando só o que tá "rodando"
+            if not any(p in fase for p in ["ganho", "finaliz", "won", "fechado", "assinado", "perdido", "lost", "cancelado"]):
+                ativos.append(lead)
+                
+        return {
+            "total_leads_ativos": len(ativos),
+            "soma_potencial": sum(l.get("Valor", 0) for l in ativos),
+            "lista_detalhada": ativos
+        }
+    except Exception as e:
+        return {"erro": "Falha ao auditar banco", "detalhe": str(e)}
