@@ -37,9 +37,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  if (isPendingAccess(user)) {
-    return <Navigate to="/pending" replace />;
-  }
+  
 
   return <>{children}</>;
 }
@@ -50,11 +48,7 @@ function AdminAnalyticsRoute({ children }: { children: React.ReactNode }) {
   if (isLoading) return null;
   if (!isAuthenticated) return <Navigate to="/" replace />;
 
-  if (!canAccessAnalytics(user)) {
-    window.alert("Acesso Negado");
-    return <Navigate to="/home" replace />;
-  }
-
+  
   return <>{children}</>;
 }
 
@@ -65,10 +59,8 @@ function OnboardingRoute({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) return <Navigate to="/" replace />;
 
   if (!user?.onboarding_required && user?.status !== "Nao Cadastrado") {
-    if (isPendingAccess(user)) {
-      return <Navigate to="/pending" replace />;
-    }
-    return <Navigate to="/home" replace />;
+    // Se não precisa de onboarding, vai direto pros gráficos!
+    return <Navigate to="/analytics" replace />; 
   }
 
   return <>{children}</>;

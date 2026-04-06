@@ -41,8 +41,8 @@ axiosInstance.interceptors.request.use((config) => {
   const hasAuthorizationHeader = Boolean(config.headers && 'Authorization' in config.headers);
 
   if (token && !hasAuthorizationHeader) {
-    config.headers = config.headers ?? {};
-    config.headers['Authorization'] = `Bearer ${token}`;
+    // Ao invés de usar os colchetes, use o método set() nativo do Axios
+    config.headers.set('Authorization', `Bearer ${token}`);
   }
 
   // ✅ Garante que o navegador não faz preflight de credenciais desnecessariamente

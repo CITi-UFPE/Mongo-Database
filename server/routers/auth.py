@@ -540,9 +540,9 @@ async def register_profile(payload: dict = Body(...), Authorization: str | None 
             "position": cargo,
             "department": departamento,
             "departamento": departamento,
-            "status": "Pendente",
-            "acesso_aprovado": False,
-            "permissao_nivel": None,
+            "status": "Aprovado",       # ✅ Já salva como Aprovado
+            "acesso_aprovado": True,    # ✅ Já libera o acesso
+            "permissao_nivel": "Ambos", # ✅ (Opcional) Já dá permissão total para ver os dados!
         }
 
         if existing:
@@ -556,13 +556,13 @@ async def register_profile(payload: dict = Body(...), Authorization: str | None 
             saved = membros_col.find_one({"_id": inserted.inserted_id})
 
         response_user = _build_user_response(saved, auth_user)
-        response_user["status"] = "Pendente"
-        response_user["acesso_aprovado"] = False
+        response_user["status"] = "Aprovado"    # ✅
+        response_user["acesso_aprovado"] = True # ✅
         response_user["onboarding_required"] = False
 
         return {
             "ok": True,
-            "message": "Cadastro enviado para aprovação",
+            "message": "Cadastro aprovado automaticamente!", # ✅
             "user": response_user,
         }
     except HTTPException:

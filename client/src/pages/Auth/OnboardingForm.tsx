@@ -38,7 +38,7 @@ export default function OnboardingForm() {
         departamento,
       });
       await refreshUser();
-      navigate("/pending", { replace: true });
+      navigate("/analytics", { replace: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Não foi possível enviar o cadastro.";
       setError(message);
@@ -74,7 +74,7 @@ export default function OnboardingForm() {
       <form onSubmit={submit} className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900/80 p-6 space-y-4">
         <div>
           <h1 className="text-2xl font-bold">Primeiro acesso</h1>
-          <p className="text-slate-300 mt-2">Complete seu cadastro para enviar solicitação de acesso.</p>
+          <p className="text-slate-300 mt-2">Acessar Dashboard</p>
           <p className="text-slate-400 text-sm mt-1">Usuário: {user.email}</p>
         </div>
 
