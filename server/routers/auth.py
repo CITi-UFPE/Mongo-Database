@@ -536,6 +536,7 @@ async def register_profile(payload: dict = Body(...), Authorization: str | None 
         doc_payload = {
             "email": user_email,
             "nome": user_name or user_email,
+            "username": user_email.split("@")[0],
             "role": cargo,
             "position": cargo,
             "department": departamento,
