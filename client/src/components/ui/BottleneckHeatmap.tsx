@@ -91,7 +91,7 @@ export const BottleneckHeatmap: React.FC<BottleneckHeatmapProps> = ({
     <div className="space-y-6">
       {/* Alertas de Gargalo Crítico */}
       {criticalBottlenecks.length > 0 && (
-        <Card className="bg-gradient-to-r from-red-950/40 via-slate-800 to-slate-900 border border-red-500/40 shadow-2xl shadow-red-500/10">
+        <Card className="bg-linear-to-r from-red-950/40 via-slate-800 to-slate-900 border border-red-500/40 shadow-2xl shadow-red-500/10">
           <CardContent className="p-6">
             <div className="flex items-start gap-4">
               <div className="p-3 rounded-lg bg-red-500/20">
@@ -125,7 +125,7 @@ export const BottleneckHeatmap: React.FC<BottleneckHeatmapProps> = ({
       )}
 
       {/* Heatmap Principal */}
-      <Card className="bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 border border-orange-500/20 shadow-2xl">
+      <Card className="bg-linear-to-br from-slate-800 via-slate-800 to-slate-900 border border-orange-500/20 shadow-2xl">
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-orange-500/20">
