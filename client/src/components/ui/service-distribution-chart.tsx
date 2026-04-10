@@ -72,7 +72,29 @@ export function ServiceDistributionChart({
     return null;
   };
 
-  // --- LÓGICA DE AGRUPAMENTO (CLUSTERS) PARA O INSIGHT MANTIDA INTACTA ---
+  const CustomXAxisTick = ({ x, y, payload }: any) => {
+    const words = payload.value.split(' ');
+    let line1 = payload.value;
+    let line2 = "";
+
+    if (words.length === 2) {
+      line1 = words[0];
+      line2 = words[1];
+    } else if (words.length > 2) {
+      line1 = words[0];
+      line2 = words.slice(1).join(' ');
+    }
+
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text x={0} y={0} dy={24} textAnchor="middle" fill="#e2e8f0" fontSize={11}>
+          <tspan x="0" dy="8">{line1}</tspan>
+          {line2 && <tspan x="0" dy="14">{line2}</tspan>}
+        </text>
+      </g>
+    );
+  };
+
   const getGroupedInsight = () => {
     if (normalized.length === 0) return null;
 
@@ -152,11 +174,9 @@ export function ServiceDistributionChart({
                   stroke="#94a3b8" 
                   tickLine={false} 
                   axisLine={false} 
-                  tick={{ fontSize: 11 }} 
                   interval={0}
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
+                  height={70}
+                  tick={<CustomXAxisTick />}
                 />
                 <YAxis 
                   stroke="#94a3b8" 
