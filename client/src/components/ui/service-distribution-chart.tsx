@@ -1,6 +1,15 @@
 import { cn } from "@/lib/utils";
 import { BarChart3, Lightbulb, Code2, Palette, Database } from "lucide-react";
-import { ResponsiveContainer, Treemap, Tooltip } from "recharts";
+import { 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Cell 
+} from "recharts";
 
 interface ServiceDistributionItem {
   name: string;
@@ -24,88 +33,6 @@ const SERVICE_COLORS = [
   "#ec4899",
 ];
 
-const ROOT_COLOR = "#111827";
-
-type TreemapNode = ServiceDistributionItem & {
-  color: string;
-  children?: TreemapNode[];
-  [key: string]: string | number | TreemapNode[] | undefined;
-};
-
-function splitServiceName(name: string) {
-  const trimmed = name.trim();
-  if (trimmed.length <= 14) {
-    return [trimmed];
-  }
-
-  const words = trimmed.split(/\s+/);
-  if (words.length === 1) {
-    return [trimmed.slice(0, 14), trimmed.slice(14)];
-  }
-
-  const midpoint = Math.ceil(words.length / 2);
-  const firstLine = words.slice(0, midpoint).join(" ");
-  const secondLine = words.slice(midpoint).join(" ");
-
-  return secondLine ? [firstLine, secondLine] : [trimmed];
-}
-
-function renderTreemapNode(props: any) {
-  const { x, y, width, height, name, value, color, depth } = props;
-
-  if (depth === 0 || width <= 0 || height <= 0) {
-    return null;
-  }
-
-  const isSmall = width < 110 || height < 70;
-  const fontSize = isSmall ? 12 : 14;
-  const lines = splitServiceName(String(name));
-  const showValue = width > 120 && height > 64;
-  const labelY = y + height / 2 - (showValue ? 10 : 6);
-
-  return (
-    <g>
-      <rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        rx={10}
-        ry={10}
-        fill={color}
-        stroke={ROOT_COLOR}
-        strokeWidth={2}
-      />
-      <text
-        x={x + width / 2}
-        y={labelY}
-        textAnchor="middle"
-        fill="#ffffff"
-        fontSize={fontSize}
-        fontWeight={700}
-        dominantBaseline="middle"
-        stroke="none"
-        strokeWidth={0}
-        style={{ textShadow: "none" }}
-      >
-        <tspan x={x + width / 2} dy="0" stroke="none" strokeWidth={0}>
-          {lines[0]}
-        </tspan>
-        {lines[1] ? (
-          <tspan x={x + width / 2} dy="14" fontWeight={700} stroke="none" strokeWidth={0}>
-            {lines[1]}
-          </tspan>
-        ) : null}
-        {showValue ? (
-          <tspan x={x + width / 2} dy="14" fontWeight={700} fontSize={Math.max(11, fontSize - 1)} stroke="none" strokeWidth={0}>
-            {value}
-          </tspan>
-        ) : null}
-      </text>
-    </g>
-  );
-}
-
 export function ServiceDistributionChart({
   data,
   title = "Distribuição por Tipo de Serviço",
@@ -119,25 +46,58 @@ export function ServiceDistributionChart({
   const topItems = normalized.slice(0, topLimit);
   const othersTotal = normalized.slice(topLimit).reduce((acc, item) => acc + item.value, 0);
 
-  const chartData = othersTotal > 0 ? [...topItems, { name: "Outros", value: othersTotal }] : topItems;
-  const hasData = chartData.length > 0;
-  const treemapData: TreemapNode[] = [
-    {
-      name: "Total",
-      value: chartData.reduce((acc, item) => acc + item.value, 0),
-      color: ROOT_COLOR,
-      children: chartData.map((item, index) => ({
-        ...item,
-        color: item.name === "Outros" ? "#475569" : SERVICE_COLORS[index % SERVICE_COLORS.length],
-      })),
-    },
-  ];
+  const rawChartData = othersTotal > 0 ? [...topItems, { name: "Outros", value: othersTotal }] : topItems;
+  const hasData = rawChartData.length > 0;
 
-  // --- LÓGICA DE AGRUPAMENTO (CLUSTERS) PARA O INSIGHT ---
+  const chartData = rawChartData.map((item, index) => ({
+    ...item,
+    color: item.name === "Outros" ? "#475569" : SERVICE_COLORS[index % SERVICE_COLORS.length],
+  }));
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-slate-800/95 border border-slate-700 p-3 rounded-xl shadow-xl backdrop-blur-md min-w-[120px]">
+          <p className="font-semibold text-slate-100 mb-1">{data.name}</p>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: data.color }}></span>
+            <p className="text-sm text-slate-200">
+              <span className="font-bold">{data.value}</span> <span className="text-slate-400">leads</span>
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const CustomXAxisTick = ({ x, y, payload }: any) => {
+    const words = payload.value.split(' ');
+    let line1 = payload.value;
+    let line2 = "";
+
+    if (words.length === 2) {
+      line1 = words[0];
+      line2 = words[1];
+    } else if (words.length > 2) {
+      line1 = words[0];
+      line2 = words.slice(1).join(' ');
+    }
+
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text x={0} y={0} dy={24} textAnchor="middle" fill="#e2e8f0" fontSize={11}>
+          <tspan x="0" dy="8">{line1}</tspan>
+          {line2 && <tspan x="0" dy="14">{line2}</tspan>}
+        </text>
+      </g>
+    );
+  };
+
   const getGroupedInsight = () => {
     if (normalized.length === 0) return null;
 
-    // Inicializamos os contadores das áreas
     let stats = {
       dev: { total: 0, label: "Desenvolvimento (Dev)", icon: <Code2 className="w-4 h-4 text-blue-400" /> },
       design: { total: 0, label: "Design & UX", icon: <Palette className="w-4 h-4 text-pink-400" /> },
@@ -146,7 +106,6 @@ export function ServiceDistributionChart({
 
     normalized.forEach(item => {
       const name = item.name.toLowerCase();
-      // Lógica de Soma por Cluster
       if (name.includes("desenvolvimento") || name.includes("dev") || name.includes("site") || name.includes("institucional") || name.includes("mobile")) {
         stats.dev.total += item.value;
       } else if (name.includes("ux") || name.includes("ui") || name.includes("design") || name.includes("discovery")) {
@@ -156,14 +115,12 @@ export function ServiceDistributionChart({
       }
     });
 
-    // Descobrimos qual área ganhou na soma total
     const winnerKey = (Object.keys(stats) as Array<keyof typeof stats>).reduce((a, b) => 
       stats[a].total > stats[b].total ? a : b
     );
     
     const winner = stats[winnerKey];
 
-    // Textos personalizados por área campeã
     const messages = {
       dev: "Sua operação possui um perfil focado em construção e escala tecnológica. A alta demanda por desenvolvimento indica que seus leads buscam transformar ideias em produtos robustos e prontos para o mercado.",
       design: "O foco em UX/UI e Discovery revela que sua empresa é percebida como uma parceira estratégica de produto. Seus clientes priorizam a validação e a experiência do usuário antes da codificação.",
@@ -208,27 +165,35 @@ export function ServiceDistributionChart({
       
       {hasData ? (
         <>
-          <div className="h-[360px] w-full overflow-hidden rounded-2xl border border-slate-700/60 bg-transparent">
+          <div className="h-[360px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <Treemap
-                data={treemapData as any}
-                dataKey="value"
-                aspectRatio={4 / 3}
-                stroke={ROOT_COLOR}
-                content={renderTreemapNode}
-              >
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: ROOT_COLOR,
-                    border: "1px solid rgba(34, 211, 238, 0.35)",
-                    borderRadius: "12px",
-                    color: "#f8fafc",
-                  }}
-                  labelStyle={{ color: "#67e8f9", fontWeight: 600 }}
-                  itemStyle={{ color: "#e2e8f0" }}
-                  formatter={(value: number, name: string) => [value, name]}
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="#94a3b8" 
+                  tickLine={false} 
+                  axisLine={false} 
+                  interval={0}
+                  height={70}
+                  tick={<CustomXAxisTick />}
                 />
-              </Treemap>
+                <YAxis 
+                  stroke="#94a3b8" 
+                  tickLine={false} 
+                  axisLine={false} 
+                  tick={{ fontSize: 12 }} 
+                />
+                <Tooltip 
+                  content={<CustomTooltip />} 
+                  cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} 
+                />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={50}>
+                  {chartData.map((item) => (
+                    <Cell key={item.name} fill={item.color} />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
           
@@ -236,8 +201,9 @@ export function ServiceDistributionChart({
           {getGroupedInsight()}
         </>
       ) : (
-        <div className="h-[360px] flex items-center justify-center text-sm text-slate-400 border border-dashed border-slate-600 rounded-xl bg-slate-900/30">
-          Sem dados suficientes para exibir este gráfico.
+        <div className="h-[360px] flex flex-col items-center justify-center gap-2 text-sm text-slate-400 border border-dashed border-slate-700/70 rounded-xl bg-slate-800/20">
+           <BarChart3 className="w-8 h-8 text-slate-500 mb-1" />
+           <p>Nenhum dado disponível no período</p>
         </div>
       )}
     </div>
