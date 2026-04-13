@@ -11,6 +11,8 @@ from services.auth import (
     decode_jwt,
 )
 from services.db import MongoDB
+from pydantic import BaseModel
+from services.security import criar_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -667,3 +669,62 @@ async def approve_user(payload: dict = Body(...), Authorization: str | None = He
     except Exception as e:
         print(f"❌ Erro ao aprovar usuário: {str(e)}")
         raise HTTPException(status_code=500, detail="Erro ao aprovar usuário")
+
+
+class DadosLogin(BaseModel):
+    email: str
+    senha: str
+
+
+@router.post("/login")
+def realizar_login(dados: DadosLogin):
+    """Endpoint: Recebe email/senha e devolve o JWT"""
+
+    db_instance = MongoDB.get_instance()
+    membros_col = _resolve_members_collection(db_instance)
+    
+    if membros_col is None:
+        raise HTTPException(status_code=500, detail="Base de dados não disponível")
+    usuario_db = membros_col.find_one({"email": dados.email})
+    
+    if not usuario_db:
+        raise HTTPException(status_code=401, detail="Email ou senha incorretos")
+
+    if usuario_db.get("senha") != dados.senha:
+        raise HTTPException(status_code=401, detail="Email ou senha incorretos")
+
+    role = (usuario_db.get("permissao_nivel") or usuario_db.get("role", "comercial")).lower()
+    
+    if role == "ambos":
+        role = "admin"
+        
+    token = criar_token(email=dados.email, role=role)
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "usuario": {
+            "email": dados.email,
+            "role": role
+        }
+    }
+
+    usuario_db = MongoDB.db.usuarios.find_one({"email": dados.email})
+    
+    if not usuario_db:
+        raise HTTPException(status_code=401, detail="Email ou senha incorretos")
+
+    if usuario_db["senha"] != dados.senha:
+        raise HTTPException(status_code=401, detail="Email ou senha incorretos")
+
+    role = usuario_db.get("role", "comercial")
+    token = criar_token(email=dados.email, role=role)
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "usuario": {
+            "email": dados.email,
+            "role": role
+        }
+    }

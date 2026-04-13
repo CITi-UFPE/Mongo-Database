@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from services.db import db_client
+from routers import financeiro
 
 
 LOCAL_GOOGLE_REDIRECT_URI = "http://localhost:5000/api/auth/google/callback"
@@ -194,6 +195,10 @@ app.include_router(gemini.router)
 
 #5. Integrações (Data Cleaner)
 app.include_router(integrations_router)
+
+# Regras financeiro
+app.include_router(financeiro.router, prefix="/api")
+
 
 
 def _register_slash_variants() -> None:

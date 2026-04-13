@@ -4,12 +4,16 @@ import re
 import traceback
 from typing import Optional
 from datetime import date
-from fastapi import APIRouter, Query, Header, HTTPException
+from fastapi import APIRouter, Query, Header, HTTPException, Security
 from pydantic import BaseModel, Field
 from services.db import db_client
 from services import analytics_service
 from services.pipefy_sync import sync_pipefy_to_mongo
 from services.auth import decode_jwt
+from services.security import verificar_role
+
+
+admin_e_comercial = Security(verificar_role(["admin", "comercial"]))
 
 # Importamos a sincronização do motor correto
 from services.integration import sync_pipefy 
@@ -289,7 +293,8 @@ def _build_overview_payload(data_inicio: Optional[str] = None, data_fim: Optiona
     default_payload.update(payload)
     return default_payload
 
-@router.get("/overview")
+
+@router.get("/overview", dependencies=[admin_e_comercial])
 async def get_overview(
     refresh_pipefy: bool = Query(False),
     data_inicio: Optional[str] = Query(None),
@@ -360,7 +365,8 @@ def get_mock_kpis():
         "funnel_distribution": [], "lead_sources": [], "loss_reasons": [], "seller_performance": [], "temporal_evolution": []
     }
 
-@router.get("/kpis")
+
+@router.get("/kpis", dependencies=[admin_e_comercial])
 async def get_kpis(Authorization: str | None = Header(None)):
     """Tenta buscar KPIs reais. Se o banco estiver vazio, retorna Mocks."""
     try:
@@ -385,7 +391,8 @@ async def get_prediction(year: Optional[int] = Query(None)):
 async def get_clustering(k: Optional[int] = Query(4)):
     return {"clusters": [], "message": "Clustering requer dados reais no banco."}
 
-@router.get("/crm")
+
+@router.get("/crm", dependencies=[admin_e_comercial])
 async def get_crm_data():
     try:
         db = db_client.get_db()
@@ -398,7 +405,8 @@ async def get_crm_data():
 async def analytics_health():
     return {"status": "ok"}
 
-@router.get("/auditoria-pipeline")
+
+@router.get("/auditoria-pipeline", dependencies=[admin_e_comercial])
 async def auditoria_pipeline():
     try:
         db = db_client.get_db()
