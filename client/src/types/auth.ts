@@ -185,12 +185,37 @@ export const normalizeUsuarioAutenticado = (payload: unknown): UsuarioAutenticad
   };
 };
 
+const isApprovedAccess = (user: UsuarioAutenticado | null): boolean => {
+  return Boolean(user && user.acesso_aprovado && user.status === "Aprovado");
+};
+
 export const canAccessAnalytics = (user: UsuarioAutenticado | null): boolean => {
-  // Hack: Liberado geral para todo mundo ver os gráficos! 🚀
-  return true; 
+  return isApprovedAccess(user);
+};
+
+export const canAccessCommercialAnalytics = (user: UsuarioAutenticado | null): boolean => {
+  if (!isApprovedAccess(user)) {
+    return false;
+  }
+
+  return Boolean(
+    user?.is_admin ||
+      user?.permissao_nivel === "Comercial" ||
+      user?.permissao_nivel === "Ambos" ||
+      !user?.permissao_nivel
+  );
+};
+
+export const canAccessFinancialAnalytics = (user: UsuarioAutenticado | null): boolean => {
+  if (!isApprovedAccess(user)) {
+    return false;
+  }
+
+  return Boolean(
+    user?.is_admin || user?.permissao_nivel === "Financeiro" || user?.permissao_nivel === "Ambos"
+  );
 };
 
 export const isPendingAccess = (user: UsuarioAutenticado | null): boolean => {
-  // Hack: Ninguém nunca está pendente! 😎
-  return false; 
+  return Boolean(user && user.status === "Pendente" && !user.acesso_aprovado);
 };
