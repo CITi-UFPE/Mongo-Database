@@ -3,14 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { LogOut } from "lucide-react";
 import axios from "axios";
 import Dashboard from "@/components/ui/dashboard";
+import FinancialDashboard from "@/components/ui/financial-dashboard";
 import { PipefySyncButton } from "@/components/ui/pipefy-sync-button";
 import { fetchAnalyticsPayload, getAnalyticsErrorMessage, type AnalyticsPayload } from "@/services/analytics";
 import type { DateRangeSelection, DateRangeValue } from "@/components/ui/date-filter";
 import { apiClient } from "@/services/api";
 import { useAuth } from "./context/AuthContext";
-import { canAccessAnalytics, isPendingAccess } from "./types/auth";
+import {
+  canAccessAnalytics,
+  canAccessCommercialAnalytics,
+  canAccessFinancialAnalytics,
+  isPendingAccess,
+} from "./types/auth";
 
 type ViewMode = "dashboard" | "planilha";
+type DashboardMode = "comercial" | "financeiro";
 type SheetRow = Record<string, unknown>;
 
 interface AppProps {
@@ -66,11 +73,14 @@ function parseBRLToNumber(input: string): number | null {
 export default function App({ defaultViewMode = "planilha" }: AppProps) {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
-  const hasAnalyticsAccess = true; 
-  const accessLocked = false;
-  const isAdmin = true; // God Mode ativado! 🚀
+  const hasAnalyticsAccess = canAccessAnalytics(user);
+  const canSeeCommercialDashboard = canAccessCommercialAnalytics(user);
+  const canSeeFinancialDashboard = canAccessFinancialAnalytics(user);
+  const accessLocked = isPendingAccess(user);
+  const isAdmin = Boolean(user?.is_admin && user?.acesso_aprovado && user?.status === "Aprovado");
   const canSeeManualRevenueAction = hasAnalyticsAccess;
   const [viewMode, setViewMode] = useState<ViewMode>(hasAnalyticsAccess ? defaultViewMode : "planilha");
+  const [dashboardMode, setDashboardMode] = useState<DashboardMode>("comercial");
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
@@ -89,6 +99,17 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
       setViewMode("planilha");
     }
   }, [hasAnalyticsAccess, viewMode]);
+
+  useEffect(() => {
+    if (!canSeeCommercialDashboard && canSeeFinancialDashboard) {
+      setDashboardMode("financeiro");
+      return;
+    }
+
+    if (!canSeeFinancialDashboard && dashboardMode === "financeiro") {
+      setDashboardMode("comercial");
+    }
+  }, [canSeeCommercialDashboard, canSeeFinancialDashboard, dashboardMode]);
 
   const loadAnalytics = useCallback(async (range?: DateRangeSelection) => {
     const activeRange = range ?? dateRange;
@@ -307,14 +328,38 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 p-2 w-fit">
             {hasAnalyticsAccess ? (
-              <button
-                onClick={() => setViewMode("dashboard")}
-                className={`px-4 py-2 rounded-md text-sm transition ${
-                  viewMode === "dashboard" ? "bg-cyan-600 text-white" : "text-slate-300 hover:bg-slate-800"
-                }`}
-              >
-                Dashboard
-              </button>
+              <>
+                {canSeeCommercialDashboard ? (
+                  <button
+                    onClick={() => {
+                      setViewMode("dashboard");
+                      setDashboardMode("comercial");
+                    }}
+                    className={`px-4 py-2 rounded-md text-sm transition ${
+                      viewMode === "dashboard" && dashboardMode === "comercial"
+                        ? "bg-cyan-600 text-white"
+                        : "text-slate-300 hover:bg-slate-800"
+                    }`}
+                  >
+                    Dashboard Comercial
+                  </button>
+                ) : null}
+                {canSeeFinancialDashboard ? (
+                  <button
+                    onClick={() => {
+                      setViewMode("dashboard");
+                      setDashboardMode("financeiro");
+                    }}
+                    className={`px-4 py-2 rounded-md text-sm transition ${
+                      viewMode === "dashboard" && dashboardMode === "financeiro"
+                        ? "bg-cyan-600 text-white"
+                        : "text-slate-300 hover:bg-slate-800"
+                    }`}
+                  >
+                    Dashboard Financeiro
+                  </button>
+                ) : null}
+              </>
             ) : null}
             <button
               onClick={() => setViewMode("planilha")}
@@ -386,25 +431,47 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
             {analyticsError ? <p className="text-rose-300 text-sm">{analyticsError}</p> : null}
             {loadingAnalytics ? <p className="text-slate-300 text-sm">Carregando Analytics...</p> : null}
             {data ? (
-              <Dashboard
-                data={data}
-                onDateFilterChange={handleDateFilterChange}
-                headerAction={
-                  <div className="flex flex-wrap items-center gap-2">
-                    {canSeeManualRevenueAction ? (
-                      <button
-                        onClick={handleAddManualRevenue}
-                        className="inline-flex items-center gap-2 rounded-xl border border-emerald-700/70 bg-emerald-900/40 px-3 py-2 text-xs text-emerald-100 transition hover:bg-emerald-800/60"
-                        title="Adicionar faturamento manual"
-                      >
-                        + Faturamento Manual
-                      </button>
-                    ) : null}
-                    <PipefySyncButton isSyncing={isSyncing} onClick={handleSyncPipefy} />
-                  </div>
-                }
-                headerStatusMessage={syncMessage}
-              />
+              dashboardMode === "comercial" ? (
+                <Dashboard
+                  data={data}
+                  onDateFilterChange={handleDateFilterChange}
+                  headerAction={
+                    <div className="flex flex-wrap items-center gap-2">
+                      {canSeeManualRevenueAction ? (
+                        <button
+                          onClick={handleAddManualRevenue}
+                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-700/70 bg-emerald-900/40 px-3 py-2 text-xs text-emerald-100 transition hover:bg-emerald-800/60"
+                          title="Adicionar faturamento manual"
+                        >
+                          + Faturamento Manual
+                        </button>
+                      ) : null}
+                      <PipefySyncButton isSyncing={isSyncing} onClick={handleSyncPipefy} />
+                    </div>
+                  }
+                  headerStatusMessage={syncMessage}
+                />
+              ) : (
+                <FinancialDashboard
+                  data={data}
+                  onDateFilterChange={handleDateFilterChange}
+                  headerAction={
+                    <div className="flex flex-wrap items-center gap-2">
+                      {canSeeManualRevenueAction ? (
+                        <button
+                          onClick={handleAddManualRevenue}
+                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-700/70 bg-emerald-900/40 px-3 py-2 text-xs text-emerald-100 transition hover:bg-emerald-800/60"
+                          title="Adicionar faturamento manual"
+                        >
+                          + Faturamento Manual
+                        </button>
+                      ) : null}
+                      <PipefySyncButton isSyncing={isSyncing} onClick={handleSyncPipefy} />
+                    </div>
+                  }
+                  headerStatusMessage={syncMessage}
+                />
+              )
             ) : null}
           </>
         ) : (

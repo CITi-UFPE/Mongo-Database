@@ -48,6 +48,14 @@ function AdminAnalyticsRoute({ children }: { children: React.ReactNode }) {
   if (isLoading) return null;
   if (!isAuthenticated) return <Navigate to="/" replace />;
 
+  if (user?.onboarding_required || user?.status === "Nao Cadastrado") {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  if (isPendingAccess(user)) {
+    return <Navigate to="/pending" replace />;
+  }
+
   
   return <>{children}</>;
 }

@@ -65,7 +65,7 @@ export default function GoogleAuth() {
     }
 
     if (isPendingAccess(user)) {
-      navigate("/analytics", { replace: true }); // ✅ Manda pro Dashboard
+      navigate("/pending", { replace: true });
       return null;
     }
 
@@ -110,7 +110,7 @@ export default function GoogleAuth() {
       if (authenticatedUser.onboarding_required || authenticatedUser.status === "Nao Cadastrado") {
         destination = "/onboarding";
       } else if (isPendingAccess(authenticatedUser)) {
-        destination = "/analytics"; // ✅ Vai direto ver os gráficos!
+        destination = "/pending";
       } else if (canAccessAnalytics(authenticatedUser)) {
         destination = "/analytics";
       }
