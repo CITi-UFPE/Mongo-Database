@@ -6,8 +6,7 @@ interface FinanceCardProps {
     title: string;
     value: number;
     icon: ReactNode;
-    badgeValue?: number;
-    badgeType?: "positive" | "negative" | "neutral"; // Mockado
+    variation?: number; // Porcentagem de variação
     subtitleLabel?: string;
     subtitleValue?: number | string;
     subtitleType?: "currency" | "text";
@@ -33,12 +32,71 @@ const formatSubtitleValue = (value: number | string, type: "currency" | "text") 
     return String(value);
 }
 
+const getIconColor = (valueColor: string) => {
+    const colors = {
+        green: "text-emerald-400",
+        blue: "text-sky-400",
+        orange: "text-orange-400",
+        purple: "text-violet-400",
+    };
+    return colors[valueColor as keyof typeof colors] || colors.green;
+};
+
+const getValueColor = (valueColor: string) => {
+    const colors = {
+        green: "text-emerald-300",
+        blue: "text-sky-300",
+        orange: "text-orange-300",
+        purple: "text-violet-300",
+    };
+    return colors[valueColor as keyof typeof colors] || colors.green;
+};
+
+const getBadgeStyles = (valueColor: string) => {
+    const styles = {
+        green: "bg-emerald-500/10 text-emerald-300",
+        blue: "bg-sky-500/10 text-sky-300",
+        orange: "bg-orange-500/10 text-orange-300",
+        purple: "bg-violet-500/10 text-violet-300",
+    };
+    return styles[valueColor as keyof typeof styles] || styles.green;
+};
+
+const getValueGradient = (valueColor: string) => {
+    const gradients = {
+        green: "bg-gradient-to-r from-cyan-300 to-emerald-300",
+        blue: "bg-gradient-to-r from-blue-300 to-sky-300",
+        orange: "bg-gradient-to-r from-amber-300 to-orange-300",
+        purple: "bg-gradient-to-r from-violet-300 to-purple-300",
+    };
+    return gradients[valueColor as keyof typeof gradients] || gradients.green;
+};
+
+const getBorderColor = (valueColor: string) => {
+    const colors = {
+        green: "border-emerald-500/20",
+        blue: "border-sky-500/20",
+        orange: "border-orange-500/20",
+        purple: "border-violet-500/20",
+    };
+    return colors[valueColor as keyof typeof colors] || colors.green;
+};
+
+const getHoverStyles = (valueColor: string) => {
+    const styles = {
+        green: "hover:border-emerald-400/40 hover:shadow-[0_8px_24px_rgba(16,185,129,0.15)]",
+        blue: "hover:border-sky-400/40 hover:shadow-[0_8px_24px_rgba(56,189,248,0.15)]",
+        orange: "hover:border-orange-400/40 hover:shadow-[0_8px_24px_rgba(251,146,60,0.15)]",
+        purple: "hover:border-violet-400/40 hover:shadow-[0_8px_24px_rgba(167,139,250,0.15)]",
+    };
+    return styles[valueColor as keyof typeof styles] || styles.green;
+};
+
 export function FinanceCard ({
     title,
     value,
     icon,
-    badgeValue,
-    badgeType = "positive",
+    variation,
     subtitleLabel,
     subtitleValue,
     subtitleType = "text",
@@ -46,55 +104,49 @@ export function FinanceCard ({
 }: FinanceCardProps) {
     const isNegative = title.toLocaleLowerCase().includes("saldo") && value < 0;
 
-    const hoverStyles = {
-        green: "hover:border-emerald-400/50 hover:shadow-[0_10px_28px_rgba(16,185,129,0.25)]",
-        blue: "hover:border-sky-400/50 hover:shadow-[0_10px_28px_rgba(56,189,248,0.25)]",
-        orange: "hover:border-orange-400/50 hover:shadow-[0_10px_28px_rgba(251,146,60,0.25)]",
-        purple: "hover:border-violet-400/50 hover:shadow-[0_10px_28px_rgba(167,139,250,0.25)]",
-    };
-
     const subtitleText = subtitleLabel && subtitleValue !== undefined ? `${subtitleLabel} : ${formatSubtitleValue(subtitleValue, subtitleType)}` : subtitleLabel || "";
 
     return (
         <div className={cn(
-            "font-sans relative rounded-[20px] border bg-[#071C2F] px-6 py-6 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.015]",
-            isNegative ? "border-red-500/40 bg-red-950/20 hover:border-red-400/60 hover:shadow-[0_10px_28px_rgba(248,113,113,0.22)]" : "border-[#1E3A5F]", 
-            !isNegative && hoverStyles[valueColor]
+            "font-sans relative rounded-xl border bg-gradient-to-br from-slate-900/60 to-slate-900/40 px-5 py-5 transition-all duration-300 hover:-translate-y-0.5",
+            isNegative ? "border-red-500/25 from-red-950/20 to-red-900/10" : cn(getBorderColor(valueColor)), 
+            !isNegative && getHoverStyles(valueColor)
         )}>
-            <div className="mb-6 flex items-start justify-between">
-                <div className="flex items-center gap-2">
+            {/* Header: Icon + Variation Badge */}
+            <div className="mb-5 flex items-start justify-between">
+                <div className={cn("text-xl", isNegative ? "text-red-400" : getIconColor(valueColor))}>
                     {icon}
                     {isNegative && (
-                        <AlertTriangle className="h-4 w-4 text-red-400" />
+                        <AlertTriangle className="h-5 w-5 text-red-400" />
                     )}
                 </div>
 
-                {badgeValue !== undefined && (
+                {variation !== undefined && (
                     <span className={cn(
-                        "rounded-full px-3 py-1 text-[11px] font-semibold",
-                        badgeType === "positive" && "bg-emerald-500/10 text-emerald-400",
-                        badgeType === "negative" && "bg-red-500/10 text-red-400",
-                        badgeType === "neutral" && "bg-slate-500/10 text-slate-300"
+                        "inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold whitespace-nowrap",
+                        getBadgeStyles(valueColor)
                     )}>
-                        {badgeValue > 0 ? "+" : ""}
-                        {badgeValue}%
+                        {variation > 0 ? "+" : ""}
+                        {variation}%
                     </span>
                 )}
             </div>
 
+            {/* Body: Title + Value + Subtitle */}
             <div>
-                <p className="mb-2 text-xs font-normal text-slate-400/70">{title}</p>
+                {/* Metric Label - Small and Gray */}
+                <p className="mb-2 text-xs font-medium text-slate-400">{title}</p>
+                
+                {/* Main Value - Bold and Colored with Gradient */}
                 <h3 className={cn(
-                    "mb-2.5 text-[1.75rem] font-semibold tracking-[-0.5px] leading-none",
-                    isNegative && "text-red-400",
-                    !isNegative && valueColor === "green" && "text-emerald-400",
-                    !isNegative && valueColor === "blue" && "text-sky-400",
-                    !isNegative && valueColor === "orange" && "text-orange-400",
-                    !isNegative && valueColor === "purple" && "text-violet-400"
+                    "mb-3 text-2xl font-bold tracking-tight leading-tight bg-clip-text text-transparent",
+                    isNegative && "bg-gradient-to-r from-red-300 to-red-400",
+                    !isNegative && getValueGradient(valueColor)
                 )}>{formatCurrency(value)}</h3>
 
+                {/* Subtitle - Small and Dark Gray */}
                 {subtitleText && (
-                    <p className="text-xs text-slate-400/60">{subtitleText}</p>
+                    <p className="text-[11px] font-normal text-slate-500">{subtitleText}</p>
                 )}
             </div>
         </div>
