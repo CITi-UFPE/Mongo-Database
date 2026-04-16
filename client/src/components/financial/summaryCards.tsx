@@ -108,7 +108,7 @@ export function FinanceCard ({
 
     return (
         <div className={cn(
-            "font-sans relative rounded-xl border bg-gradient-to-br from-slate-900/60 to-slate-900/40 px-5 py-5 transition-all duration-300 hover:-translate-y-0.5",
+            "font-sans relative rounded-xl border bg-gradient-to-br from-slate-900/60 to-slate-900/40 px-6 py-6 transition-all duration-300 hover:-translate-y-0.5",
             isNegative ? "border-red-500/25 from-red-950/20 to-red-900/10" : cn(getBorderColor(valueColor)), 
             !isNegative && getHoverStyles(valueColor)
         )}>
