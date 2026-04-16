@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from "react";
-import { BarChart3, ChevronLeft, ChevronRight, DollarSign, Receipt, Target } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Repeat } from "lucide-react";
 import UserHeader from "../UserHeader";
 import { DateFilter } from "./date-filter";
 import type { DateRangeSelection, DateRangeValue } from "./date-filter";
 import type { AnalyticsPayload } from "../../services/analytics";
 import { FinanceCard } from "../financial/summaryCards";
 import { GoalProgressBar } from "../financial/goalProgress";
+import { FinanceBarChart } from "../financial/financeBarChart";
 import { InsightsCard } from "./insights-card";
 import ExpensesPieChart from "./ExpensesPieChart";
 import type { ExpenseCategory } from "./ExpensesPieChart";
@@ -130,6 +131,25 @@ export default function FinancialDashboard({
     },
   ];
 
+  const totalSaidas = expenseCategories.reduce((acc, item) => acc + item.value, 0);
+  const topExpenseCategories = [...expenseCategories].sort((a, b) => b.value - a.value).slice(0, 3);
+  const monthlyCashflowData = [
+    { label: "Jan", entradas: 72000, saidas: 53000 },
+    { label: "Fev", entradas: 68000, saidas: 49000 },
+    { label: "Mar", entradas: 76000, saidas: 57000 },
+    { label: "Abr", entradas: faturamentoRealizado, saidas: totalSaidas },
+  ];
+  const fortnightlyCashflowData = [
+    { label: "1-15 Jan", entradas: 35000, saidas: 26000 },
+    { label: "16-31 Jan", entradas: 37000, saidas: 27000 },
+    { label: "1-15 Fev", entradas: 33000, saidas: 24000 },
+    { label: "16-29 Fev", entradas: 35000, saidas: 25000 },
+    { label: "1-15 Mar", entradas: 38000, saidas: 28000 },
+    { label: "16-31 Mar", entradas: 38000, saidas: 29000 },
+    { label: "1-15 Abr", entradas: Math.round(faturamentoRealizado * 0.52), saidas: Math.round(totalSaidas * 0.5) },
+    { label: "16-30 Abr", entradas: Math.round(faturamentoRealizado * 0.48), saidas: Math.round(totalSaidas * 0.5) },
+  ];
+
   const insights = [
     {
       type: "success" as const,
@@ -182,45 +202,49 @@ export default function FinancialDashboard({
           <FinanceCard
             title="Faturamento Realizado"
             value={faturamentoRealizado}
-            icon={<DollarSign className="h-5 w-5 text-emerald-300" />}
-            subtitleLabel="Meta mensal"
-            subtitleValue={metaMensal}
+            icon={<Wallet className="h-6 w-6" />}
+            variation={12}
+            subtitleLabel="Entrada realizada"
+            subtitleValue={faturamentoRealizado}
             subtitleType="currency"
             valueColor="green"
           />
           <FinanceCard
-            title="Meta Mensal"
+            title="Total de Entradas"
             value={metaMensal}
-            icon={<Target className="h-5 w-5 text-sky-300" />}
-            subtitleLabel="Falta para meta"
-            subtitleValue={faltaParaMeta}
+            icon={<TrendingUp className="h-6 w-6" />}
+            variation={8}
+            subtitleLabel="Meta mensal"
+            subtitleValue={metaMensal}
             subtitleType="currency"
             valueColor="blue"
           />
           <FinanceCard
-            title="Pipeline Potencial"
-            value={pipelineTotal}
-            icon={<BarChart3 className="h-5 w-5 text-violet-300" />}
-            subtitleLabel="Previsao realista"
-            subtitleValue={previsaoRealista}
+            title="Total de Saídas"
+            value={totalSaidas}
+            icon={<TrendingDown className="h-6 w-6" />}
+            variation={-5}
+            subtitleLabel="Despesas do período"
+            subtitleValue={totalSaidas}
             subtitleType="currency"
-            valueColor="purple"
+            valueColor="orange"
           />
           <FinanceCard
             title="Receita Projetada"
             value={previsaoRealista}
-            icon={<Receipt className="h-5 w-5 text-orange-300" />}
-            subtitleLabel="Percentual da meta"
-            subtitleValue={`${percentualMeta.toFixed(1)}%`}
-            subtitleType="text"
-            valueColor="orange"
+            icon={<Repeat className="h-6 w-6" />}
+            variation={15}
+            subtitleLabel="Previsão realista"
+            subtitleValue={previsaoRealista}
+            subtitleType="currency"
+            valueColor="purple"
           />
         </section>
 
         <InsightsCard insights={insights} />
 
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">
+          <h2 className="text-lg font-semibold text-slate-100">
             Análises Detalhadas
           </h2>
           <div className="flex items-center gap-2">
@@ -246,8 +270,8 @@ export default function FinancialDashboard({
 
         {analysisPage === 1 ? (
           <div className="space-y-4">
-            <div className="bg-gradient-to-br from-blue-600/15 to-cyan-600/10 border border-blue-500/30 rounded-2xl p-5 backdrop-blur-sm shadow-lg shadow-cyan-500/10">
-              <h3 className="text-sm font-semibold text-blue-200 mb-4">📈 Visão Financeira</h3>
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-900/55 p-5 backdrop-blur-sm">
+              <h3 className="mb-4 text-sm font-semibold text-slate-100">Visão Financeira</h3>
               <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                 <GoalProgressBar
                   title="Meta de Receita"
@@ -299,12 +323,58 @@ export default function FinancialDashboard({
                   </div>
                 </div>
               </section>
+
+              <section className="mt-6 border-t border-slate-700/40 pt-6">
+                <FinanceBarChart
+                  title="Entradas vs Saídas"
+                  subtitle="Comparativo mensal e quinzenal do fluxo financeiro"
+                  monthlyData={monthlyCashflowData}
+                  fortnightlyData={fortnightlyCashflowData}
+                  initialPeriod="mensal"
+                />
+              </section>
+
+              <section className="mt-6 grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-6 border-t border-slate-700/40 pt-6 items-start">
+                <ExpensesPieChart
+                  categories={expenseCategories}
+                  title="Saídas por categoria"
+                  subtitle="Resumo rápido para acompanhar distribuição dos gastos"
+                />
+
+                <div className="rounded-2xl border border-slate-700/50 bg-slate-900/65 p-5">
+                  <h4 className="text-sm font-semibold text-slate-100">Top gastos do período</h4>
+                  <p className="mt-1 text-xs text-slate-400">Categorias que mais impactam o caixa.</p>
+
+                  <div className="mt-4 space-y-3">
+                    {topExpenseCategories.map((item) => {
+                      const percentage = totalSaidas > 0 ? (item.value / totalSaidas) * 100 : 0;
+                      return (
+                        <div key={item.id} className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-medium text-slate-100">{item.name}</p>
+                            <p className="text-sm font-semibold text-cyan-300">{formatCurrency(item.value)}</p>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-400">{percentage.toFixed(1)}% do total de saídas</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setAnalysisPage(2)}
+                    className="mt-4 w-full rounded-xl border border-blue-400/30 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-200 transition-all duration-200 hover:border-blue-300/50 hover:bg-blue-500/20"
+                  >
+                    Ver análise completa de gastos
+                  </button>
+                </div>
+              </section>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="bg-gradient-to-br from-blue-600/15 to-cyan-600/10 border border-blue-500/30 rounded-2xl p-5 backdrop-blur-sm shadow-lg shadow-cyan-500/10">
-              <h3 className="text-sm font-semibold text-blue-200 mb-4">✦ Categorização de Gastos</h3>
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-900/55 p-5 backdrop-blur-sm">
+              <h3 className="mb-4 text-sm font-semibold text-slate-100">Categorização de Gastos</h3>
               <section className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-6 items-start">
                 <ExpensesPieChart categories={expenseCategories} />
                 <CategoryBreakdown categories={expenseCategories} className="h-full" />
