@@ -13,6 +13,8 @@ import type { ExpenseCategory } from "./ExpensesPieChart";
 import CategoryBreakdown from "./CategoryBreakdown";
 import PaymentList from "./PaymentList";
 import type { ProjectPaymentItem } from "./ProjectStatusCard";
+import { FinancialForecastChart } from "../financial/financialForecastChart";
+import { ProfitByProjectChart } from "../financial/profitByProjectChart";
 
 interface FinancialDashboardProps {
   data: AnalyticsPayload;
@@ -20,6 +22,29 @@ interface FinancialDashboardProps {
   headerAction?: ReactNode;
   headerStatusMessage?: string | null;
 }
+
+const forecastData = [
+  { month: "Jan", real: 42000 },
+  { month: "Fev", real: 39000 },
+  { month: "Mar", real: 51000 },
+  { month: "Abr", real: 45000 },
+  { month: "Mai", real: 49000 },
+  { month: "Jun", real: 57000, previsto: 57000 },
+  { month: "Jul", previsto: 52000 },
+  { month: "Ago", previsto: 54000 },
+  { month: "Set", previsto: 58000 },
+  { month: "Out", previsto: 54000 },
+  { month: "Nov", previsto: 60000 },
+  { month: "Dez", previsto: 62000 },
+];
+
+const profitByProjectData = [
+  { project: "Projeto Alpha", profit: 20000 },
+  { project: "BJ Mensal", profit: 13000 },
+  { project: "Digital Ocean", profit: -4500 },
+  { project: "Red Bull", profit: 9500 },
+  { project: "Evento Q2", profit: 5800 },
+];
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("pt-BR", {
@@ -309,7 +334,7 @@ export default function FinancialDashboard({
               </div>
             </section>
 
-            <section className="mt-8 border-t border-slate-700/40 pt-8">
+            <section className="mt-8 space-y-8 border-t border-slate-700/40 pt-8">
               <FinanceBarChart
                 title="Entradas vs Saídas"
                 subtitle="Comparativo mensal e quinzenal do fluxo financeiro"
@@ -406,6 +431,12 @@ export default function FinancialDashboard({
             </div>
           </div>
         ) : null}
+
+        <section className="mt-8 grid grid-cols-1 2xl:grid-cols-2 gap-8">
+          <FinancialForecastChart data={forecastData} />
+
+          <ProfitByProjectChart data={profitByProjectData} />
+        </section>
       </main>
     </div>
   );
