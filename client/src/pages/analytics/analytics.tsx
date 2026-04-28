@@ -83,7 +83,7 @@ export default function DataVizDashboard() {
     mode: "planilha",
     key: 0,
   });
-  const [isChatOpen, setIsChatOpen] = useState(false);
+
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsPayload | null>(null);
@@ -807,11 +807,7 @@ export default function DataVizDashboard() {
       </AnimatePresence>
 
       {/* Chatbot com contexto dos dados da planilha */}
-      <Chatbot 
-        spreadsheetData={filteredRows}
-        isOpen={isChatOpen}
-        onToggle={() => setIsChatOpen(!isChatOpen)}
-      />
+      <Chatbot />
     </div>
   );
 }
