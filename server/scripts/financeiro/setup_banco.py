@@ -206,15 +206,6 @@ def main(limpar: bool = False) -> None:
     print("\n─── Criando índices ────────────────────────────────────")
     criar_indices(db)
 
-    print("\n─── Inserindo documentos de exemplo ───────────────────")
-    for nome, docs in EXEMPLOS.items():
-        try:
-            result = db[nome].insert_many(docs, ordered=False)
-            print(f"  ✅ {nome}: {len(result.inserted_ids)} documento(s) inserido(s)")
-        except Exception as e:
-            # Duplicatas em re-execuções são normais
-            print(f"  ⚠️  {nome}: {e}")
-
     print("\n─── Relatório final ────────────────────────────────────")
     for nome in VALIDATORS:
         count = db[nome].count_documents({})
