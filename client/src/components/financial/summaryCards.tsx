@@ -42,16 +42,6 @@ const getIconColor = (valueColor: string) => {
     return colors[valueColor as keyof typeof colors] || colors.green;
 };
 
-const getValueColor = (valueColor: string) => {
-    const colors = {
-        green: "text-emerald-300",
-        blue: "text-sky-300",
-        orange: "text-orange-300",
-        purple: "text-violet-300",
-    };
-    return colors[valueColor as keyof typeof colors] || colors.green;
-};
-
 const getBadgeStyles = (valueColor: string) => {
     const styles = {
         green: "bg-emerald-500/10 text-emerald-300",

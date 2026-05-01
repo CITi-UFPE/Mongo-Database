@@ -55,18 +55,25 @@ export default function ProjectStatusCard({
   }, [isPaid, isOverdue]);
 
   const statusStyles = isPaid
-    ? {
-        border: "border-emerald-400/30",
-        bg: "bg-emerald-500/10",
-        text: "text-emerald-300",
-        icon: <CheckCircle2 className="h-4 w-4 text-emerald-300" />,
-      }
-    : {
-        border: "border-red-400/30",
-        bg: "bg-red-500/10",
-        text: "text-red-300",
-        icon: <AlertTriangle className="h-4 w-4 text-red-300" />,
-      };
+  ? {
+      border: "border-emerald-400/30",
+      bg: "bg-emerald-500/10",
+      text: "text-emerald-300",
+      icon: <CheckCircle2 className="h-4 w-4 text-emerald-300" />,
+    }
+  : isOverdue
+  ? {
+      border: "border-red-400/30",
+      bg: "bg-red-500/10",
+      text: "text-red-300",
+      icon: <AlertTriangle className="h-4 w-4 text-red-300" />,
+    }
+  : {
+      border: "border-yellow-400/40",
+      bg: "bg-yellow-500/10",
+      text: "text-yellow-300",
+      icon: <AlertTriangle className="h-4 w-4 text-yellow-300" />,
+    }
 
   const handleCopy = async () => {
     if (!onCopyBilling || !isPending) return;

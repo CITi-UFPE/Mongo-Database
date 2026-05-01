@@ -6,7 +6,6 @@ import {
   ResponsiveContainer,
   Legend,
   Tooltip,
-  PieLabel,
 } from "recharts";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,14 +32,17 @@ interface ExpensesPieChartProps {
 }
 
 const CATEGORY_COLORS = [
-  "#10b981", // green - Projetos
-  "#3b82f6", // blue - Infraestrutura
-  "#f59e0b", // amber - Marketing
-  "#8b5cf6", // purple - Eventos
-  "#ec4899", // pink - backup
-  "#06b6d4", // cyan - backup
-  "#f97316", // orange - backup
-  "#6366f1", // indigo - backup
+  "#2563eb", // azul
+  "#10b981", // verde
+  "#8b5cf6", // roxo
+  "#f59e0b", // amarelo
+  "#1d4ed8", // azul escuro
+  "#059669", // verde escuro
+  "#6d28d9", // roxo escuro
+  "#fbbf24", // amarelo claro
+  "#60a5fa", // azul claro
+  "#34d399", // verde claro
+  "#a78bfa", // roxo claro
 ];
 
 const formatCurrency = (value: number) => {
