@@ -29,3 +29,12 @@ server/venv/
 # Security / certificates
 server/security/cert.key
 server/security/cert.pem
+
+# Legacy Node/Vercel deploy config
+vercel.json
+api/
+server/src/
+
+# Lock files (server is Python, not Node)
+server/package-lock.json
+server/package.json

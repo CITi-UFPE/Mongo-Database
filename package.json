@@ -1,18 +1,13 @@
 {
-  "name": "mongo-database-root",
+  "name": "citi-data-platform",
   "private": true,
-  "workspaces": [
-    "client",
-    "server"
-  ],
   "scripts": {
-    "build": "npm run build --workspace=server && npm run build --workspace=client"
+    "dev": "npm run dev --workspace=client",
+    "build": "npm run build --workspace=client"
   },
-  "dependencies": {
-    "framer-motion": "^12.23.24",
-    "mongoose": "^9.0.0",
-    "mongosh": "^2.5.9"
-  },
+  "workspaces": [
+    "client"
+  ],
   "devDependencies": {
     "mkdirp": "^3.0.1",
     "rimraf": "^6.1.0"
