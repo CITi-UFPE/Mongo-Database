@@ -1,8 +1,8 @@
-# Mongo-Database
+# CITi — Plataforma de Dados
 
-Aplicação web full-stack para análise de dados com autenticação Google OAuth, dashboard de analytics e gerenciamento de dados MongoDB.
+Aplicação web full-stack para análise de dados comerciais e financeiros do CITi (Centro de Informática e Tecnologia). Inclui dashboard de analytics, dashboard financeiro, integração com Pipefy e assistente de IA.
 
-## 📋 Sumário
+## Sumário
 
 - [Descrição](#descrição)
 - [Stack Tecnológica](#stack-tecnológica)
@@ -14,251 +14,233 @@ Aplicação web full-stack para análise de dados com autenticação Google OAut
 - [Estrutura do Projeto](#estrutura-do-projeto)
 - [Resolução de Problemas](#resolução-de-problemas)
 
-## 📖 Descrição
+## Descrição
 
-Aplicação web moderna para visualização e análise de dados com dashboard interativo. O projeto oferece:
+Plataforma interna do CITi para visualização e análise de dados. O projeto oferece:
 
-- 🔐 Autenticação via Google OAuth
-- 📊 Dashboard de analytics com visualizações de dados
-- 🗄️ Gerenciamento de dados MongoDB
-- 🤖 Integração com Google Gemini AI
-- 🎨 Interface moderna com Tailwind CSS e animações
+- Autenticação via Google OAuth com aprovação de acesso por administrador
+- Dashboard comercial com funil de vendas, leads, conversão e previsão de faturamento
+- Dashboard financeiro com entradas, saídas, metas e projetos
+- Integração com Pipefy (CRM) para sincronização de leads
+- Assistente de IA com contexto dos dados do dashboard (Groq / LLaMA 3.3)
+- Interface moderna com Tailwind CSS, Recharts e animações Framer Motion
 
-## 🛠️ Stack Tecnológica
+## Stack Tecnológica
 
 ### Frontend
 - **React 19** com **TypeScript**
 - **Vite** como build tool
 - **Tailwind CSS** para estilização
 - **React Router** para navegação
-- **Recharts** para visualizações de dados
-- **Framer Motion** e **GSAP** para animações
+- **Recharts** para gráficos e visualizações
+- **Framer Motion** para animações
 - **Radix UI** para componentes acessíveis
 
 ### Backend
-- **Node.js** com **Express**
-- **MongoDB** com **Mongoose**
-- **Passport.js** para autenticação (Google OAuth)
-- **JWT** para tokens de autenticação
-- **Google Generative AI** (Gemini)
+- **Python 3.13** com **FastAPI**
+- **PyMongo** para conexão com MongoDB
+- **Pydantic** para validação de dados
+- **PyJWT** para autenticação JWT
+- **Groq** (LLaMA 3.3 70B) para o assistente de IA
+- **Uvicorn** como servidor ASGI
+
+### Banco de Dados
+- **MongoDB Atlas** em produção
+- **MongoDB Docker** para desenvolvimento local
+- Banco `database-comercial` — leads, funil, analytics
+- Banco `citi_financeiro` — transações, projetos, histórico financeiro
+
+### Integrações
+- **Pipefy** (GraphQL) — sincronização de leads e CRM
+- **Groq API** — assistente de IA com LLaMA 3.3 70B
+- **Google OAuth 2.0** — autenticação de usuários
 
 ### DevOps
 - **Docker** e **Docker Compose**
-- **Nginx** para servir o frontend
-- **Mongo Express** para administração do banco
+- **Nginx** para servir o frontend em produção
+- Deploy no **Render** (backend e frontend)
+- **MongoDB Atlas** para banco em produção
 
-## ✅ Requisitos
+## Requisitos
 
-- **Node.js** v16 ou superior
-- **npm** ou **yarn**
-- **MongoDB** (local ou remoto)
-- **Docker** e **Docker Compose** (para execução containerizada)
-- **Git**
+**Para execução local (sem Docker):**
+- Python 3.11+
+- Node.js 18+
+- MongoDB rodando localmente (ou acesso ao Atlas)
 
-## 🔑 Variáveis de Ambiente
+**Para execução com Docker:**
+- Docker e Docker Compose instalados
+
+## Variáveis de Ambiente
+
+Cada ambiente precisa dos arquivos `.env`. **Nunca commite esses arquivos.**
 
 ### Backend (`server/.env`)
 
 ```env
-# MongoDB
-MONGO_URI_DEV=mongodb://admin:senhasegura123@localhost:27017/admin
-MONGO_INITDB_ROOT_USERNAME=admin
-MONGO_INITDB_ROOT_PASSWORD=senhasegura123
-MONGO_INITDB_DATABASE=admin
+# IA
+GROQ_API_KEY=sua_groq_api_key
 
-# JWT
-JWT_SECRET=seu_jwt_secret_aqui
+# Pipefy
+PIPEFY_TOKEN=seu_pipefy_token
+PIPEFY_PIPE_ID=seu_pipe_id
+
+# Meta de faturamento mensal
+META_FATURAMENTO=407000
+
+# MongoDB
+MONGO_URI_DEV=mongodb://admin:senha@localhost:27017/admin?authSource=admin
+MONGO_URI_PROD=mongodb+srv://usuario:senha@cluster.mongodb.net/db?retryWrites=true&w=majority
+MONGO_INITDB_ROOT_USERNAME=admin
+MONGO_INITDB_ROOT_PASSWORD=sua_senha
+MONGO_INITDB_DATABASE=admin
 
 # Google OAuth
 GOOGLE_CLIENT_ID=seu_google_client_id
 GOOGLE_CLIENT_SECRET=seu_google_client_secret
+GOOGLE_CALLBACK_URL=https://seu-backend.onrender.com/api/auth/google/callback
 
-# URLs
-FRONTEND_URL=http://localhost:3080
-API_URL=http://localhost:5000
+# JWT
+JWT_SECRET_DEV=seu_jwt_secret
+JWT_SECRET_PROD=seu_jwt_secret
 
-# Gemini AI
-GEMINI_API_KEY=sua_api_key_gemini
-```
+# CORS
+CLIENT_URL_DEV=http://localhost:5173
+SERVER_URL_DEV=http://localhost:5000
+CLIENT_URL_PROD=https://seu-frontend.onrender.com
+SERVER_URL_PROD=https://seu-backend.onrender.com
+ALLOWED_ORIGINS=https://seu-frontend.onrender.com
 
-### Frontend (`client/.env`)
+# Porta
+PORT=5000
+Frontend (client/.env)
 
-```env
-VITE_GOOGLE_CLIENT_ID=seu_google_client_id
-VITE_GEMINI_API_KEY=sua_api_key_gemini
-REACT_APP_BASE_URL=http://localhost:5000
-```
+REACT_APP_BASE_URL=https://seu-backend.onrender.com/api
+VITE_API_URL=https://seu-backend.onrender.com/api
+GOOGLE_CLIENT_ID=seu_google_client_id
+Para obter a chave do Groq: acesse console.groq.com e crie uma API key gratuita.
 
-## 🚀 Execução Local
+Execução Local
+1. Clone o repositório
 
-### 1. Clone o repositório
-
-```bash
 git clone <repo-url>
 cd Mongo-Database
-```
+2. Backend
 
-### 2. Configurar MongoDB Local
-
-Certifique-se de ter o MongoDB rodando localmente na porta 27017, ou use a versão Docker.
-
-### 3. Backend
-
-```bash
 cd server
-npm install
-npm run server
-```
 
-O servidor estará disponível em `http://localhost:5000`
+# Criar e ativar ambiente virtual
+python -m venv .venv
+source .venv/bin/activate      # Linux/Mac
+.venv\Scripts\activate         # Windows
 
-### 4. Frontend
+# Instalar dependências
+pip install -r requirements.txt
 
-```bash
+# Criar o server/.env com as variáveis necessárias (ver seção acima)
+
+# Subir o servidor
+uvicorn main:app --reload --port 5000
+O backend estará disponível em http://localhost:5000
+
+Documentação interativa (Swagger): http://localhost:5000/docs
+
+3. Frontend
+
 cd client
+
+# Instalar dependências
 npm install
+
+# Criar o client/.env com as variáveis necessárias (ver seção acima)
+
+# Subir o servidor de desenvolvimento
 npm run dev
-```
+O frontend estará disponível em http://localhost:5173
 
-O frontend estará disponível em `http://localhost:5173` (porta padrão do Vite)
+Execução com Docker
+1. Configure os arquivos .env
+Certifique-se de que server/.env existe com as configurações corretas.
 
-## 🐳 Execução com Docker
+2. Suba os containers
 
-### 1. Configure as variáveis de ambiente
-
-Certifique-se de que os arquivos `.env` existem em `server/.env` e `client/.env` com as configurações corretas.
-
-### 2. Suba os containers
-
-```bash
 docker compose up -d
-```
+3. Verifique os logs
 
-### 3. Verifique os logs
-
-```bash
 docker compose logs -f
-```
+4. Pare os containers
 
-### 4. Pare os containers
-
-```bash
 docker compose down
-```
+Acesso às Interfaces
+Serviço	URL	Descrição
+Frontend	http://localhost:3080	Interface principal
+Backend API	http://localhost:5000	API REST
+Swagger	http://localhost:5000/docs	Documentação interativa da API
+Mongo Express	http://localhost:8081	Administração do MongoDB
+Estrutura do Projeto
 
-## 🌐 Acesso às Interfaces
-
-Após iniciar a aplicação (Docker):
-
-| Serviço | URL | Descrição |
-|---------|-----|-----------|
-| **Frontend** | http://localhost:3080 | Interface principal da aplicação |
-| **Backend API** | http://localhost:5000 | API REST |
-| **Mongo Express** | http://localhost:8081 | Interface de administração do MongoDB |
-| **MongoDB** | localhost:27017 | Banco de dados (acesso direto) |
-
-### Credenciais Mongo Express
-- **Usuário**: `admin`
-- **Senha**: `admin`
-
-## 📁 Estrutura do Projeto
-
-```
 Mongo-Database/
-├── client/                 # Frontend React + TypeScript + Vite
+├── client/                         # Frontend React + TypeScript + Vite
 │   ├── src/
-│   │   ├── components/    # Componentes React
-│   │   ├── pages/         # Páginas da aplicação
-│   │   │   └── Analytics/ # Dashboard de analytics
-│   │   ├── App.tsx        # Componente principal
-│   │   └── main.tsx       # Entry point
-│   ├── docker/            # Configurações Docker
+│   │   ├── components/
+│   │   │   ├── Chatbot/            # Assistente de IA
+│   │   │   ├── dashboard/          # Componentes do dashboard comercial
+│   │   │   ├── financial/          # Componentes do dashboard financeiro
+│   │   │   └── ui/                 # Componentes reutilizáveis
+│   │   ├── context/                # AuthContext
+│   │   ├── pages/
+│   │   │   ├── Auth/               # Login, Onboarding, Aprovação
+│   │   │   └── analytics/          # Dashboard principal
+│   │   ├── services/               # Chamadas à API (analytics, api)
+│   │   └── types/                  # Tipos TypeScript
 │   ├── package.json
 │   └── vite.config.js
 │
-├── server/                # Backend Node.js + Express
-│   ├── src/
-│   │   ├── models/       # Modelos Mongoose
-│   │   ├── routes/       # Rotas da API
-│   │   ├── services/     # Lógica de negócio
-│   │   ├── middleware/   # Middlewares Express
-│   │   └── index.js      # Entry point
-│   ├── docker/           # Configurações Docker
-│   ├── security/         # Certificados HTTPS (dev)
-│   └── package.json
+├── server/                         # Backend Python + FastAPI
+│   ├── main.py                     # Entry point + CORS + routers
+│   ├── routers/
+│   │   ├── auth.py                 # Google OAuth + JWT + aprovação
+│   │   ├── analytics.py            # KPIs, funil, previsão, faturamento
+│   │   ├── spreadsheet.py          # Leitura de coleções MongoDB
+│   │   ├── gemini.py               # Assistente de IA (Groq)
+│   │   └── pipefy_service.py       # Integração Pipefy
+│   ├── services/
+│   │   ├── db.py                   # Conexão MongoDB (singleton)
+│   │   ├── analytics_service.py    # Lógica de analytics e métricas
+│   │   ├── pipefy_service.py       # Chamadas à API do Pipefy
+│   │   └── pipefy_sync.py          # Sincronização Pipefy → MongoDB
+│   └── requirements.txt
 │
-├── docker-compose.yml    # Orquestração dos containers
+├── docker-compose.yml              # Orquestração dos containers
 └── README.md
-```
+Resolução de Problemas
+Erro ModuleNotFoundError ao subir o servidor
+As dependências não foram instaladas. Execute dentro da pasta server/:
 
-## 🔧 Resolução de Problemas
 
-### Erro de conexão com MongoDB
+pip install -r requirements.txt
+Erro de conexão com MongoDB
+Verifique se o MongoDB está rodando e se o MONGO_URI_DEV no .env está correto:
 
-Verifique se o MongoDB está rodando e se as credenciais no `.env` estão corretas:
 
-```bash
-# Verificar containers Docker
-docker ps
-
-# Ver logs do MongoDB
+# Ver logs do container MongoDB
 docker compose logs mdp-mongo
-```
+Erro de autenticação Google
+Verifique se GOOGLE_CLIENT_ID está igual no server/.env e client/.env
+Confirme que a URL de callback está cadastrada no Google Cloud Console
+URL de callback local: http://localhost:5000/api/auth/google/callback
+Assistente de IA não responde
+Verifique se GROQ_API_KEY está configurada no server/.env
+Para obter uma chave gratuita: console.groq.com
+Teste o endpoint diretamente em http://localhost:5000/docs → POST /api/gemini/chat
+Frontend não conecta ao Backend
+Confirme que VITE_API_URL no client/.env aponta para a URL correta:
 
-### Erro de autenticação Google
 
-1. Verifique se o `GOOGLE_CLIENT_ID` está configurado corretamente em ambos `.env` (client e server)
-2. Certifique-se de que a URL de redirect está configurada no Google Cloud Console
-3. A URL deve ser: `http://localhost:5000/auth/google/callback`
+VITE_API_URL=http://localhost:5000/api
+Porta já em uso
 
-### Frontend não conecta ao Backend
+# Ver qual processo está usando a porta 5000
+lsof -i :5000        # Mac/Linux
+netstat -ano | grep :5000   # Windows
 
-Verifique se o `REACT_APP_BASE_URL` no `client/.env` aponta para a URL correta do backend:
-
-```env
-REACT_APP_BASE_URL=http://localhost:5000
-```
-
-### Porta já em uso
-
-Se alguma porta estiver em uso, você pode alterar no `docker-compose.yml`:
-
-```yaml
-ports:
-  - '3080:80'  # Altere 3080 para outra porta
-```
-
-### Erro ao buildar com Vite
-
-Limpe o cache e reinstale as dependências:
-
-```bash
-cd client
-rm -rf node_modules dist
-npm install
-npm run build
-```
-
-## 📝 Scripts Disponíveis
-
-### Backend
-
-```bash
-npm run server      # Inicia o servidor em modo desenvolvimento
-npm run build       # Compila o código com Babel
-npm start-prod      # Inicia em modo produção
-npm run reseed      # Recarrega dados no banco
-```
-
-### Frontend
-
-```bash
-npm run dev         # Inicia servidor de desenvolvimento Vite
-npm run build       # Compila para produção
-npm run preview     # Preview da build de produção
-npm run lint        # Executa o linter
-```
-
-## 📄 Licença
-
-Projeto licenciado sob MIT License.
