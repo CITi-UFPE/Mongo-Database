@@ -40,3 +40,5 @@ server/package-lock.json
 server/package.json
 
 server/credenciais_gcp.json
+
+venv/
