@@ -38,3 +38,5 @@ server/src/
 # Lock files (server is Python, not Node)
 server/package-lock.json
 server/package.json
+
+server/credenciais_gcp.json
