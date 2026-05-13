@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from services import analytics_service
 
 from fastapi import Request
 from limiter import limiter
@@ -68,6 +69,28 @@ def _build_system_prompt(context: Optional[AnalyticsContext]) -> str:
     return base
 
 
+def _fetch_analytics_context() -> Optional[AnalyticsContext]:
+    try:
+        total_leads = analytics_service.get_total_leads_periodo()
+        taxa_conversao = analytics_service.get_taxa_conversao()
+        faturamento_info = analytics_service.get_faturamento_e_ticket()
+        previsao = analytics_service.get_previsao_detalhada()
+        meta = float(os.getenv("META_FATURAMENTO", 407000))
+        faturado = faturamento_info.get("faturamento", 0.0)
+        porcentagem = round((faturado / meta) * 100) if meta > 0 else 0
+
+        return AnalyticsContext(
+            total_leads=total_leads,
+            faturamento=faturado,
+            meta=meta,
+            porcentagem_meta=porcentagem,
+            taxa_conversao=taxa_conversao,
+            previsao_realista=previsao.get("previsao_realista"),
+        )
+    except Exception:
+        return None
+
+
 @router.post("/chat")
 @limiter.limit("10/minute")
 async def chat(request: Request, req: ChatRequest):
@@ -82,7 +105,8 @@ async def chat(request: Request, req: ChatRequest):
         if not api_key:
             raise HTTPException(status_code=500, detail="GROQ_API_KEY não configurada")
 
-        system_prompt = _build_system_prompt(req.context)
+        context = req.context or _fetch_analytics_context()
+        system_prompt = _build_system_prompt(context)
 
         # Groq usa "assistant" em vez de "model"
         messages = [{"role": "system", "content": system_prompt}]
