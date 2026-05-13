@@ -1,3 +1,6 @@
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from limiter import limiter
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from routers.pipefy_service import router as integrations_router
@@ -87,6 +90,9 @@ async def lifespan(app: FastAPI):
 
 # Create app FIRST
 app = FastAPI(title="CITi Data Lake", lifespan=lifespan, redirect_slashes=False)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 

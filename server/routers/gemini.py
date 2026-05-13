@@ -6,6 +6,9 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from fastapi import Request
+from limiter import limiter
+
 try:
     from groq import Groq
 except ImportError:
@@ -66,7 +69,8 @@ def _build_system_prompt(context: Optional[AnalyticsContext]) -> str:
 
 
 @router.post("/chat")
-async def chat(req: ChatRequest):
+@limiter.limit("10/minute")
+async def chat(request: Request, req: ChatRequest):
     try:
         if not req.message:
             raise HTTPException(status_code=400, detail="Message is required")
@@ -100,4 +104,9 @@ async def chat(req: ChatRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao processar: {str(e)}")
+        error_msg = str(e)
+        if "api_key" in error_msg.lower() or "authentication" in error_msg.lower():
+            raise HTTPException(status_code=500, detail="Chave da API do Groq inválida ou não configurada.")
+        if "quota" in error_msg.lower() or "rate_limit" in error_msg.lower():
+            raise HTTPException(status_code=503, detail="Cota da API do Groq esgotada. Tente mais tarde.")
+        raise HTTPException(status_code=500, detail="Erro interno ao processar sua mensagem.")
