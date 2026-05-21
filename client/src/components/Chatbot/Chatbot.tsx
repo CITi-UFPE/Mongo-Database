@@ -1,9 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, X, Send, Bot, User, Loader2 } from "lucide-react";
+import { MessageSquare, X, Send, Bot, User, Loader2, Trash2 } from "lucide-react";
 import { apiClient } from "@/services/api";
+import type { AnalyticsPayload } from "@/services/analytics";
 
-export function Chatbot() {
+interface ChatbotProps {
+  analyticsData?: AnalyticsPayload;
+}
+
+export function Chatbot({ analyticsData }: ChatbotProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([
@@ -26,8 +31,24 @@ export function Chatbot() {
     setIsLoading(true);
 
     try {
+      const history = messages.map((msg) => ({
+        role: msg.role === "assistant" ? "model" : "user",
+        parts: [{ text: msg.content }],
+      }));
+
+      const context = analyticsData ? {
+        total_leads: analyticsData.total_leads,
+        faturamento: analyticsData.progresso_meta.faturado,
+        meta: analyticsData.progresso_meta.meta,
+        porcentagem_meta: analyticsData.progresso_meta.porcentagem,
+        taxa_conversao: analyticsData.taxa_conversao,
+        previsao_realista: analyticsData.previsao_faturamento.previsao_realista,
+      } : undefined;
+
       const response = await apiClient.post("/api/gemini/chat", {
         message: userMessage.content,
+        history,
+        context,
       });
 
       const botReply = typeof response.data === "string"
@@ -83,6 +104,15 @@ export function Chatbot() {
                   <p className="text-xs text-teal-400">Online</p>
                 </div>
               </div>
+              <button
+                onClick={() => setMessages([
+                  { role: "assistant", content: "Olá! Sou o Consultor de IA do CITi. Como posso ajudar com a análise desses dados hoje?" }
+                ])}
+                className="text-slate-400 hover:text-slate-200 transition-colors"
+                title="Limpar conversa"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
 
             {/* Área de Mensagens */}

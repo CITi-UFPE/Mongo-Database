@@ -807,7 +807,7 @@ export default function DataVizDashboard() {
       </AnimatePresence>
 
       {/* Chatbot com contexto dos dados da planilha */}
-      <Chatbot />
+      <Chatbot analyticsData={analyticsData ?? undefined} />
     </div>
   );
 }
