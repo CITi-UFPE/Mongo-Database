@@ -15,6 +15,7 @@ import {
   canAccessFinancialAnalytics,
   isPendingAccess,
 } from "./types/auth";
+import { Chatbot } from "@/components/Chatbot/Chatbot";
 
 type ViewMode = "dashboard" | "planilha";
 type DashboardMode = "comercial" | "financeiro";
@@ -456,6 +457,7 @@ export default function App({ defaultViewMode = "planilha" }: AppProps) {
           </main>
         </div>
       </div>
+      <Chatbot analyticsData={data ?? undefined} />
     </div>
   );
 }
