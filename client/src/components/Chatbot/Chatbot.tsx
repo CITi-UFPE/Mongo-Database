@@ -25,9 +25,15 @@ export function Chatbot() {
     setInput("");
     setIsLoading(true);
 
+    const historyToSend = messages.map(msg => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }],
+    }));
+
     try {
       const response = await apiClient.post("/api/gemini/chat", {
         message: userMessage.content,
+        history: historyToSend,
       });
 
       const botReply = typeof response.data === "string"
